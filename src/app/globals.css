@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 220 20% 14%;
+    --card: 0 0% 100%;
+    --card-foreground: 220 20% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 220 20% 14%;
+    --primary: 220 20% 14%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 20% 14%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 220 10% 46%;
+    --accent: 220 14% 96%;
+    --accent-foreground: 220 20% 14%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 14 100% 67%;
+    --radius: 0.625rem;
+    --brand: 14 100% 67%;
+    --brand-foreground: 0 0% 100%;
+    --brand-muted: 14 100% 96%;
+  }
+
+  .dark {
+    --background: 222 22% 9%;
+    --foreground: 210 20% 96%;
+    --card: 222 20% 11%;
+    --card-foreground: 210 20% 96%;
+    --popover: 222 20% 11%;
+    --popover-foreground: 210 20% 96%;
+    --primary: 210 20% 96%;
+    --primary-foreground: 222 22% 9%;
+    --secondary: 222 16% 16%;
+    --secondary-foreground: 210 20% 96%;
+    --muted: 222 16% 16%;
+    --muted-foreground: 215 14% 58%;
+    --accent: 222 16% 16%;
+    --accent-foreground: 210 20% 96%;
+    --destructive: 0 62% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 14% 18%;
+    --input: 222 14% 18%;
+    --ring: 14 100% 67%;
+    --brand: 14 100% 67%;
+    --brand-foreground: 0 0% 100%;
+    --brand-muted: 14 45% 16%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+}
+
+@layer utilities {
+  .kanban-column {
+    @apply rounded-xl border bg-muted/40 p-3;
+  }
+
+  .deal-card {
+    @apply cursor-grab rounded-lg border bg-card p-3 shadow-card transition-shadow active:cursor-grabbing hover:shadow-card-hover;
+  }
+}

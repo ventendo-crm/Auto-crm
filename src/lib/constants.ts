@@ -1,0 +1,85 @@
+import { DealStageType } from "@prisma/client";
+
+export const MAX_PROCESS_ENTRY_MEDIA = 20;
+
+export const STAGE_ORDER: DealStageType[] = [
+  DealStageType.SEARCH,
+  DealStageType.INVOICE,
+  DealStageType.PREPARATION,
+  DealStageType.CUSTOMS,
+  DealStageType.TRANSPORT,
+  DealStageType.DELIVERY,
+];
+
+export const STAGE_LABELS: Record<DealStageType, string> = {
+  [DealStageType.SEARCH]: "Поиск авто",
+  [DealStageType.INVOICE]: "Инвойс",
+  [DealStageType.PREPARATION]: "Подготовка",
+  [DealStageType.CUSTOMS]: "Таможня",
+  [DealStageType.TRANSPORT]: "Транспортировка",
+  [DealStageType.DELIVERY]: "Получение",
+};
+
+export const STAGE_COLORS: Record<DealStageType, string> = {
+  [DealStageType.SEARCH]:
+    "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
+  [DealStageType.INVOICE]:
+    "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950/50 dark:text-orange-300 dark:border-orange-800",
+  [DealStageType.PREPARATION]:
+    "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/50 dark:text-purple-300 dark:border-purple-800",
+  [DealStageType.CUSTOMS]:
+    "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800",
+  [DealStageType.TRANSPORT]:
+    "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-800",
+  [DealStageType.DELIVERY]:
+    "bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/50 dark:text-teal-300 dark:border-teal-800",
+};
+
+export const STAGE_COLUMN_BG: Record<DealStageType, string> = {
+  [DealStageType.SEARCH]: "border-t-blue-400",
+  [DealStageType.INVOICE]: "border-t-orange-400",
+  [DealStageType.PREPARATION]: "border-t-purple-400",
+  [DealStageType.CUSTOMS]: "border-t-rose-400",
+  [DealStageType.TRANSPORT]: "border-t-emerald-400",
+  [DealStageType.DELIVERY]: "border-t-teal-400",
+};
+
+export const DOCUMENT_LABELS = {
+  PASSPORT: "Паспорт",
+  INN: "ИНН",
+  SNILS: "СНИЛС",
+  PAYMENT: "Оплата",
+  INVOICE: "Инвойс",
+  CUSTOMS_DUTY: "Таможенная пошлина",
+  CUSTOMS_DUTY_RECEIPT: "Чек об оплате таможенной пошлины",
+} as const;
+
+export const DOCUMENT_ORDER = [
+  "PASSPORT",
+  "INN",
+  "SNILS",
+  "INVOICE",
+  "PAYMENT",
+  "CUSTOMS_DUTY",
+  "CUSTOMS_DUTY_RECEIPT",
+] as const;
+
+export const DOCUMENT_STATUS_LABELS = {
+  MISSING: "Отсутствует",
+  RECEIVED: "Получен",
+  VERIFIED: "Проверен",
+} as const;
+
+export const ROLE_LABELS: Record<string, string> = {
+  ADMIN: "Администратор",
+  MANAGER: "Менеджер",
+  VIEWER: "Наблюдатель",
+  CLIENT: "Клиент",
+};
+
+export const COMMENT_AUTHOR_ROLE_LABELS: Record<string, string> = {
+  CLIENT: "Клиент",
+  MANAGER: "Менеджер",
+  ADMIN: "Администратор",
+  VIEWER: "Наблюдатель",
+};

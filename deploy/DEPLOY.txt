@@ -1,0 +1,130 @@
+═══════════════════════════════════════════════════════════════════
+  Auto-CRM — деплой на Timeweb VPS (importcrm.ru)
+═══════════════════════════════════════════════════════════════════
+
+СЕРВЕР
+  IP:       186.246.2.139
+  ОС:       Ubuntu 24.04
+  Домен:    importcrm.ru
+  Хранилище: storage.importcrm.ru
+
+DNS (REG.RU)
+  A    importcrm.ru          → 186.246.2.139
+  A    www.importcrm.ru      → 186.246.2.139
+  A    storage.importcrm.ru  → 186.246.2.139
+
+───────────────────────────────────────────────────────────────────
+1. ПОДКЛЮЧЕНИЕ К СЕРВЕРУ
+───────────────────────────────────────────────────────────────────
+
+  Windows (PowerShell):
+    ssh root@186.246.2.139
+
+  Если «Connection timed out»:
+    - Откройте порт 22 в Firewall панели Timeweb
+    - Используйте веб-консоль Timeweb (VNC)
+
+───────────────────────────────────────────────────────────────────
+2. ПЕРВИЧНАЯ НАСТРОЙКА СЕРВЕРА
+───────────────────────────────────────────────────────────────────
+
+  Вариант A — cloud-init при создании VPS:
+    Содержимое файла deploy/cloud-init.yaml
+
+  Вариант B — вручную после SSH:
+    apt update && apt upgrade -y
+    # загрузите проект, затем:
+    sudo bash deploy/scripts/setup-server.sh
+
+───────────────────────────────────────────────────────────────────
+3. ЗАГРУЗКА ПРОЕКТА НА СЕРВЕР
+───────────────────────────────────────────────────────────────────
+
+  Вариант A — Git (рекомендуется):
+    cd /opt
+    git clone <URL-репозитория> auto-crm
+    cd auto-crm
+
+  Вариант B — архив с Windows (PowerShell):
+    # На вашем ПК, из папки проекта:
+    tar -czf auto-crm.tar.gz --exclude=node_modules --exclude=.next --exclude=.git .
+    scp auto-crm.tar.gz root@186.246.2.139:/opt/
+    # На сервере:
+    mkdir -p /opt/auto-crm && cd /opt/auto-crm
+    tar -xzf /opt/auto-crm.tar.gz
+
+───────────────────────────────────────────────────────────────────
+4. НАСТРОЙКА ПЕРЕМЕННЫХ ОКРУЖЕНИЯ
+───────────────────────────────────────────────────────────────────
+
+  cd /opt/auto-crm
+  cp deploy/.env.example deploy/.env
+  nano deploy/.env
+
+  Обязательно замените все CHANGE_ME:
+    POSTGRES_PASSWORD
+    JWT_SECRET          (openssl rand -base64 48)
+    MINIO_ROOT_PASSWORD
+    MINIO_SECRET_KEY
+
+  Первый запуск:
+    RUN_SEED=true
+
+  После входа в систему смените пароль admin и установите:
+    RUN_SEED=false
+  Затем: bash deploy/scripts/deploy.sh
+
+───────────────────────────────────────────────────────────────────
+5. ЗАПУСК ПРИЛОЖЕНИЯ
+───────────────────────────────────────────────────────────────────
+
+  cd /opt/auto-crm
+  bash deploy/scripts/deploy.sh
+
+  Проверка:
+    docker ps
+    curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:3000
+
+───────────────────────────────────────────────────────────────────
+6. NGINX + SSL
+───────────────────────────────────────────────────────────────────
+
+  sudo bash deploy/scripts/install-nginx.sh
+
+  sudo certbot --nginx \
+    -d importcrm.ru \
+    -d www.importcrm.ru \
+    -d storage.importcrm.ru
+
+  Проверка автообновления:
+    certbot renew --dry-run
+
+───────────────────────────────────────────────────────────────────
+7. ПЕРВЫЙ ВХОД
+───────────────────────────────────────────────────────────────────
+
+  URL:      https://importcrm.ru
+  Email:    admin@auto-crm.local
+  Пароль:   password123
+
+  Сразу смените пароль в профиле!
+
+───────────────────────────────────────────────────────────────────
+8. ОБНОВЛЕНИЕ ПРИЛОЖЕНИЯ
+───────────────────────────────────────────────────────────────────
+
+  cd /opt/auto-crm
+  git pull
+  bash deploy/scripts/deploy.sh
+
+───────────────────────────────────────────────────────────────────
+СТРУКТУРА deploy/
+───────────────────────────────────────────────────────────────────
+
+  docker-compose.prod.yml   — production Docker Compose
+  .env.example              — шаблон секретов → скопировать в .env
+  nginx/                    — конфиги для Nginx
+  scripts/setup-server.sh   — установка Docker, Nginx, ufw
+  scripts/deploy.sh         — сборка и запуск
+  scripts/install-nginx.sh  — установка nginx-конфигов
+  cloud-init.yaml           — для Timeweb при создании VPS

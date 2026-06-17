@@ -1,0 +1,310 @@
+"use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { useParams } from "next/navigation";
+import { toast } from "sonner";
+
+import { MediaGallery } from "@/components/media/media-gallery";
+import { DealActivityTimeline } from "@/components/deals/deal-activity-timeline";
+import { DealClientAccount } from "@/components/deals/deal-client-account";
+import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
+import { DealComments } from "@/components/deals/deal-comments";
+import { DealDocuments } from "@/components/deals/deal-documents";
+import { DealHeader } from "@/components/deals/deal-header";
+import { DealInfo } from "@/components/deals/deal-info";
+import { DealImportProcess } from "@/components/deals/deal-import-process";
+import { DealImportProcessToggle } from "@/components/deals/deal-import-process-toggle";
+import { DealOverviewSummary } from "@/components/deals/deal-overview-summary";
+import { DealSearchProcess } from "@/components/deals/deal-search-process";
+import { DealManagerSelector } from "@/components/deals/deal-manager-selector";
+import { DealStageSelector } from "@/components/deals/deal-stage-selector";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+import { useAuth } from "@/hooks/use-auth";
+import { api } from "@/lib/api-client";
+import { canManageDealClient } from "@/lib/permissions";
+import { DealActivityItem } from "@/lib/services/deal-activity";
+import { DealDetail } from "@/lib/types";
+import { formatDate } from "@/lib/utils";
+
+export default function DealPage() {
+  const params = useParams<{ id: string }>();
+  const { user, loading: authLoading } = useAuth();
+
+  const [deal, setDeal] = useState<DealDetail | null>(null);
+  const [activity, setActivity] = useState<DealActivityItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const canManageDeal = deal ? canManageDealClient(user, deal.managerId) : false;
+
+  const canDeleteDeal = canManageDeal;
+
+  const canUploadMedia = canManageDeal;
+
+  const refreshDeal = useCallback(async () => {
+    if (!params.id) return;
+
+    try {
+      const [data, activityData] = await Promise.all([
+        api.deals.get(params.id),
+        api.deals.activity(params.id),
+      ]);
+      setDeal(data);
+      setActivity(activityData);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Не удалось обновить данные сделки",
+      );
+    }
+  }, [params.id]);
+
+  const refreshActivity = useCallback(async () => {
+    if (!params.id) return;
+
+    try {
+      const activityData = await api.deals.activity(params.id);
+      setActivity(activityData);
+    } catch {
+      // история не критична для работы карточки
+    }
+  }, [params.id]);
+
+  const load = useCallback(async () => {
+    if (!params.id) return;
+
+    setLoading(true);
+
+    try {
+      const [data, activityData] = await Promise.all([
+        api.deals.get(params.id),
+        api.deals.activity(params.id),
+      ]);
+      setDeal(data);
+      setActivity(activityData);
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Сделка не найдена"
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [params.id]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  if (loading || authLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-32 w-full" />
+        <Skeleton className="h-64 w-full" />
+      </div>
+    );
+  }
+
+  if (!deal) {
+    return (
+      <div className="flex h-full items-center justify-center text-muted-foreground">
+        Сделка не найдена
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <DealHeader deal={deal} canDelete={canDeleteDeal} />
+
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <span className="text-sm text-muted-foreground">Этап:</span>
+            <DealStageSelector
+              dealId={deal.id}
+              currentStage={deal.currentStage}
+              managerId={deal.managerId}
+              onChanged={refreshDeal}
+            />
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <span className="text-sm text-muted-foreground">Менеджер:</span>
+            <DealManagerSelector
+              dealId={deal.id}
+              managerId={deal.managerId}
+              managerName={deal.manager.name}
+              onChanged={refreshDeal}
+            />
+          </div>
+        </div>
+
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <div className="-mx-1 overflow-x-auto pb-1">
+            <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
+            <TabsTrigger value="overview">
+              Обзор
+            </TabsTrigger>
+
+            <TabsTrigger value="documents">
+              Документы
+            </TabsTrigger>
+
+            <TabsTrigger value="search-process">
+              Процесс поиска
+            </TabsTrigger>
+
+            <TabsTrigger value="additional-options">
+              Дополнительные опции
+            </TabsTrigger>
+
+            {deal.importProcessEnabled && (
+              <TabsTrigger value="import-process">
+                Процесс импорта авто
+              </TabsTrigger>
+            )}
+
+            <TabsTrigger value="history">
+              История
+            </TabsTrigger>
+
+            <TabsTrigger value="comments">
+              Комментарии и пожелания
+            </TabsTrigger>
+
+            <TabsTrigger value="media">
+              Медиа{" "}
+              {deal.media?.length
+                ? `(${deal.media.length})`
+                : ""}
+            </TabsTrigger>
+          </TabsList>
+          </div>
+
+          <TabsContent value="overview" className="space-y-4">
+            <DealOverviewSummary
+              dealId={deal.id}
+              carBrand={deal.carBrand}
+              carModel={deal.carModel}
+              carYear={deal.carYear}
+              active={activeTab === "overview"}
+            />
+
+            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-4">
+              <DealInfo deal={deal} onUpdated={refreshDeal} canEdit={canManageDeal} />
+              <DealImportProcessToggle
+                dealId={deal.id}
+                enabled={deal.importProcessEnabled}
+                canManage={canManageDeal}
+                onChanged={refreshDeal}
+              />
+            </div>
+
+            <DealClientAccount
+              deal={deal}
+              canManage={canManageDeal}
+              onUpdated={refreshDeal}
+            />
+
+            {deal.shipment && (
+              <Card className="border-0 shadow-card">
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Логистика
+                  </CardTitle>
+                </CardHeader>
+
+                <CardContent className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    ["Покупка", deal.shipment.purchaseDate],
+                    ["Отправка", deal.shipment.shippingDate],
+                    ["Ожидаемое прибытие", deal.shipment.expectedArrival],
+                    ["Фактическое прибытие", deal.shipment.actualArrival],
+                    ["Таможня", deal.shipment.customsCompleted],
+                  ].map(([label, value]) => (
+                    <div
+                      key={String(label)}
+                      className="rounded-lg border p-3"
+                    >
+                      <p className="text-xs text-muted-foreground">
+                        {label}
+                      </p>
+
+                      <p className="mt-1 text-sm font-medium">
+                        {formatDate(
+                          value as string | null
+                        )}
+                      </p>
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
+            </div>
+          </TabsContent>
+
+          <TabsContent value="documents">
+            <DealDocuments
+              dealId={deal.id}
+              documents={deal.documents}
+              managerId={deal.managerId}
+              onUpdated={refreshDeal}
+              canUpload={canManageDeal}
+            />
+          </TabsContent>
+
+          <TabsContent value="search-process">
+            <DealSearchProcess
+              dealId={deal.id}
+              canEdit={canManageDeal}
+              onChanged={refreshActivity}
+            />
+          </TabsContent>
+
+          <TabsContent value="additional-options">
+            <DealAdditionalOptions dealId={deal.id} onChanged={refreshActivity} />
+          </TabsContent>
+
+          {deal.importProcessEnabled && (
+            <TabsContent value="import-process">
+              <DealImportProcess
+                dealId={deal.id}
+                canEdit={canManageDeal}
+                onChanged={refreshActivity}
+              />
+            </TabsContent>
+          )}
+
+          <TabsContent value="history">
+            <DealActivityTimeline activity={activity} />
+          </TabsContent>
+
+          <TabsContent value="comments">
+            <DealComments
+              dealId={deal.id}
+              managerId={deal.managerId}
+              clientUserId={deal.clientUserId}
+              initialComments={deal.comments}
+              onUpdate={refreshDeal}
+              pollingEnabled={activeTab === "comments"}
+            />
+          </TabsContent>
+
+          <TabsContent value="media">
+            <MediaGallery
+              dealId={deal.id}
+              initialMedia={deal.media ?? []}
+              canUpload={canUploadMedia}
+              onUpdate={refreshDeal}
+            />
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+}
