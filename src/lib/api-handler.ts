@@ -15,10 +15,10 @@ type PublicRouteHandler = (
 ) => Promise<NextResponse>;
 
 export function withAuth(handler: RouteHandler) {
-  return async (request: Request, routeContext?: { params: Promise<Record<string, string>> }) => {
+  return async (request: Request, routeContext: { params: Promise<Record<string, string>> }) => {
     try {
       const user = await requireAuth(request);
-      const params = routeContext?.params ? await routeContext.params : {};
+      const params = await routeContext.params;
       return await handler(request, { user, params });
     } catch (err) {
       return handleError(err);
@@ -27,9 +27,9 @@ export function withAuth(handler: RouteHandler) {
 }
 
 export function withPublic(handler: PublicRouteHandler) {
-  return async (request: Request, routeContext?: { params: Promise<Record<string, string>> }) => {
+  return async (request: Request, routeContext: { params: Promise<Record<string, string>> }) => {
     try {
-      const params = routeContext?.params ? await routeContext.params : {};
+      const params = await routeContext.params;
       return await handler(request, { params });
     } catch (err) {
       return handleError(err);

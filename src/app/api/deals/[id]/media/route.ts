@@ -1,5 +1,5 @@
 import { withAuth, assertFound } from "@/lib/api-handler";
-import { created, ok } from "@/lib/api-response";
+import { created, error, ok } from "@/lib/api-response";
 import { getDeal } from "@/lib/services/deals";
 import { listDealMedia, uploadDealMedia } from "@/lib/services/media";
 import { serialize } from "@/lib/serialize";
@@ -27,7 +27,7 @@ export const POST = withAuth(async (request, { user, params }) => {
   }
 
   if (files.length === 0) {
-    return Response.json({ success: false, error: "No files provided" }, { status: 400 });
+    return error("No files provided", 400);
   }
 
   const uploaded = [];

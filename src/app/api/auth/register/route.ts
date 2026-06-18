@@ -1,6 +1,6 @@
 import { hashPassword } from "@/lib/auth";
 import { withAuth, assertAllowed } from "@/lib/api-handler";
-import { created } from "@/lib/api-response";
+import { created, error, notFound } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { canManageUsers } from "@/lib/permissions";
 import { serialize } from "@/lib/serialize";
@@ -14,21 +14,18 @@ export const POST = withAuth(async (request, { user }) => {
 
   const role = await prisma.role.findUnique({ where: { id: body.roleId } });
   if (!role) {
-    return Response.json({ success: false, error: "Роль не найдена" }, { status: 404 });
+    return notFound("Роль не найдена");
   }
 
   if (role.name === "ADMIN") {
-    return Response.json(
-      { success: false, error: "Создание администратора через эту форму запрещено" },
-      { status: 403 },
-    );
+    return error("Создание администратора через эту форму запрещено", 403);
   }
 
   const existing = await prisma.user.findUnique({
     where: { email: body.email.toLowerCase() },
   });
   if (existing) {
-    return Response.json({ success: false, error: "Email уже зарегистрирован" }, { status: 409 });
+    return error("Email уже зарегистрирован", 409);
   }
 
   const passwordHash = await hashPassword(body.password);

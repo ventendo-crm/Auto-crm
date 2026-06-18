@@ -22,7 +22,7 @@ export const POST = withAuth(async (request, { user, params }) => {
   }
 
   if (files.length === 0) {
-    return Response.json({ success: false, error: "Файлы не выбраны" }, { status: 400 });
+    return error("Файлы не выбраны", 400);
   }
 
   const { prisma } = await import("@/lib/prisma");
@@ -32,16 +32,13 @@ export const POST = withAuth(async (request, { user, params }) => {
   });
 
   if (!entry) {
-    return Response.json({ success: false, error: "Not found" }, { status: 404 });
+    return error("Not found", 404);
   }
 
   if (entry._count.media + files.length > MAX_PROCESS_ENTRY_MEDIA) {
-    return Response.json(
-      {
-        success: false,
-        error: `Можно загрузить ещё ${Math.max(0, MAX_PROCESS_ENTRY_MEDIA - entry._count.media)} файл(ов)`,
-      },
-      { status: 400 },
+    return error(
+      `Можно загрузить ещё ${Math.max(0, MAX_PROCESS_ENTRY_MEDIA - entry._count.media)} файл(ов)`,
+      400,
     );
   }
 
