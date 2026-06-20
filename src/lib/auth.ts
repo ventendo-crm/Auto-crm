@@ -8,13 +8,20 @@ const TOKEN_TTL = "7d";
 
 export const AUTH_COOKIE_NAME = COOKIE_NAME;
 
-const AUTH_COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  path: "/",
-  maxAge: 60 * 60 * 24 * 7,
-};
+export function getAuthCookieOptions() {
+  // COOKIE_SECURE=false — для входа по http:// (IP без SSL). По https:// — true или не задавать.
+  const secure =
+    process.env.COOKIE_SECURE === "true" ||
+    (process.env.NODE_ENV === "production" && process.env.COOKIE_SECURE !== "false");
+
+  return {
+    httpOnly: true,
+    secure,
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 60 * 60 * 24 * 7,
+  };
+}
 
 export interface SessionPayload {
   sub: string;
@@ -199,7 +206,7 @@ export function setAuthCookie(response: Response, token: string): void {
   if (!(response instanceof Response)) return;
 
   const nextResponse = response as import("next/server").NextResponse;
-  nextResponse.cookies.set(COOKIE_NAME, token, AUTH_COOKIE_OPTIONS);
+  nextResponse.cookies.set(COOKIE_NAME, token, getAuthCookieOptions());
 }
 
 export function clearAuthCookie(response: Response): void {
@@ -207,7 +214,7 @@ export function clearAuthCookie(response: Response): void {
 
   const nextResponse = response as import("next/server").NextResponse;
   nextResponse.cookies.set(COOKIE_NAME, "", {
-    ...AUTH_COOKIE_OPTIONS,
+    ...getAuthCookieOptions(),
     maxAge: 0,
   });
 }

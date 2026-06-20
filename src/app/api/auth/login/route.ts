@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSessionToken } from "@/lib/auth";
+import { createSessionToken, getAuthCookieOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { isRoleName } from "@/lib/permissions";
 import { serialize } from "@/lib/serialize";
@@ -71,13 +71,7 @@ export async function POST(req: Request) {
       },
     });
 
-    response.cookies.set("auth-token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-    });
+    response.cookies.set("auth-token", token, getAuthCookieOptions());
 
     return response;
   } catch (error) {

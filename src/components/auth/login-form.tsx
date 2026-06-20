@@ -71,7 +71,7 @@ export function LoginForm() {
             </Button>
           </form>
           <p className="mt-4 text-center text-xs text-muted-foreground">
-            Seed: admin@crm.com / 12345678
+            Seed: admin@auto-crm.local / password123
           </p>
         </CardContent>
       </Card>

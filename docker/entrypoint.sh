@@ -8,7 +8,11 @@ fi
 
 if [ "$RUN_SEED" = "true" ]; then
   echo "[auto-crm] Seeding database..."
-  npx prisma db seed || echo "[auto-crm] Seed skipped or failed"
+  if [ -f ./node_modules/.bin/tsx ]; then
+    ./node_modules/.bin/tsx prisma/seed.ts || echo "[auto-crm] Seed skipped or failed"
+  else
+    npx tsx prisma/seed.ts || echo "[auto-crm] Seed skipped or failed"
+  fi
 fi
 
 echo "[auto-crm] Starting application on port ${PORT:-3000}..."
