@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "DealStageType" ADD VALUE 'LEADS' BEFORE 'SEARCH';

@@ -162,7 +162,7 @@ export async function getDeal(id: string) {
 
 export async function createDeal(user: AuthUser, input: CreateDealInput) {
   const managerId = await resolveCreateManagerId(user, input.managerId);
-  const stage = input.currentStage ?? DealStageType.SEARCH;
+  const stage = input.currentStage ?? DealStageType.LEADS;
   const now = new Date();
 
   const deal = await prisma.$transaction(async (tx) => {

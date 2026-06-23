@@ -3,6 +3,7 @@ import { DealStageType } from "@prisma/client";
 export const MAX_PROCESS_ENTRY_MEDIA = 20;
 
 export const STAGE_ORDER: DealStageType[] = [
+  DealStageType.LEADS,
   DealStageType.SEARCH,
   DealStageType.INVOICE,
   DealStageType.PREPARATION,
@@ -12,6 +13,7 @@ export const STAGE_ORDER: DealStageType[] = [
 ];
 
 export const STAGE_LABELS: Record<DealStageType, string> = {
+  [DealStageType.LEADS]: "Лиды",
   [DealStageType.SEARCH]: "Поиск авто",
   [DealStageType.INVOICE]: "Инвойс",
   [DealStageType.PREPARATION]: "Подготовка",
@@ -21,6 +23,8 @@ export const STAGE_LABELS: Record<DealStageType, string> = {
 };
 
 export const STAGE_COLORS: Record<DealStageType, string> = {
+  [DealStageType.LEADS]:
+    "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
   [DealStageType.SEARCH]:
     "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800",
   [DealStageType.INVOICE]:
@@ -36,6 +40,7 @@ export const STAGE_COLORS: Record<DealStageType, string> = {
 };
 
 export const STAGE_COLUMN_BG: Record<DealStageType, string> = {
+  [DealStageType.LEADS]: "border-t-amber-400",
   [DealStageType.SEARCH]: "border-t-blue-400",
   [DealStageType.INVOICE]: "border-t-orange-400",
   [DealStageType.PREPARATION]: "border-t-purple-400",

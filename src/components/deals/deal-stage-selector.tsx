@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { STAGE_LABELS } from "@/lib/constants";
+import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
 import { canManageDealClient } from "@/lib/permissions";
@@ -54,7 +54,7 @@ export function DealStageSelector({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        {Object.values(DealStageType).map((stage) => (
+        {STAGE_ORDER.map((stage) => (
           <SelectItem key={stage} value={stage}>
             {STAGE_LABELS[stage]}
           </SelectItem>

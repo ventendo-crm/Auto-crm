@@ -293,6 +293,7 @@ model AuditLog {
 }
 
 enum DealStageType {
+  LEADS
   SEARCH
   INVOICE
   PREPARATION
