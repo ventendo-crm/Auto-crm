@@ -9,7 +9,7 @@ const fields: Array<{
   label: string;
   value: (deal: DealDetail) => string;
 }> = [
-  { label: "Менеджер", value: (d) => d.manager.name },
+  { label: "Менеджер", value: (d) => d.manager?.name ?? "Не назначен" },
   { label: "Клиент", value: (d) => d.clientName },
   { label: "Телефон", value: (d) => d.phone ?? "—" },
   { label: "Email", value: (d) => d.email ?? "—" },

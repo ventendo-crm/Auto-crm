@@ -1,7 +1,7 @@
 "use client";
 
 import { DocumentType } from "@prisma/client";
-import { Download, ExternalLink, FileText, Loader2, Upload } from "lucide-react";
+import { CheckCircle2, Download, ExternalLink, FileText, Loader2, Upload, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -37,20 +37,26 @@ function isLocalUpload(fileUrl: string): boolean {
   return fileUrl.startsWith("/api/uploads/");
 }
 
-function getDownloadUrl(fileUrl: string): string {
-  return isLocalUpload(fileUrl) ? `${fileUrl}?download=1` : fileUrl;
+function getDocumentFileUrl(dealId: string, type: DocumentType, download: boolean): string {
+  const base = `/api/deals/${dealId}/documents/${type}/file`;
+  return download ? `${base}?download=1` : base;
 }
 
-function getOpenUrl(fileUrl: string): string {
-  return fileUrl;
+function getDownloadUrl(dealId: string, type: DocumentType, fileUrl: string): string {
+  return isLocalUpload(fileUrl) ? getDocumentFileUrl(dealId, type, true) : fileUrl;
+}
+
+function getOpenUrl(dealId: string, type: DocumentType, fileUrl: string): string {
+  return isLocalUpload(fileUrl) ? getDocumentFileUrl(dealId, type, false) : fileUrl;
 }
 
 interface DealDocumentsProps {
   dealId: string;
   documents: DocumentItem[];
-  managerId: string;
+  managerId: string | null;
   onUpdated?: () => void;
   canUpload?: boolean;
+  canVerify?: boolean;
 }
 
 export function DealDocuments({
@@ -59,12 +65,15 @@ export function DealDocuments({
   managerId,
   onUpdated,
   canUpload: canUploadProp,
+  canVerify: canVerifyProp = false,
 }: DealDocumentsProps) {
   const { user } = useAuth();
   const inputRefs = useRef<Partial<Record<DocumentType, HTMLInputElement | null>>>({});
   const [uploadingType, setUploadingType] = useState<DocumentType | null>(null);
+  const [statusUpdatingType, setStatusUpdatingType] = useState<DocumentType | null>(null);
 
   const canUpload = canUploadProp ?? canManageDealClient(user, managerId);
+  const canVerify = canVerifyProp;
 
   const documentsByType = Object.fromEntries(
     documents.map((doc) => [doc.type, doc]),
@@ -85,6 +94,21 @@ export function DealDocuments({
     }
   };
 
+  const handleStatusChange = async (type: DocumentType, status: "RECEIVED" | "VERIFIED") => {
+    setStatusUpdatingType(type);
+    try {
+      await api.documents.updateStatus(dealId, type, status);
+      toast.success(
+        status === "VERIFIED" ? `${DOCUMENT_LABELS[type]} проверен` : "Проверка снята",
+      );
+      onUpdated?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Ошибка обновления статуса");
+    } finally {
+      setStatusUpdatingType(null);
+    }
+  };
+
   return (
     <Card className="border-0 shadow-card">
       <CardHeader>
@@ -96,6 +120,7 @@ export function DealDocuments({
           const hasFile = Boolean(doc?.fileUrl);
           const fileName = doc?.fileUrl ? getFileNameFromUrl(doc.fileUrl) : null;
           const isUploading = uploadingType === type;
+          const isUpdatingStatus = statusUpdatingType === type;
 
           return (
             <div
@@ -138,7 +163,7 @@ export function DealDocuments({
                 {hasFile && doc?.fileUrl && (
                   <>
                     <Button variant="outline" size="sm" asChild>
-                      <a href={getOpenUrl(doc.fileUrl)} target="_blank" rel="noreferrer">
+                      <a href={getOpenUrl(dealId, type, doc.fileUrl)} target="_blank" rel="noreferrer">
                         <ExternalLink className="h-4 w-4" />
                         Открыть
                       </a>
@@ -146,7 +171,7 @@ export function DealDocuments({
 
                     <Button variant="outline" size="sm" asChild>
                       <a
-                        href={getDownloadUrl(doc.fileUrl)}
+                        href={getDownloadUrl(dealId, type, doc.fileUrl)}
                         download={isLocalUpload(doc.fileUrl) ? (fileName ?? undefined) : undefined}
                       >
                         <Download className="h-4 w-4" />
@@ -154,6 +179,38 @@ export function DealDocuments({
                       </a>
                     </Button>
                   </>
+                )}
+
+                {canVerify && hasFile && doc?.status === "RECEIVED" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdatingStatus}
+                    onClick={() => void handleStatusChange(type, "VERIFIED")}
+                  >
+                    {isUpdatingStatus ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4" />
+                    )}
+                    Проверить
+                  </Button>
+                )}
+
+                {canVerify && hasFile && doc?.status === "VERIFIED" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={isUpdatingStatus}
+                    onClick={() => void handleStatusChange(type, "RECEIVED")}
+                  >
+                    {isUpdatingStatus ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <XCircle className="h-4 w-4" />
+                    )}
+                    Снять проверку
+                  </Button>
                 )}
 
                 {canUpload && (

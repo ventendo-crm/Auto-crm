@@ -1,11 +1,11 @@
 import { MediaType, Prisma } from "@prisma/client";
 import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
-import { AuthUser, canUpdateDeal, canViewAllDeals } from "@/lib/permissions";
+import { AuthUser, canUpdateDeal, canViewDeal } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
 import {
+  openStoredMediaFile,
   removeMediaFile,
-  resolveMediaUrl,
   storeMediaFile,
 } from "@/lib/storage/media-storage";
 import {
@@ -39,9 +39,16 @@ export interface MediaWithUrls {
 
 export const SEARCH_PROCESS_MEDIA_INCLUDE = mediaInclude;
 
+function buildMediaFileUrl(mediaId: string, variant: "full" | "thumb" = "full"): string {
+  if (variant === "thumb") {
+    return `/api/media/${mediaId}/file?variant=thumb`;
+  }
+  return `/api/media/${mediaId}/file`;
+}
+
 async function enrichMedia(media: MediaRecord): Promise<MediaWithUrls> {
-  const fileUrl = await resolveMediaUrl(media.fileUrl);
-  const thumbnailUrl = media.thumbnailUrl ? await resolveMediaUrl(media.thumbnailUrl) : null;
+  const fileUrl = buildMediaFileUrl(media.id);
+  const thumbnailUrl = media.thumbnailUrl ? buildMediaFileUrl(media.id, "thumb") : null;
 
   return {
     id: media.id,
@@ -65,7 +72,10 @@ export async function enrichMediaRecord(media: MediaRecord): Promise<MediaWithUr
 }
 
 async function assertDealAccess(user: AuthUser, dealId: string, write = false) {
-  const deal = await prisma.deal.findUnique({ where: { id: dealId } });
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { managerId: true, clientUserId: true },
+  });
   if (!deal) {
     throw new Error("Not found");
   }
@@ -74,7 +84,7 @@ async function assertDealAccess(user: AuthUser, dealId: string, write = false) {
     if (!canUpdateDeal(user.role, user.id, deal.managerId)) {
       throw new Error("Forbidden");
     }
-  } else if (!canViewAllDeals(user.role) && deal.managerId !== user.id) {
+  } else if (!canViewDeal(user.role, user.id, deal)) {
     throw new Error("Forbidden");
   }
 
@@ -272,7 +282,41 @@ export async function getMediaById(user: AuthUser, mediaId: string) {
 
   if (media.dealId) {
     await assertDealAccess(user, media.dealId);
+  } else if (user.role !== "ADMIN") {
+    throw new Error("Forbidden");
   }
 
   return enrichMedia(media);
+}
+
+export async function streamMediaFile(
+  user: AuthUser,
+  mediaId: string,
+  variant: "full" | "thumb" = "full",
+) {
+  const media = await prisma.mediaFile.findUnique({
+    where: { id: mediaId },
+    select: {
+      id: true,
+      fileName: true,
+      fileUrl: true,
+      thumbnailUrl: true,
+      dealId: true,
+    },
+  });
+
+  if (!media) {
+    throw new Error("Not found");
+  }
+
+  if (media.dealId) {
+    await assertDealAccess(user, media.dealId);
+  } else if (user.role !== "ADMIN") {
+    throw new Error("Forbidden");
+  }
+
+  const storedKey =
+    variant === "thumb" && media.thumbnailUrl ? media.thumbnailUrl : media.fileUrl;
+
+  return openStoredMediaFile(storedKey, media.fileName);
 }

@@ -47,7 +47,7 @@ export interface DealListItem {
   balance?: number | null;
   destinationCity: string;
   destinationCountry: string;
-  managerId: string;
+  managerId: string | null;
   clientUserId?: string | null;
   clientUser?: {
     id: string;
@@ -62,7 +62,7 @@ export interface DealListItem {
   importProcessEnabled: boolean;
   createdAt: string;
   updatedAt: string;
-  manager: DealManager;
+  manager: DealManager | null;
   _count?: {
     comments: number;
     tasks: number;
@@ -224,7 +224,7 @@ export interface DashboardRecentDeal {
   expectedArrival: string | null;
   prepayment: number | null;
   updatedAt: string;
-  manager: { id: string; name: string };
+  manager: { id: string; name: string } | null;
 }
 
 export interface DashboardManagerStat {
@@ -253,7 +253,8 @@ export interface ClientPortalDeal {
   stageLabel: string;
   expectedArrival?: string | null;
   actualArrival?: string | null;
-  manager: DealManager;
+  managerId: string | null;
+  manager: DealManager | null;
   documents: {
     id: string;
     dealId: string;

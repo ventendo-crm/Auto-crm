@@ -77,10 +77,10 @@ async function assertValidManagerId(managerId: string) {
   }
 }
 
-function resolveCreateManagerId(user: AuthUser, inputManagerId?: string): Promise<string> {
+function resolveCreateManagerId(user: AuthUser, inputManagerId?: string | null): Promise<string | null> {
   if (user.role === ROLES.ADMIN) {
     if (!inputManagerId) {
-      throw new Error("Укажите менеджера для сделки");
+      return Promise.resolve(null);
     }
     return assertValidManagerId(inputManagerId).then(() => inputManagerId);
   }
@@ -90,11 +90,18 @@ function resolveCreateManagerId(user: AuthUser, inputManagerId?: string): Promis
 
 async function resolveUpdateManagerId(
   user: AuthUser,
-  existingManagerId: string,
-  inputManagerId?: string,
-): Promise<string | undefined> {
+  existingManagerId: string | null,
+  inputManagerId?: string | null,
+): Promise<string | null | undefined> {
   if (inputManagerId === undefined) {
     return undefined;
+  }
+
+  if (inputManagerId === null) {
+    if (user.role !== ROLES.ADMIN) {
+      throw new Error("Только администратор может переназначать менеджера");
+    }
+    return null;
   }
 
   if (inputManagerId === existingManagerId) {
@@ -339,20 +346,24 @@ export async function changeDealStage(user: AuthUser, id: string, toStage: DealS
     console.error("[deals] audit log failed after stage change:", error);
   }
 
-  void notifyStageChange({
-    dealId: id,
-    clientName: deal.clientName,
-    vin: deal.vin,
-    fromStage,
-    toStage,
-    manager: {
-      id: deal.manager.id,
-      name: deal.manager.name,
-    },
-    changedBy: user,
-  }).catch((error) => {
+  try {
+    await notifyStageChange({
+      dealId: id,
+      clientName: deal.clientName,
+      vin: deal.vin,
+      fromStage,
+      toStage,
+      manager: deal.manager
+        ? {
+            id: deal.manager.id,
+            name: deal.manager.name,
+          }
+        : null,
+      changedBy: user,
+    });
+  } catch (error) {
     console.error("[deals] notification failed after stage change:", error);
-  });
+  }
 
   return { deal, history };
 }

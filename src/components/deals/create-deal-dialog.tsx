@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ManagerSelect } from "@/components/deals/manager-select";
-import { Button } from "@/components/ui/button";import {
+import { Button } from "@/components/ui/button";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -41,18 +42,13 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (isAdmin && !form.managerId) {
-      toast.error("Выберите менеджера для сделки");
-      return;
-    }
-
     setLoading(true);
     try {
       await api.deals.create({
         ...form,
         prepayment: form.prepayment ? Number(form.prepayment) : undefined,
         carYear: undefined,
-        managerId: isAdmin ? form.managerId : undefined,
+        managerId: isAdmin && form.managerId ? form.managerId : undefined,
       });
       toast.success("Сделка создана");
       setOpen(false);
@@ -93,25 +89,27 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
             </div>
             {isAdmin && (
               <div className="space-y-2 sm:col-span-2">
-                <Label>Менеджер</Label>
+                <Label>Менеджер (необязательно)</Label>
                 <ManagerSelect
+                  allowEmpty
                   value={form.managerId}
                   onValueChange={(managerId) => setForm({ ...form, managerId })}
                 />
               </div>
-            )}            <div className="space-y-2 sm:col-span-2">
-  <Label>VIN (необязательно)</Label>
-  <Input
-    placeholder="Введите VIN при наличии"
-    value={form.vin}
-    onChange={(e) =>
-      setForm({
-        ...form,
-        vin: e.target.value.toUpperCase(),
-      })
-    }
-  />
-</div>
+            )}
+            <div className="space-y-2 sm:col-span-2">
+              <Label>VIN (необязательно)</Label>
+              <Input
+                placeholder="Введите VIN при наличии"
+                value={form.vin}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    vin: e.target.value.toUpperCase(),
+                  })
+                }
+              />
+            </div>
             <div className="space-y-2">
               <Label>Марка</Label>
               <Input

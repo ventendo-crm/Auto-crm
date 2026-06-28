@@ -57,6 +57,8 @@ export const DOCUMENT_LABELS = {
   INVOICE: "Инвойс",
   CUSTOMS_DUTY: "Таможенная пошлина",
   CUSTOMS_DUTY_RECEIPT: "Чек об оплате таможенной пошлины",
+  BROKER_SERVICES_RECEIPT: "Квитанция услуг брокера",
+  BROKER_PAYMENT_RECEIPT: "Чек об оплате услуг брокера",
 } as const;
 
 export const DOCUMENT_ORDER = [
@@ -67,6 +69,8 @@ export const DOCUMENT_ORDER = [
   "PAYMENT",
   "CUSTOMS_DUTY",
   "CUSTOMS_DUTY_RECEIPT",
+  "BROKER_SERVICES_RECEIPT",
+  "BROKER_PAYMENT_RECEIPT",
 ] as const;
 
 export const DOCUMENT_STATUS_LABELS = {

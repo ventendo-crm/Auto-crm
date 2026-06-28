@@ -76,6 +76,7 @@ services:
       MINIO_REGION: ${MINIO_REGION:-us-east-1}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
       RUN_SEED: ${RUN_SEED:-false}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
     depends_on:
@@ -85,6 +86,8 @@ services:
         condition: service_healthy
       minio:
         condition: service_started
+    volumes:
+      - uploads_data:/app/uploads
     networks:
       - auto-crm-net
 
@@ -96,3 +99,4 @@ volumes:
   postgres_data:
   redis_data:
   minio_data:
+  uploads_data:

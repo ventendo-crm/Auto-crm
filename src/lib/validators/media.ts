@@ -46,3 +46,20 @@ export function detectMediaTypeFromFile(file: File): MediaType | null {
 export function getMaxSizeForType(type: MediaType): number {
   return type === MediaType.PHOTO ? MAX_PHOTO_SIZE : MAX_VIDEO_SIZE;
 }
+
+const EXTENSION_CONTENT_TYPE: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  gif: "image/gif",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  mov: "video/quicktime",
+};
+
+export function guessMediaContentType(fileName: string): string {
+  const extension = fileName.split(".").pop()?.toLowerCase();
+  if (!extension) return "application/octet-stream";
+  return EXTENSION_CONTENT_TYPE[extension] ?? "application/octet-stream";
+}

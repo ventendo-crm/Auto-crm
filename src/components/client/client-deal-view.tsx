@@ -3,6 +3,7 @@
 import { MediaType } from "@prisma/client";
 import { useCallback, useEffect, useState } from "react";
 import {
+  Download,
   Play,
   Search,
 } from "lucide-react";
@@ -13,6 +14,7 @@ import { DealImportProcess } from "@/components/deals/deal-import-process";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
 import { DealDocuments } from "@/components/deals/deal-documents";
+import { DealLogistics } from "@/components/deals/deal-logistics";
 import { SearchProcessLinksPanel } from "@/components/deals/search-process-links";
 import { SearchProcessVariantFeedback } from "@/components/client/search-process-variant-feedback";
 import { MediaGallery } from "@/components/media/media-gallery";
@@ -24,9 +26,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
 import { STAGE_COLORS } from "@/lib/constants";
+import { getMediaDownloadUrl } from "@/lib/media-urls";
 import { ClientPortalDeal, MediaItem } from "@/lib/types";
 import { DealActivityItem } from "@/lib/services/deal-activity";
-import { cn, formatDate, formatFileSize } from "@/lib/utils";
+import { formatDate, formatFileSize } from "@/lib/utils";
 
 interface PreviewState {
   items: MediaItem[];
@@ -123,8 +126,10 @@ export function ClientDealView() {
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Менеджер</p>
-            <p className="text-sm">{deal.manager.name}</p>
-            <p className="text-xs text-muted-foreground">{deal.manager.email}</p>
+            <p className="text-sm">{deal.manager?.name ?? "Не назначен"}</p>
+            {deal.manager?.email && (
+              <p className="text-xs text-muted-foreground">{deal.manager.email}</p>
+            )}
           </div>
           <div>
             <p className="text-xs text-muted-foreground">Ожидаемое прибытие</p>
@@ -154,7 +159,7 @@ export function ClientDealView() {
               Медиа{deal.media.length > 0 ? ` (${deal.media.length})` : ""}
             </TabsTrigger>
             <TabsTrigger value="history">История</TabsTrigger>
-            {deal.shipment && <TabsTrigger value="logistics">Логистика</TabsTrigger>}
+            <TabsTrigger value="logistics">Логистика</TabsTrigger>
           </TabsList>
         </div>
 
@@ -162,7 +167,7 @@ export function ClientDealView() {
           <DealDocuments
             dealId={deal.id}
             documents={deal.documents}
-            managerId={deal.manager.id}
+            managerId={deal.managerId}
             canUpload
             onUpdated={refreshDeal}
           />
@@ -241,7 +246,7 @@ export function ClientDealView() {
         <TabsContent value="comments">
           <DealComments
             dealId={deal.id}
-            managerId={deal.manager.id}
+            managerId={deal.managerId}
             clientUserId={user?.id}
             initialComments={deal.comments}
             onUpdate={refreshDeal}
@@ -253,6 +258,7 @@ export function ClientDealView() {
             dealId={deal.id}
             initialMedia={deal.media}
             canUpload={false}
+            canDownload
           />
         </TabsContent>
 
@@ -260,29 +266,9 @@ export function ClientDealView() {
           <DealActivityTimeline activity={activity} />
         </TabsContent>
 
-        {deal.shipment && (
-          <TabsContent value="logistics">
-            <Card className="border-0 shadow-card">
-              <CardHeader>
-                <CardTitle className="text-base">Логистика</CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-3 sm:grid-cols-2">
-                {[
-                  ["Покупка", deal.shipment.purchaseDate],
-                  ["Отправка", deal.shipment.shippingDate],
-                  ["Ожидаемое прибытие", deal.shipment.expectedArrival],
-                  ["Фактическое прибытие", deal.shipment.actualArrival],
-                  ["Таможня", deal.shipment.customsCompleted],
-                ].map(([label, value]) => (
-                  <div key={String(label)} className="rounded-lg border p-3">
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                    <p className="mt-1 text-sm font-medium">{formatDate(value as string | null)}</p>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
+        <TabsContent value="logistics">
+          <DealLogistics dealId={deal.id} shipment={deal.shipment} />
+        </TabsContent>
       </Tabs>
 
       <MediaPreviewDialog
@@ -310,31 +296,36 @@ function ClientMediaThumb({
   const previewSrc = item.thumbnailUrl ?? item.fileUrl;
 
   return (
-    <button
-      type="button"
-      onClick={onPreview}
-      className={cn(
-        "group overflow-hidden rounded-lg border bg-muted/30 text-left shadow-sm transition-shadow hover:shadow-md",
-      )}
-    >
-      <div className="aspect-square w-full overflow-hidden">
-        {isVideo ? (
-          <div className="relative flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-            <Play className="h-8 w-8 text-white/90" />
-          </div>
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={previewSrc}
-            alt={item.fileName}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
-          />
-        )}
-      </div>
-      <div className="border-t bg-card p-2">
-        <p className="truncate text-xs font-medium">{item.fileName}</p>
-        <p className="text-[10px] text-muted-foreground">{formatFileSize(item.size)}</p>
-      </div>
-    </button>
+    <div className="group relative overflow-hidden rounded-lg border bg-muted/30 text-left shadow-sm transition-shadow hover:shadow-md">
+      <button type="button" onClick={onPreview} className="block w-full">
+        <div className="aspect-square w-full overflow-hidden">
+          {isVideo ? (
+            <div className="relative flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+              <Play className="h-8 w-8 text-white/90" />
+            </div>
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={previewSrc}
+              alt={item.fileName}
+              className="h-full w-full object-cover transition-transform group-hover:scale-105"
+            />
+          )}
+        </div>
+        <div className="border-t bg-card p-2">
+          <p className="truncate text-xs font-medium">{item.fileName}</p>
+          <p className="text-[10px] text-muted-foreground">{formatFileSize(item.size)}</p>
+        </div>
+      </button>
+      <a
+        href={getMediaDownloadUrl(item.id)}
+        download={item.fileName}
+        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-md bg-background/90 text-foreground opacity-0 shadow-md transition-opacity group-hover:opacity-100"
+        onClick={(event) => event.stopPropagation()}
+        title="Скачать"
+      >
+        <Download className="h-3.5 w-3.5" />
+      </a>
+    </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   S3Client,
 } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { Readable } from "stream";
 
 let client: S3Client | null = null;
 let bucketReady = false;
@@ -90,6 +91,34 @@ export async function deleteObject(key: string): Promise<void> {
       Key: key,
     }),
   );
+}
+
+export async function getObjectStream(key: string): Promise<{
+  body: ReadableStream;
+  contentLength?: number;
+  contentType?: string;
+}> {
+  const s3 = getS3Client();
+  const { bucket } = getConfig();
+
+  const result = await s3.send(
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    }),
+  );
+
+  if (!result.Body) {
+    throw new Error("Empty object body");
+  }
+
+  const nodeStream = result.Body as Readable;
+
+  return {
+    body: Readable.toWeb(nodeStream) as ReadableStream,
+    contentLength: result.ContentLength,
+    contentType: result.ContentType,
+  };
 }
 
 export async function getPresignedUrl(key: string, expiresIn = 3600): Promise<string> {

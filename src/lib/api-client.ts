@@ -20,6 +20,7 @@ import {
 } from "@/lib/types";
 import { DealActivityItem } from "@/lib/services/deal-activity";
 import { AdditionalOptionGroupState } from "@/lib/services/additional-options";
+import { DealExpenseItem } from "@/lib/services/deal-expenses";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
@@ -55,6 +56,10 @@ export const api = {
         body: JSON.stringify({ telegramChatId }),
       }),
     unlinkTelegram: () => request<User>("/api/auth/telegram", { method: "DELETE" }),
+    testTelegram: () =>
+      request<{ delivered: boolean; chatId: string }>("/api/auth/telegram/test", {
+        method: "POST",
+      }),
   },
 
   dashboard: {
@@ -83,6 +88,23 @@ export const api = {
     },
     get: (id: string) => request<DealDetail>(`/api/deals/${id}`),
     activity: (id: string) => request<DealActivityItem[]>(`/api/deals/${id}/activity`),
+    shipment: {
+      get: (dealId: string) => request<import("@/lib/types").Shipment | null>(`/api/deals/${dealId}/shipment`),
+      save: (
+        dealId: string,
+        data: {
+          purchaseDate?: string | null;
+          shippingDate?: string | null;
+          expectedArrival?: string | null;
+          actualArrival?: string | null;
+          customsCompleted?: string | null;
+        },
+      ) =>
+        request<import("@/lib/types").Shipment>(`/api/deals/${dealId}/shipment`, {
+          method: "PUT",
+          body: JSON.stringify(data),
+        }),
+    },
     create: (data: Record<string, unknown>) =>
       request<DealListItem>("/api/deals", { method: "POST", body: JSON.stringify(data) }),
     update: (id: string, data: Record<string, unknown>) =>
@@ -131,6 +153,14 @@ export const api = {
             body: JSON.stringify({ optionKey, checked }),
           },
         ),
+    },
+    expenses: {
+      list: (dealId: string) => request<DealExpenseItem[]>(`/api/deals/${dealId}/expenses`),
+      save: (dealId: string, expenses: { description: string; amount: number }[]) =>
+        request<DealExpenseItem[]>(`/api/deals/${dealId}/expenses`, {
+          method: "PUT",
+          body: JSON.stringify({ expenses }),
+        }),
     },
     setImportProcessEnabled: (dealId: string, enabled: boolean) =>
       request<{ importProcessEnabled: boolean }>(`/api/deals/${dealId}/import-process`, {
@@ -242,6 +272,11 @@ export const api = {
 
       return json.data as DocumentItem;
     },
+    updateStatus: (dealId: string, type: DocumentType, status: "RECEIVED" | "VERIFIED") =>
+      request<DocumentItem>(`/api/deals/${dealId}/documents/${type}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      }),
   },
 
   searchProcess: {

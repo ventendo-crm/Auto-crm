@@ -1,7 +1,7 @@
 "use client";
 
 import { MediaType } from "@prisma/client";
-import { Play, Trash2 } from "lucide-react";
+import { Play, Trash2, Download } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api-client";
+import { getMediaDownloadUrl } from "@/lib/media-urls";
 import { MediaItem } from "@/lib/types";
 import { cn, formatFileSize } from "@/lib/utils";
 
@@ -17,6 +18,7 @@ interface MediaGalleryProps {
   dealId: string;
   initialMedia: MediaItem[];
   canUpload?: boolean;
+  canDownload?: boolean;
   onUpdate?: () => void;
 }
 
@@ -24,6 +26,7 @@ export function MediaGallery({
   dealId,
   initialMedia,
   canUpload = true,
+  canDownload = false,
   onUpdate,
 }: MediaGalleryProps) {
   const [media, setMedia] = useState(initialMedia);
@@ -93,6 +96,7 @@ export function MediaGallery({
                   key={item.id}
                   item={item}
                   canDelete={canUpload}
+                  canDownload={canDownload}
                   onPreview={() => setPreview(item)}
                   onDelete={() => handleDelete(item)}
                 />
@@ -114,11 +118,13 @@ export function MediaGallery({
 function MediaGalleryItem({
   item,
   canDelete,
+  canDownload,
   onPreview,
   onDelete,
 }: {
   item: MediaItem;
   canDelete: boolean;
+  canDownload: boolean;
   onPreview: () => void;
   onDelete: () => void;
 }) {
@@ -167,6 +173,25 @@ function MediaGalleryItem({
           }}
         >
           <Trash2 className="h-3.5 w-3.5" />
+        </Button>
+      )}
+
+      {canDownload && (
+        <Button
+          variant="secondary"
+          size="icon"
+          className={cn(
+            "absolute left-2 top-2 h-7 w-7 opacity-0 shadow-md transition-opacity group-hover:opacity-100",
+          )}
+          asChild
+        >
+          <a
+            href={getMediaDownloadUrl(item.id)}
+            download={item.fileName}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </a>
         </Button>
       )}
     </div>

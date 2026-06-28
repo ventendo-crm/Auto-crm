@@ -10,12 +10,14 @@ import { DealClientAccount } from "@/components/deals/deal-client-account";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
 import { DealDocuments } from "@/components/deals/deal-documents";
+import { DealExpenses } from "@/components/deals/deal-expenses";
 import { DealHeader } from "@/components/deals/deal-header";
 import { DealInfo } from "@/components/deals/deal-info";
 import { DealImportProcess } from "@/components/deals/deal-import-process";
 import { DealImportProcessToggle } from "@/components/deals/deal-import-process-toggle";
 import { DealOverviewSummary } from "@/components/deals/deal-overview-summary";
 import { DealSearchProcess } from "@/components/deals/deal-search-process";
+import { DealLogistics } from "@/components/deals/deal-logistics";
 import { DealManagerSelector } from "@/components/deals/deal-manager-selector";
 import { DealStageSelector } from "@/components/deals/deal-stage-selector";
 
@@ -25,10 +27,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
-import { canManageDealClient } from "@/lib/permissions";
+import { canManageDealClient, canManageDealExpenses, getClientRoleName } from "@/lib/permissions";
 import { DealActivityItem } from "@/lib/services/deal-activity";
 import { DealDetail } from "@/lib/types";
-import { formatDate } from "@/lib/utils";
 
 export default function DealPage() {
   const params = useParams<{ id: string }>();
@@ -40,6 +41,10 @@ export default function DealPage() {
   const [activeTab, setActiveTab] = useState("overview");
 
   const canManageDeal = deal ? canManageDealClient(user, deal.managerId) : false;
+
+  const role = getClientRoleName(user);
+  const canViewExpenses =
+    deal && role && user ? canManageDealExpenses(role, user.id, deal.managerId) : false;
 
   const canDeleteDeal = canManageDeal;
 
@@ -137,7 +142,7 @@ export default function DealPage() {
             <DealManagerSelector
               dealId={deal.id}
               managerId={deal.managerId}
-              managerName={deal.manager.name}
+              managerName={deal.manager?.name}
               onChanged={refreshDeal}
             />
           </div>
@@ -161,6 +166,12 @@ export default function DealPage() {
             <TabsTrigger value="additional-options">
               Дополнительные опции
             </TabsTrigger>
+
+            {canViewExpenses && (
+              <TabsTrigger value="expenses">
+                Расходы
+              </TabsTrigger>
+            )}
 
             {deal.importProcessEnabled && (
               <TabsTrigger value="import-process">
@@ -211,40 +222,12 @@ export default function DealPage() {
               onUpdated={refreshDeal}
             />
 
-            {deal.shipment && (
-              <Card className="border-0 shadow-card">
-                <CardHeader>
-                  <CardTitle className="text-base">
-                    Логистика
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="grid gap-3 sm:grid-cols-2">
-                  {[
-                    ["Покупка", deal.shipment.purchaseDate],
-                    ["Отправка", deal.shipment.shippingDate],
-                    ["Ожидаемое прибытие", deal.shipment.expectedArrival],
-                    ["Фактическое прибытие", deal.shipment.actualArrival],
-                    ["Таможня", deal.shipment.customsCompleted],
-                  ].map(([label, value]) => (
-                    <div
-                      key={String(label)}
-                      className="rounded-lg border p-3"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        {label}
-                      </p>
-
-                      <p className="mt-1 text-sm font-medium">
-                        {formatDate(
-                          value as string | null
-                        )}
-                      </p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            )}
+            <DealLogistics
+              dealId={deal.id}
+              shipment={deal.shipment}
+              canEdit={canManageDeal}
+              onUpdated={refreshDeal}
+            />
             </div>
           </TabsContent>
 
@@ -255,6 +238,7 @@ export default function DealPage() {
               managerId={deal.managerId}
               onUpdated={refreshDeal}
               canUpload={canManageDeal}
+              canVerify={canManageDeal}
             />
           </TabsContent>
 
@@ -269,6 +253,12 @@ export default function DealPage() {
           <TabsContent value="additional-options">
             <DealAdditionalOptions dealId={deal.id} onChanged={refreshActivity} />
           </TabsContent>
+
+          {canViewExpenses && (
+            <TabsContent value="expenses">
+              <DealExpenses dealId={deal.id} canEdit={canViewExpenses} />
+            </TabsContent>
+          )}
 
           {deal.importProcessEnabled && (
             <TabsContent value="import-process">
@@ -300,6 +290,7 @@ export default function DealPage() {
               dealId={deal.id}
               initialMedia={deal.media ?? []}
               canUpload={canUploadMedia}
+              canDownload
               onUpdate={refreshDeal}
             />
           </TabsContent>

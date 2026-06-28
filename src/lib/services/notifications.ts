@@ -1,7 +1,9 @@
 import { NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { AuthUser } from "@/lib/permissions";
+import { AuthUser, ROLES } from "@/lib/permissions";
+import { COMMENT_AUTHOR_ROLE_LABELS } from "@/lib/constants";
 import {
+  formatCommentMessage,
   formatStageChangeMessage,
   getDefaultTelegramChatIds,
   isTelegramConfigured,
@@ -40,12 +42,35 @@ async function dispatchTelegramNotification(params: {
   userIds: string[];
   text: string;
 }): Promise<void> {
-  if (!isTelegramConfigured()) return;
+  if (!isTelegramConfigured()) {
+    console.warn("[notifications] Telegram skipped: TELEGRAM_BOT_TOKEN is not set");
+    return;
+  }
 
   const chatIds = await Promise.all(params.userIds.map(getUserTelegramChatId));
   const defaultChatIds = getDefaultTelegramChatIds();
+  const uniqueChatIds = [
+    ...new Set([...chatIds.filter((id): id is string => Boolean(id?.trim())), ...defaultChatIds]),
+  ];
 
-  await sendToTelegramChatIds([...chatIds, ...defaultChatIds], params.text);
+  if (uniqueChatIds.length === 0) {
+    console.warn(
+      "[notifications] Telegram skipped: no chat IDs for users",
+      params.userIds,
+      "and TELEGRAM_CHAT_ID is empty",
+    );
+    return;
+  }
+
+  const results = await sendToTelegramChatIds(uniqueChatIds, params.text);
+  const failed = results.filter((result) => !result.ok);
+
+  if (failed.length > 0) {
+    console.error(
+      "[notifications] Telegram delivery failed:",
+      failed.map((result) => `${result.chatId}: ${result.error}`).join("; "),
+    );
+  }
 }
 
 export async function notifyStageChange(params: {
@@ -54,15 +79,16 @@ export async function notifyStageChange(params: {
   vin: string;
   fromStage: string;
   toStage: string;
-  manager: { id: string; name: string };
+  manager: { id: string; name: string } | null;
   changedBy: AuthUser;
 }) {
   const title = "Сделка переведена";
+  const managerLabel = params.manager?.name ?? "не назначен";
   const message = [
     `Клиент: ${params.clientName}`,
     `VIN: ${params.vin}`,
     `Этап: ${formatStage(params.fromStage)} → ${formatStage(params.toStage)}`,
-    `Менеджер: ${params.manager.name}`,
+    `Менеджер: ${managerLabel}`,
     `Изменил: ${params.changedBy.name}`,
   ].join("\n");
 
@@ -71,26 +97,19 @@ export async function notifyStageChange(params: {
     vin: params.vin,
     fromStage: params.fromStage,
     toStage: params.toStage,
-    managerName: params.manager.name,
+    managerName: managerLabel,
     changedByName: params.changedBy.name,
   });
 
-  const recipientIds = [params.manager.id];
-  if (params.changedBy.id !== params.manager.id) {
-    recipientIds.push(params.changedBy.id);
+  const recipientIds = new Set<string>();
+  if (params.manager) {
+    recipientIds.add(params.manager.id);
   }
+  recipientIds.add(params.changedBy.id);
 
-  await createNotification({
-    userId: params.manager.id,
-    dealId: params.dealId,
-    title,
-    message,
-    type: NotificationType.SYSTEM,
-  });
-
-  if (params.changedBy.id !== params.manager.id) {
+  for (const userId of recipientIds) {
     await createNotification({
-      userId: params.changedBy.id,
+      userId,
       dealId: params.dealId,
       title,
       message,
@@ -98,12 +117,83 @@ export async function notifyStageChange(params: {
     });
   }
 
-  void dispatchTelegramNotification({
-    userIds: recipientIds,
+  await dispatchTelegramNotification({
+    userIds: [...recipientIds],
     text: telegramText,
-  }).catch((error) => {
-    console.error("[notifications] telegram dispatch failed:", error);
   });
+}
+
+export async function notifyCommentAdded(params: {
+  dealId: string;
+  deal: {
+    clientName: string;
+    vin: string;
+    managerId: string | null;
+    clientUserId: string | null;
+  };
+  author: AuthUser;
+  commentText: string;
+}) {
+  const title = "Новый комментарий";
+  const preview =
+    params.commentText.length > 120
+      ? `${params.commentText.slice(0, 120).trim()}…`
+      : params.commentText;
+  const message = [
+    `Клиент: ${params.deal.clientName}`,
+    `VIN: ${params.deal.vin}`,
+    `Автор: ${params.author.name}`,
+    "",
+    preview,
+  ].join("\n");
+
+  const authorRoleLabel =
+    COMMENT_AUTHOR_ROLE_LABELS[params.author.role] ?? params.author.role;
+
+  const telegramText = formatCommentMessage({
+    clientName: params.deal.clientName,
+    vin: params.deal.vin,
+    authorName: params.author.name,
+    authorRole: authorRoleLabel,
+    text: params.commentText,
+  });
+
+  const recipientIds = new Set<string>();
+
+  if (params.author.role === ROLES.CLIENT) {
+    if (params.deal.managerId) {
+      recipientIds.add(params.deal.managerId);
+    } else {
+      const admins = await prisma.user.findMany({
+        where: { role: { name: ROLES.ADMIN } },
+        select: { id: true },
+      });
+      for (const admin of admins) {
+        recipientIds.add(admin.id);
+      }
+    }
+  } else if (params.deal.clientUserId) {
+    recipientIds.add(params.deal.clientUserId);
+  }
+
+  recipientIds.delete(params.author.id);
+
+  for (const userId of recipientIds) {
+    await createNotification({
+      userId,
+      dealId: params.dealId,
+      title,
+      message,
+      type: NotificationType.SYSTEM,
+    });
+  }
+
+  if (recipientIds.size > 0) {
+    await dispatchTelegramNotification({
+      userIds: [...recipientIds],
+      text: telegramText,
+    });
+  }
 }
 
 export async function listNotifications(
@@ -159,6 +249,7 @@ export async function markAllNotificationsRead(userId: string) {
 
 function formatStage(stage: string): string {
   const labels: Record<string, string> = {
+    LEADS: "Лиды",
     SEARCH: "Поиск авто",
     INVOICE: "Инвойс",
     PREPARATION: "Подготовка",

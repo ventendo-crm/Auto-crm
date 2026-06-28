@@ -109,6 +109,7 @@ export async function getClientPortalDeal(clientUserId: string) {
     stageLabel: STAGE_LABELS[deal.currentStage],
     expectedArrival: deal.expectedArrival,
     actualArrival: deal.actualArrival,
+    managerId: deal.managerId,
     manager: deal.manager,
     documents: deal.documents.map((doc) => ({
       id: doc.id,

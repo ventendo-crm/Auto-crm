@@ -3,6 +3,7 @@ import { created, ok } from "@/lib/api-response";
 import { canCommentOnDeal, canViewDeal, ROLES } from "@/lib/permissions";
 import { createComment, listComments } from "@/lib/services/comments";
 import { getDeal } from "@/lib/services/deals";
+import { notifyCommentAdded } from "@/lib/services/notifications";
 import { serialize } from "@/lib/serialize";
 import { createCommentSchema } from "@/lib/validators/comment";
 
@@ -30,6 +31,18 @@ export const POST = withAuth(async (request, { user, params }) => {
     dealId: params.id,
     authorId: user.id,
     text: body.text,
+  });
+
+  await notifyCommentAdded({
+    dealId: params.id,
+    deal: {
+      clientName: deal.clientName,
+      vin: deal.vin,
+      managerId: deal.managerId,
+      clientUserId: deal.clientUserId,
+    },
+    author: user,
+    commentText: body.text,
   });
 
   return created(serialize(comment));

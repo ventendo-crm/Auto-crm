@@ -98,7 +98,7 @@ export function MediaPreviewDialog({
             </div>
             <Button variant="outline" size="sm" asChild>
               <a
-                href={activeMedia.fileUrl}
+                href={`${activeMedia.fileUrl}?download=1`}
                 download={activeMedia.fileName}
                 target="_blank"
                 rel="noreferrer"

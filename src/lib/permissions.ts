@@ -51,17 +51,17 @@ export function getClientRoleName(user: ClientUser | null | undefined): RoleName
 export function canViewDeal(
   role: RoleName,
   userId: string,
-  deal: { managerId: string; clientUserId?: string | null },
+  deal: { managerId: string | null; clientUserId?: string | null },
 ): boolean {
   if (role === ROLES.ADMIN || role === ROLES.VIEWER) return true;
-  if (role === ROLES.MANAGER) return userId === deal.managerId;
+  if (role === ROLES.MANAGER) return deal.managerId !== null && userId === deal.managerId;
   if (role === ROLES.CLIENT) return deal.clientUserId === userId;
   return false;
 }
 
 export function canManageDealClient(
   user: ClientUser | null | undefined,
-  managerId: string,
+  managerId: string | null,
 ): boolean {
   const role = getClientRoleName(user);
   if (!user || !role) return false;
@@ -72,16 +72,18 @@ export function canCreateDeals(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
 
-export function canUpdateDeal(role: RoleName, userId: string, managerId: string): boolean {
+export function canUpdateDeal(role: RoleName, userId: string, managerId: string | null): boolean {
   if (role === ROLES.CLIENT) return false;
   if (role === ROLES.ADMIN) return true;
+  if (!managerId) return false;
   if (role === ROLES.MANAGER) return userId === managerId;
   return false;
 }
 
-export function canDeleteDeal(role: RoleName, userId: string, managerId: string): boolean {
+export function canDeleteDeal(role: RoleName, userId: string, managerId: string | null): boolean {
   if (role === ROLES.CLIENT) return false;
   if (role === ROLES.ADMIN) return true;
+  if (!managerId) return false;
   if (role === ROLES.MANAGER) return userId === managerId;
   return false;
 }
@@ -93,7 +95,7 @@ export function canCreateComment(role: RoleName): boolean {
 export function canCommentOnDeal(
   role: RoleName,
   userId: string,
-  deal: { managerId: string; clientUserId?: string | null },
+  deal: { managerId: string | null; clientUserId?: string | null },
 ): boolean {
   if (role === ROLES.CLIENT) {
     return deal.clientUserId === userId;
@@ -107,7 +109,7 @@ export function canModifyComment(role: RoleName, userId: string, authorId: strin
   return userId === authorId;
 }
 
-export function canChangeStage(role: RoleName, userId: string, managerId: string): boolean {
+export function canChangeStage(role: RoleName, userId: string, managerId: string | null): boolean {
   return canUpdateDeal(role, userId, managerId);
 }
 
@@ -122,7 +124,7 @@ export function canViewAllDeals(role: RoleName): boolean {
 export function canUploadDealDocuments(
   role: RoleName,
   userId: string,
-  deal: { managerId: string; clientUserId?: string | null },
+  deal: { managerId: string | null; clientUserId?: string | null },
 ): boolean {
   if (role === ROLES.CLIENT) {
     return deal.clientUserId === userId;
@@ -134,6 +136,16 @@ export function canAssignDealManager(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }
 
-export function canManageClientAccount(role: RoleName, userId: string, managerId: string): boolean {
+export function canManageDealExpenses(
+  role: RoleName,
+  userId: string,
+  managerId: string | null,
+): boolean {
+  if (role === ROLES.ADMIN) return true;
+  if (role === ROLES.MANAGER) return managerId !== null && userId === managerId;
+  return false;
+}
+
+export function canManageClientAccount(role: RoleName, userId: string, managerId: string | null): boolean {
   return canUpdateDeal(role, userId, managerId);
 }

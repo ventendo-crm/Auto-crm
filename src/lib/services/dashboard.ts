@@ -28,7 +28,7 @@ type DealRow = {
   carBrand: string | null;
   carModel: string | null;
   vin: string;
-  manager: { id: string; name: string };
+  manager: { id: string; name: string } | null;
 };
 
 function computeStats(deals: DealRow[]): DashboardStats {
@@ -126,6 +126,8 @@ function computeManagerStats(deals: DealRow[]): DashboardManagerStat[] {
   const grouped = new Map<string, { managerName: string; deals: DealRow[] }>();
 
   for (const deal of deals) {
+    if (!deal.manager) continue;
+
     const current = grouped.get(deal.manager.id) ?? {
       managerName: deal.manager.name,
       deals: [],

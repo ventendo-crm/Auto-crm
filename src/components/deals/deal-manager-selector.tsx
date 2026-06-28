@@ -8,8 +8,8 @@ import { canAssignDealManager, getClientRoleName } from "@/lib/permissions";
 
 interface DealManagerSelectorProps {
   dealId: string;
-  managerId: string;
-  managerName: string;
+  managerId: string | null;
+  managerName?: string | null;
   onChanged: () => void;
 }
 
@@ -22,13 +22,14 @@ export function DealManagerSelector({
   const { user } = useAuth();
   const role = getClientRoleName(user);
   const canAssign = role ? canAssignDealManager(role) : false;
+  const label = managerName ?? "Не назначен";
 
   if (!canAssign) {
-    return <span className="text-sm font-medium">{managerName}</span>;
+    return <span className="text-sm font-medium">{label}</span>;
   }
 
   const handleChange = async (value: string) => {
-    if (value === managerId) return;
+    if (!value || value === managerId) return;
 
     try {
       await api.deals.update(dealId, { managerId: value });
@@ -39,5 +40,11 @@ export function DealManagerSelector({
     }
   };
 
-  return <ManagerSelect value={managerId} onValueChange={handleChange} />;
+  return (
+    <ManagerSelect
+      allowEmpty={!managerId}
+      value={managerId ?? ""}
+      onValueChange={handleChange}
+    />
+  );
 }

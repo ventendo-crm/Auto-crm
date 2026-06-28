@@ -59,11 +59,12 @@ export function resolveDragEndStage(
 export function canDragDeal(
   role: string | undefined,
   userId: string | undefined,
-  managerId: string,
+  managerId: string | null,
 ): boolean {
   if (!role || !userId) return false;
   if (role === "VIEWER") return false;
   if (role === "ADMIN") return true;
+  if (!managerId) return false;
   if (role === "MANAGER") return userId === managerId;
   return false;
 }

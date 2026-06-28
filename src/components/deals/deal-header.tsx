@@ -54,7 +54,9 @@ export function DealHeader({ deal, canDelete }: DealHeaderProps) {
         <div className="sm:text-right">
           <p className="text-xl font-semibold sm:text-2xl">{formatCurrency(deal.prepayment)}</p>
           <p className="text-xs text-muted-foreground">предоплата</p>
-          <p className="mt-1 text-sm text-muted-foreground">Менеджер: {deal.manager.name}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Менеджер: {deal.manager?.name ?? "Не назначен"}
+          </p>
         </div>
       </div>
     </div>

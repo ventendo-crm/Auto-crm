@@ -16,6 +16,7 @@ export function ProfilePanel() {
   const { user, refresh } = useAuth();
   const [chatId, setChatId] = useState(user?.telegramChatId ?? "");
   const [loading, setLoading] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   if (!user) return null;
 
@@ -48,6 +49,18 @@ export function ProfilePanel() {
       toast.error(err instanceof Error ? err.message : "Ошибка");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const testTelegram = async () => {
+    setTesting(true);
+    try {
+      await api.auth.testTelegram();
+      toast.success("Тестовое сообщение отправлено в Telegram");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось отправить тест");
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -104,9 +117,15 @@ export function ProfilePanel() {
               Привязать
             </Button>
             {user.telegramChatId && (
-              <Button variant="outline" size="sm" onClick={unlinkTelegram} disabled={loading}>
-                Отвязать
-              </Button>
+              <>
+                <Button variant="outline" size="sm" onClick={unlinkTelegram} disabled={loading}>
+                  Отвязать
+                </Button>
+                <Button variant="outline" size="sm" onClick={testTelegram} disabled={testing}>
+                  {testing ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+                  Тест
+                </Button>
+              </>
             )}
           </div>
         </div>

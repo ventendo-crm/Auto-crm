@@ -31,7 +31,7 @@ interface EditDealForm {
   destinationCountry: string;
   expectedArrival: string;
   prepayment: string;
-  managerId: string;
+  managerId: string | null;
 }
 
 interface Props {
@@ -140,11 +140,12 @@ export function EditDealDialog({ deal, onUpdated, canEdit: canEditProp }: Props)
 
             {canAssignManager && (
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="edit-managerId">Менеджер</Label>
+                <Label htmlFor="edit-managerId">Менеджер (необязательно)</Label>
                 <ManagerSelect
                   id="edit-managerId"
-                  value={form.managerId}
-                  onValueChange={(managerId) => setForm({ ...form, managerId })}
+                  allowEmpty
+                  value={form.managerId ?? ""}
+                  onValueChange={(managerId) => setForm({ ...form, managerId: managerId || null })}
                 />
               </div>
             )}

@@ -1,4 +1,5 @@
 const STAGE_LABELS: Record<string, string> = {
+  LEADS: "Лиды",
   SEARCH: "Поиск авто",
   INVOICE: "Инвойс",
   PREPARATION: "Подготовка",
@@ -6,6 +7,8 @@ const STAGE_LABELS: Record<string, string> = {
   TRANSPORT: "Транспортировка",
   DELIVERY: "Получение",
 };
+
+const TELEGRAM_TIMEOUT_MS = 15_000;
 
 function getBotToken(): string | null {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
@@ -16,16 +19,25 @@ export function isTelegramConfigured(): boolean {
   return Boolean(getBotToken());
 }
 
-export async function sendTelegramMessage(chatId: string, text: string): Promise<boolean> {
+export interface TelegramSendResult {
+  ok: boolean;
+  chatId: string;
+  error?: string;
+}
+
+async function postTelegramMessage(
+  chatId: string,
+  text: string,
+  parseMode?: "HTML",
+): Promise<TelegramSendResult> {
   const token = getBotToken();
   if (!token) {
-    console.warn("[telegram] TELEGRAM_BOT_TOKEN is not set");
-    return false;
+    return { ok: false, chatId, error: "TELEGRAM_BOT_TOKEN is not set" };
   }
 
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), TELEGRAM_TIMEOUT_MS);
 
     const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
@@ -33,7 +45,7 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
       body: JSON.stringify({
         chat_id: chatId,
         text,
-        parse_mode: "HTML",
+        ...(parseMode ? { parse_mode: parseMode } : {}),
         disable_web_page_preview: true,
       }),
       signal: controller.signal,
@@ -44,19 +56,58 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
     const data = (await response.json()) as { ok: boolean; description?: string };
 
     if (!data.ok) {
-      console.error("[telegram] send failed:", data.description);
-      return false;
+      return { ok: false, chatId, error: data.description ?? "Unknown Telegram API error" };
     }
 
-    return true;
+    return { ok: true, chatId };
   } catch (error) {
-    console.error("[telegram] send error:", error);
-    return false;
+    const message = error instanceof Error ? error.message : String(error);
+    return { ok: false, chatId, error: message };
   }
+}
+
+export async function sendTelegramMessage(chatId: string, text: string): Promise<boolean> {
+  const htmlResult = await postTelegramMessage(chatId, text, "HTML");
+
+  if (htmlResult.ok) {
+    return true;
+  }
+
+  if (htmlResult.error?.includes("can't parse entities")) {
+    const plainResult = await postTelegramMessage(chatId, text.replace(/<[^>]+>/g, ""));
+    if (!plainResult.ok) {
+      console.error("[telegram] send failed (plain):", plainResult.error, "chatId=", chatId);
+    }
+    return plainResult.ok;
+  }
+
+  console.error("[telegram] send failed:", htmlResult.error, "chatId=", chatId);
+  return false;
 }
 
 export function formatStageLabel(stage: string): string {
   return STAGE_LABELS[stage] ?? stage;
+}
+
+export function formatCommentMessage(params: {
+  clientName: string;
+  vin: string;
+  authorName: string;
+  authorRole: string;
+  text: string;
+}): string {
+  const preview =
+    params.text.length > 200 ? `${params.text.slice(0, 200).trim()}…` : params.text;
+
+  return [
+    "💬 <b>Новый комментарий</b>",
+    "",
+    `<b>Клиент:</b> ${escapeHtml(params.clientName)}`,
+    `<b>VIN:</b> ${escapeHtml(params.vin)}`,
+    `<b>Автор:</b> ${escapeHtml(params.authorName)} (${escapeHtml(params.authorRole)})`,
+    "",
+    escapeHtml(preview),
+  ].join("\n");
 }
 
 export function formatStageChangeMessage(params: {
@@ -102,7 +153,18 @@ export function formatWelcomeMessage(chatId: number | string): string {
     "Скопируйте ID и добавьте в CRM:",
     "Настройки → Telegram → Привязать",
     "",
+    "Или отправьте: <code>/link ваш@email.com</code>",
+    "",
     "После привязки вы будете получать уведомления о сделках.",
+  ].join("\n");
+}
+
+export function formatTestNotificationMessage(userName: string): string {
+  return [
+    "✅ <b>Auto-CRM — тестовое уведомление</b>",
+    "",
+    `Аккаунт: ${escapeHtml(userName)}`,
+    "Если вы видите это сообщение, Telegram настроен правильно.",
   ].join("\n");
 }
 
@@ -116,10 +178,16 @@ function escapeHtml(value: string): string {
 export async function sendToTelegramChatIds(
   chatIds: Array<string | null | undefined>,
   text: string,
-): Promise<void> {
+): Promise<TelegramSendResult[]> {
   const unique = [...new Set(chatIds.filter((id): id is string => Boolean(id?.trim())))];
 
-  await Promise.all(unique.map((chatId) => sendTelegramMessage(chatId, text)));
+  return Promise.all(unique.map((chatId) => postTelegramMessage(chatId, text, "HTML").then(async (result) => {
+    if (result.ok) return result;
+    if (result.error?.includes("can't parse entities")) {
+      return postTelegramMessage(chatId, text.replace(/<[^>]+>/g, ""));
+    }
+    return result;
+  })));
 }
 
 export function getDefaultTelegramChatIds(): string[] {
@@ -128,4 +196,14 @@ export function getDefaultTelegramChatIds(): string[] {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean);
+}
+
+export async function sendTestTelegramNotification(params: {
+  chatId: string;
+  userName: string;
+}): Promise<TelegramSendResult> {
+  const text = formatTestNotificationMessage(params.userName);
+  const result = await postTelegramMessage(params.chatId, text, "HTML");
+  if (result.ok) return result;
+  return postTelegramMessage(params.chatId, text.replace(/<[^>]+>/g, ""));
 }

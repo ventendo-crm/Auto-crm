@@ -17,7 +17,7 @@ import { canManageDealClient } from "@/lib/permissions";
 interface DealStageSelectorProps {
   dealId: string;
   currentStage: DealStageType;
-  managerId: string;
+  managerId: string | null;
   onChanged: () => void;
 }
 

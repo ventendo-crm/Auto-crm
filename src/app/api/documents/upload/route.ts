@@ -1,5 +1,5 @@
 import { DocumentType } from "@prisma/client";
-import { mkdir, writeFile } from "fs/promises";
+import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { assertAllowed, assertFound, withAuth } from "@/lib/api-handler";
 import { ok } from "@/lib/api-response";
@@ -54,6 +54,16 @@ export const POST = withAuth(async (request, { user }) => {
 
   const fileUrl = `/api/uploads/${storedName}`;
   const now = new Date();
+
+  const existing = await prisma.document.findUnique({
+    where: { dealId_type: { dealId, type } },
+    select: { fileUrl: true },
+  });
+
+  if (existing?.fileUrl?.startsWith("/api/uploads/")) {
+    const oldPath = path.join(uploadsDir, path.basename(existing.fileUrl));
+    await unlink(oldPath).catch(() => undefined);
+  }
 
   const document = await prisma.document.upsert({
     where: {

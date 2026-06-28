@@ -20,7 +20,7 @@ import { cn, formatDateTime } from "@/lib/utils";
 
 interface DealCommentsProps {
   dealId: string;
-  managerId: string;
+  managerId: string | null;
   clientUserId?: string | null;
   initialComments: CommentItem[];
   onUpdate: () => void;

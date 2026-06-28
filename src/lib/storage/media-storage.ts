@@ -1,13 +1,16 @@
 import { MediaType } from "@prisma/client";
-import { mkdir, unlink, writeFile } from "fs/promises";
+import { createReadStream } from "fs";
+import { mkdir, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
+import { Readable } from "stream";
 import {
   buildObjectKey,
   buildThumbnailKey,
   deleteObject,
-  getPresignedUrl,
+  getObjectStream,
   uploadObject,
 } from "@/lib/storage/minio";
+import { guessMediaContentType } from "@/lib/validators/media";
 
 function storageMode(): "local" | "minio" | "auto" {
   const mode = process.env.MEDIA_STORAGE?.trim().toLowerCase();
@@ -55,11 +58,38 @@ export function isLocalMediaUrl(fileUrl: string): boolean {
   return fileUrl.startsWith("/api/uploads/");
 }
 
-export async function resolveMediaUrl(fileUrl: string): Promise<string> {
-  if (isLocalMediaUrl(fileUrl)) {
-    return fileUrl;
+export async function openStoredMediaFile(
+  storedKey: string,
+  fileName: string,
+): Promise<{
+  stream: ReadableStream;
+  contentType: string;
+  fileName: string;
+  size?: number;
+}> {
+  const contentType = guessMediaContentType(fileName);
+
+  if (isLocalMediaUrl(storedKey)) {
+    const filePath = path.join(localUploadsDir(), path.basename(storedKey));
+    const fileStat = await stat(filePath);
+    const nodeStream = createReadStream(filePath);
+
+    return {
+      stream: Readable.toWeb(nodeStream) as ReadableStream,
+      contentType,
+      fileName,
+      size: fileStat.size,
+    };
   }
-  return getPresignedUrl(fileUrl);
+
+  const object = await getObjectStream(storedKey);
+
+  return {
+    stream: object.body,
+    contentType: object.contentType ?? contentType,
+    fileName,
+    size: object.contentLength,
+  };
 }
 
 async function storeToMinio(params: {

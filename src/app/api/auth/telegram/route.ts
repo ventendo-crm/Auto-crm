@@ -26,10 +26,16 @@ export const PATCH = withAuth(async (request, { user }) => {
   });
 
   if (isTelegramConfigured()) {
-    await sendTelegramMessage(
+    const delivered = await sendTelegramMessage(
       body.telegramChatId,
       "✅ <b>Auto-CRM</b>\nTelegram успешно привязан. Вы будете получать уведомления о сделках.",
     );
+
+    if (!delivered) {
+      throw new Error(
+        "Chat ID сохранён, но Telegram не ответил. Проверьте ID, напишите боту /start и настройки сервера.",
+      );
+    }
   }
 
   return ok(serialize(updated));
