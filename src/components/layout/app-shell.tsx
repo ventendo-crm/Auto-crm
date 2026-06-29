@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SidebarProvider } from "@/hooks/use-sidebar";
@@ -11,6 +11,7 @@ import { getClientRoleName, getDefaultRouteForRole, ROLES } from "@/lib/permissi
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -19,10 +20,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
 
     const role = getClientRoleName(user);
-    if (!loading && user && role === ROLES.CLIENT) {
+    const isClientSettings = pathname === "/settings" || pathname.startsWith("/settings/");
+    if (!loading && user && role === ROLES.CLIENT && !isClientSettings) {
       router.replace(getDefaultRouteForRole(ROLES.CLIENT));
     }
-  }, [loading, user, router]);
+  }, [loading, user, router, pathname]);
 
   if (loading) {
     return (
@@ -38,7 +40,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
-  if (getClientRoleName(user) === ROLES.CLIENT) {
+  const role = getClientRoleName(user);
+  const isClientSettings = pathname === "/settings" || pathname.startsWith("/settings/");
+  if (role === ROLES.CLIENT && !isClientSettings) {
     return null;
   }
 

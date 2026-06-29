@@ -5,7 +5,7 @@ import { isRoleName, RoleName, ROLES } from "@/lib/permissions";
 const PUBLIC_API_PATHS = ["/api/auth/login", "/api/auth/logout", "/api/telegram/webhook"];
 const PUBLIC_PAGE_PATHS = ["/login"];
 
-const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/settings", "/deals"];
+const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals"];
 const CLIENT_PAGE_PREFIXES = ["/my-deal"];
 
 function getJwtSecret(): Uint8Array {

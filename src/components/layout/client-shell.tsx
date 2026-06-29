@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Car, LogOut } from "lucide-react";
+import { Car, LogOut, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -49,15 +50,23 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => void logout()}
-        >
-          <LogOut className="h-4 w-4" />
-          Выйти
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/settings">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Настройки</span>
+            </Link>
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => void logout()}
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="hidden sm:inline">Выйти</span>
+          </Button>
+        </div>
       </header>
 
       <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>

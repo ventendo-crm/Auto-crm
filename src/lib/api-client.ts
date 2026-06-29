@@ -60,6 +60,11 @@ export const api = {
       request<{ delivered: boolean; chatId: string }>("/api/auth/telegram/test", {
         method: "POST",
       }),
+    changePassword: (currentPassword: string, newPassword: string) =>
+      request<{ message: string }>("/api/auth/password", {
+        method: "PATCH",
+        body: JSON.stringify({ currentPassword, newPassword }),
+      }),
   },
 
   dashboard: {

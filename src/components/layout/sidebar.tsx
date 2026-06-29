@@ -6,17 +6,27 @@ import { Car, Kanban, LayoutDashboard, PanelLeft, PanelLeftClose, Settings } fro
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useSidebar } from "@/hooks/use-sidebar";
+import { useAuth } from "@/hooks/use-auth";
+import { getClientRoleName, ROLES } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
-const navItems = [
+const staffNavItems = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
   { href: "/kanban", label: "Канбан", icon: Kanban },
+  { href: "/settings", label: "Настройки", icon: Settings },
+];
+
+const clientNavItems = [
+  { href: "/my-deal", label: "Моя сделка", icon: Car },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, isMobile, close } = useSidebar();
+  const { user } = useAuth();
+  const role = getClientRoleName(user);
+  const navItems = role === ROLES.CLIENT ? clientNavItems : staffNavItems;
 
   if (!isOpen && !isMobile) {
     return null;

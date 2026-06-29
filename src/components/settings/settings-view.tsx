@@ -13,13 +13,16 @@ export function SettingsView() {
   const { user } = useAuth();
   const role = getClientRoleName(user);
   const isAdmin = role === "ADMIN";
+  const isClient = role === "CLIENT";
   const canManageManagersTab = role === "ADMIN" || role === "MANAGER";
 
   const subtitle = isAdmin
     ? "Профиль, уведомления и пользователи"
     : canManageManagersTab
       ? "Профиль, уведомления и менеджеры"
-      : "Профиль и уведомления";
+      : isClient
+        ? "Профиль, пароль и уведомления"
+        : "Профиль и уведомления";
 
   return (
     <>

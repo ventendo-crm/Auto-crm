@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Send } from "lucide-react";
+import { KeyRound, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -17,6 +17,10 @@ export function ProfilePanel() {
   const [chatId, setChatId] = useState(user?.telegramChatId ?? "");
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordLoading, setPasswordLoading] = useState(false);
 
   if (!user) return null;
 
@@ -64,6 +68,41 @@ export function ProfilePanel() {
     }
   };
 
+  const changePassword = async () => {
+    if (!currentPassword.trim()) {
+      toast.error("Введите текущий пароль");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast.error("Новый пароль — минимум 6 символов");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Пароли не совпадают");
+      return;
+    }
+
+    if (currentPassword === newPassword) {
+      toast.error("Новый пароль должен отличаться от текущего");
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await api.auth.changePassword(currentPassword, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Пароль изменён");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось изменить пароль");
+    } finally {
+      setPasswordLoading(false);
+    }
+  };
+
   return (
     <Card className="border-0 shadow-card">
       <CardHeader>
@@ -87,6 +126,57 @@ export function ProfilePanel() {
             <p className="text-xs text-muted-foreground">Telegram Chat ID</p>
             <p className="font-medium">{user.telegramChatId ?? "—"}</p>
           </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+          <div>
+            <p className="text-sm font-medium">Смена пароля</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Для входа в систему по email и паролю
+            </p>
+          </div>
+
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <Label htmlFor="current-password">Текущий пароль</Label>
+              <Input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-password">Новый пароль</Label>
+              <Input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Подтверждение пароля</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <Button variant="brand" size="sm" onClick={changePassword} disabled={passwordLoading}>
+            {passwordLoading ? <Loader2 className="animate-spin" /> : <KeyRound className="h-4 w-4" />}
+            Сохранить пароль
+          </Button>
         </div>
 
         <Separator />
