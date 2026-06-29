@@ -9,7 +9,7 @@ import { DealActivityTimeline } from "@/components/deals/deal-activity-timeline"
 import { DealClientAccount } from "@/components/deals/deal-client-account";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
-import { DealDocuments } from "@/components/deals/deal-documents";
+import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
 import { DealExpenses } from "@/components/deals/deal-expenses";
 import { DealHeader } from "@/components/deals/deal-header";
 import { DealInfo } from "@/components/deals/deal-info";
@@ -239,12 +239,23 @@ export default function DealPage() {
             </div>
           </TabsContent>
 
-          <TabsContent value="documents">
+          <TabsContent value="documents" className="space-y-4">
             <DealDocuments
               dealId={deal.id}
               documents={deal.documents}
               managerId={deal.managerId}
               clientUserId={deal.clientUserId}
+              onUpdated={refreshDeal}
+              canUpload={canUploadDocuments}
+              canVerify={canManageDeal}
+            />
+            <DealDocuments
+              dealId={deal.id}
+              documents={deal.documents}
+              managerId={deal.managerId}
+              clientUserId={deal.clientUserId}
+              title="Полученные документы"
+              documentTypes={RECEIVED_DEAL_DOCUMENT_TYPES}
               onUpdated={refreshDeal}
               canUpload={canUploadDocuments}
               canVerify={canManageDeal}

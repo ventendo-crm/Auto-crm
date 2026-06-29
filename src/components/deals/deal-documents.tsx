@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
-import { DOCUMENT_LABELS, DOCUMENT_ORDER, DOCUMENT_STATUS_LABELS } from "@/lib/constants";
+import { DOCUMENT_LABELS, CLIENT_DOCUMENT_ORDER, DOCUMENT_STATUS_LABELS } from "@/lib/constants";
 import { canUploadDealDocuments, getClientRoleName } from "@/lib/permissions";
 import { DocumentItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
-const DOCUMENT_TYPES: DocumentType[] = DOCUMENT_ORDER.map((type) => type as DocumentType);
+const DEFAULT_DOCUMENT_TYPES: DocumentType[] = [...CLIENT_DOCUMENT_ORDER];
+
+export const RECEIVED_DEAL_DOCUMENT_TYPES: DocumentType[] = ["EPTS", "PTD", "SBKTS"];
 
 const ACCEPT =
   ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,application/pdf,image/jpeg,image/png,image/webp";
@@ -51,6 +53,8 @@ interface DealDocumentsProps {
   documents: DocumentItem[];
   managerId: string | null;
   clientUserId?: string | null;
+  title?: string;
+  documentTypes?: readonly DocumentType[];
   onUpdated?: () => void;
   canUpload?: boolean;
   canVerify?: boolean;
@@ -61,6 +65,8 @@ export function DealDocuments({
   documents,
   managerId,
   clientUserId = null,
+  title = "Документы клиента",
+  documentTypes = DEFAULT_DOCUMENT_TYPES,
   onUpdated,
   canUpload: canUploadProp,
   canVerify: canVerifyProp = false,
@@ -117,10 +123,10 @@ export function DealDocuments({
   return (
     <Card className="border-0 shadow-card">
       <CardHeader>
-        <CardTitle className="text-base">Документы клиента</CardTitle>
+        <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {DOCUMENT_TYPES.map((type) => {
+        {documentTypes.map((type) => {
           const doc = documentsByType[type];
           const hasFile = Boolean(doc?.fileUrl);
           const fileName = doc?.fileUrl ? getFileNameFromUrl(doc.fileUrl) : null;

@@ -59,9 +59,12 @@ export const DOCUMENT_LABELS = {
   CUSTOMS_DUTY_RECEIPT: "Чек об оплате таможенной пошлины",
   BROKER_SERVICES_RECEIPT: "Квитанция услуг брокера",
   BROKER_PAYMENT_RECEIPT: "Чек об оплате услуг брокера",
+  EPTS: "ЭПТС",
+  PTD: "ПТД",
+  SBKTS: "СБКТС",
 } as const;
 
-export const DOCUMENT_ORDER = [
+export const CLIENT_DOCUMENT_ORDER = [
   "PASSPORT",
   "INN",
   "SNILS",
@@ -72,6 +75,11 @@ export const DOCUMENT_ORDER = [
   "BROKER_SERVICES_RECEIPT",
   "BROKER_PAYMENT_RECEIPT",
 ] as const;
+
+export const RECEIVED_DOCUMENT_ORDER = ["EPTS", "PTD", "SBKTS"] as const;
+
+/** @deprecated Use CLIENT_DOCUMENT_ORDER or RECEIVED_DOCUMENT_ORDER */
+export const DOCUMENT_ORDER = CLIENT_DOCUMENT_ORDER;
 
 export const DOCUMENT_STATUS_LABELS = {
   MISSING: "Отсутствует",

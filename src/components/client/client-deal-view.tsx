@@ -13,7 +13,7 @@ import { ClientImportProcessView } from "@/components/client/client-import-proce
 import { DealImportProcess } from "@/components/deals/deal-import-process";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
-import { DealDocuments } from "@/components/deals/deal-documents";
+import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
 import { DealLogistics } from "@/components/deals/deal-logistics";
 import { SearchProcessLinksPanel } from "@/components/deals/search-process-links";
 import { SearchProcessVariantFeedback } from "@/components/client/search-process-variant-feedback";
@@ -163,12 +163,21 @@ export function ClientDealView() {
           </TabsList>
         </div>
 
-        <TabsContent value="documents">
+        <TabsContent value="documents" className="space-y-4">
           <DealDocuments
             dealId={deal.id}
             documents={deal.documents}
             managerId={deal.managerId}
             clientUserId={deal.clientUserId ?? user?.id}
+            onUpdated={refreshDeal}
+          />
+          <DealDocuments
+            dealId={deal.id}
+            documents={deal.documents}
+            managerId={deal.managerId}
+            clientUserId={deal.clientUserId ?? user?.id}
+            title="Полученные документы"
+            documentTypes={RECEIVED_DEAL_DOCUMENT_TYPES}
             onUpdated={refreshDeal}
           />
         </TabsContent>

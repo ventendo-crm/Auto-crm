@@ -332,6 +332,9 @@ enum DocumentType {
   CUSTOMS_DUTY_RECEIPT
   BROKER_SERVICES_RECEIPT
   BROKER_PAYMENT_RECEIPT
+  EPTS
+  PTD
+  SBKTS
 }
 
 enum DocumentStatus {
