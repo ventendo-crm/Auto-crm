@@ -3,6 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   experimental: {
+    // Upload routes go through middleware (/api/*); default limit is 10 MB.
+    middlewareClientMaxBodySize: "100mb",
     serverActions: {
       bodySizeLimit: "100mb",
     },
