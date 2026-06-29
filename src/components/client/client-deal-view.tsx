@@ -168,7 +168,7 @@ export function ClientDealView() {
             dealId={deal.id}
             documents={deal.documents}
             managerId={deal.managerId}
-            canUpload
+            clientUserId={deal.clientUserId ?? user?.id}
             onUpdated={refreshDeal}
           />
         </TabsContent>

@@ -126,10 +126,7 @@ export function canUploadDealDocuments(
   userId: string,
   deal: { managerId: string | null; clientUserId?: string | null },
 ): boolean {
-  if (role === ROLES.CLIENT) {
-    return deal.clientUserId === userId;
-  }
-  return canUpdateDeal(role, userId, deal.managerId);
+  return canViewDeal(role, userId, deal);
 }
 
 export function canAssignDealManager(role: RoleName): boolean {

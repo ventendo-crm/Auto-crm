@@ -1,7 +1,7 @@
 "use client";
 
 import { DocumentType } from "@prisma/client";
-import { CheckCircle2, Download, ExternalLink, FileText, Loader2, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, Download, FileText, Loader2, Upload, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
 import { DOCUMENT_LABELS, DOCUMENT_ORDER, DOCUMENT_STATUS_LABELS } from "@/lib/constants";
-import { canManageDealClient } from "@/lib/permissions";
+import { canUploadDealDocuments, getClientRoleName } from "@/lib/permissions";
 import { DocumentItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
@@ -46,14 +46,11 @@ function getDownloadUrl(dealId: string, type: DocumentType, fileUrl: string): st
   return isLocalUpload(fileUrl) ? getDocumentFileUrl(dealId, type, true) : fileUrl;
 }
 
-function getOpenUrl(dealId: string, type: DocumentType, fileUrl: string): string {
-  return isLocalUpload(fileUrl) ? getDocumentFileUrl(dealId, type, false) : fileUrl;
-}
-
 interface DealDocumentsProps {
   dealId: string;
   documents: DocumentItem[];
   managerId: string | null;
+  clientUserId?: string | null;
   onUpdated?: () => void;
   canUpload?: boolean;
   canVerify?: boolean;
@@ -63,6 +60,7 @@ export function DealDocuments({
   dealId,
   documents,
   managerId,
+  clientUserId = null,
   onUpdated,
   canUpload: canUploadProp,
   canVerify: canVerifyProp = false,
@@ -72,7 +70,14 @@ export function DealDocuments({
   const [uploadingType, setUploadingType] = useState<DocumentType | null>(null);
   const [statusUpdatingType, setStatusUpdatingType] = useState<DocumentType | null>(null);
 
-  const canUpload = canUploadProp ?? canManageDealClient(user, managerId);
+  const role = getClientRoleName(user);
+  const canUpload =
+    canUploadProp ??
+    Boolean(
+      user &&
+        role &&
+        canUploadDealDocuments(role, user.id, { managerId, clientUserId }),
+    );
   const canVerify = canVerifyProp;
 
   const documentsByType = Object.fromEntries(
@@ -161,24 +166,15 @@ export function DealDocuments({
 
               <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                 {hasFile && doc?.fileUrl && (
-                  <>
-                    <Button variant="outline" size="sm" asChild>
-                      <a href={getOpenUrl(dealId, type, doc.fileUrl)} target="_blank" rel="noreferrer">
-                        <ExternalLink className="h-4 w-4" />
-                        Открыть
-                      </a>
-                    </Button>
-
-                    <Button variant="outline" size="sm" asChild>
-                      <a
-                        href={getDownloadUrl(dealId, type, doc.fileUrl)}
-                        download={isLocalUpload(doc.fileUrl) ? (fileName ?? undefined) : undefined}
-                      >
-                        <Download className="h-4 w-4" />
-                        Скачать
-                      </a>
-                    </Button>
-                  </>
+                  <Button variant="outline" size="sm" asChild>
+                    <a
+                      href={getDownloadUrl(dealId, type, doc.fileUrl)}
+                      download={isLocalUpload(doc.fileUrl) ? (fileName ?? undefined) : undefined}
+                    >
+                      <Download className="h-4 w-4" />
+                      Скачать
+                    </a>
+                  </Button>
                 )}
 
                 {canVerify && hasFile && doc?.status === "RECEIVED" && (

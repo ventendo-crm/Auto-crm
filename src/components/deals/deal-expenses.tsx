@@ -140,11 +140,20 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
   }, [canEdit, dealId, loading, rows]);
 
   const addRow = () => {
+    skipSaveRef.current = true;
     setRows((current) => [...current, createEmptyRow()]);
   };
 
   const removeRow = (key: string) => {
     setRows((current) => {
+      const target = current.find((row) => row.key === key);
+      const isEmptyDraft =
+        target && !target.description.trim() && parseAmount(target.amount) <= 0;
+
+      if (isEmptyDraft) {
+        skipSaveRef.current = true;
+      }
+
       const next = current.filter((row) => row.key !== key);
       return next.length > 0 ? next : [createEmptyRow()];
     });

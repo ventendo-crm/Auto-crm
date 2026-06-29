@@ -27,7 +27,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
-import { canManageDealClient, canManageDealExpenses, getClientRoleName } from "@/lib/permissions";
+import { canManageDealClient, canManageDealExpenses, canUploadDealDocuments, getClientRoleName } from "@/lib/permissions";
 import { DealActivityItem } from "@/lib/services/deal-activity";
 import { DealDetail } from "@/lib/types";
 
@@ -45,6 +45,14 @@ export default function DealPage() {
   const role = getClientRoleName(user);
   const canViewExpenses =
     deal && role && user ? canManageDealExpenses(role, user.id, deal.managerId) : false;
+
+  const canUploadDocuments =
+    deal && role && user
+      ? canUploadDealDocuments(role, user.id, {
+          managerId: deal.managerId,
+          clientUserId: deal.clientUserId,
+        })
+      : false;
 
   const canDeleteDeal = canManageDeal;
 
@@ -236,8 +244,9 @@ export default function DealPage() {
               dealId={deal.id}
               documents={deal.documents}
               managerId={deal.managerId}
+              clientUserId={deal.clientUserId}
               onUpdated={refreshDeal}
-              canUpload={canManageDeal}
+              canUpload={canUploadDocuments}
               canVerify={canManageDeal}
             />
           </TabsContent>
