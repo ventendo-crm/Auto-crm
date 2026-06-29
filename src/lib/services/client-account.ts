@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { AuthUser } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
 import { enrichMediaRecord, SEARCH_PROCESS_MEDIA_INCLUDE } from "@/lib/services/media";
-import { getRoleByName } from "@/lib/services/roles";
+import { getRoleByName, ensureDefaultRoles } from "@/lib/services/roles";
 import { serialize } from "@/lib/serialize";
 
 const clientUserSelect = {
@@ -165,6 +165,8 @@ export async function createClientAccount(
   if (deal.clientUserId) {
     throw new Error("CLIENT_ALREADY_LINKED");
   }
+
+  await ensureDefaultRoles();
 
   const role = await getRoleByName("CLIENT");
   if (!role) {

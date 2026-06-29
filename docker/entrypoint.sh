@@ -17,6 +17,12 @@ if command -v npx >/dev/null 2>&1; then
   run_as_nextjs npx prisma db push --skip-generate
 fi
 
+echo "[auto-crm] Ensuring default roles..."
+if [ -f ./prisma/ensure-roles.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-roles.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Role ensure skipped or failed"
+fi
+
 if [ "$RUN_SEED" = "true" ]; then
   echo "[auto-crm] Seeding database..."
   if [ -f ./node_modules/.bin/tsx ]; then
