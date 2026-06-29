@@ -46,11 +46,43 @@ function parseAmount(value: string): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
+function mergeRowsAfterSave(current: ExpenseRow[], saved: DealExpenseItem[]): ExpenseRow[] {
+  const savedRows = saved.map((item) => ({
+    key: item.id,
+    description: item.description,
+    amount: item.amount > 0 ? String(item.amount) : "",
+  }));
+
+  const emptyDrafts = current.filter(
+    (row) => !row.description.trim() && parseAmount(row.amount) <= 0,
+  );
+
+  if (savedRows.length === 0 && emptyDrafts.length === 0) {
+    return [createEmptyRow()];
+  }
+
+  return [...savedRows, ...emptyDrafts];
+}
+
+function meaningfulPayload(rows: ExpenseRow[]) {
+  return rows
+    .filter((row) => row.description.trim().length > 0 || parseAmount(row.amount) > 0)
+    .map((row) => ({
+      description: row.description.trim(),
+      amount: parseAmount(row.amount),
+    }));
+}
+
+function serializePayload(rows: ExpenseRow[]): string {
+  return JSON.stringify(meaningfulPayload(rows));
+}
+
 export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
   const [rows, setRows] = useState<ExpenseRow[]>([createEmptyRow()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const skipSaveRef = useRef(true);
+  const lastSavedPayloadRef = useRef("");
 
   const total = useMemo(
     () => rows.reduce((sum, row) => sum + parseAmount(row.amount), 0),
@@ -61,7 +93,9 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
     try {
       const data = await api.deals.expenses.list(dealId);
       skipSaveRef.current = true;
-      setRows(toRows(data));
+      const nextRows = toRows(data);
+      setRows(nextRows);
+      lastSavedPayloadRef.current = serializePayload(nextRows);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Не удалось загрузить расходы");
     } finally {
@@ -82,15 +116,19 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
     }
 
     const timer = window.setTimeout(async () => {
+      const payload = meaningfulPayload(rows);
+      const serialized = JSON.stringify(payload);
+
+      if (serialized === lastSavedPayloadRef.current) {
+        return;
+      }
+
       setSaving(true);
       try {
-        const payload = rows.map((row) => ({
-          description: row.description,
-          amount: parseAmount(row.amount),
-        }));
         const saved = await api.deals.expenses.save(dealId, payload);
         skipSaveRef.current = true;
-        setRows(toRows(saved));
+        lastSavedPayloadRef.current = serialized;
+        setRows((current) => mergeRowsAfterSave(current, saved));
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Не удалось сохранить расходы");
       } finally {
