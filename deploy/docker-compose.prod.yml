@@ -57,6 +57,7 @@ services:
     build:
       context: ..
       dockerfile: Dockerfile
+    image: deploy-app:latest
     container_name: auto-crm-app
     restart: unless-stopped
     ports:
