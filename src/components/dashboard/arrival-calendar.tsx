@@ -84,23 +84,25 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:justify-end">
           <Button
             type="button"
             variant="outline"
             size="icon"
+            className="h-8 w-8 shrink-0"
             onClick={() => setMonth((current) => subMonths(current, 1))}
             aria-label="Предыдущий месяц"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <span className="min-w-[9rem] text-center text-sm font-medium capitalize">
+          <span className="min-w-0 flex-1 text-center text-sm font-medium capitalize sm:min-w-[9rem] sm:flex-none">
             {format(month, "LLLL yyyy", { locale: ru })}
           </span>
           <Button
             type="button"
             variant="outline"
             size="icon"
+            className="h-8 w-8 shrink-0"
             onClick={() => setMonth((current) => addMonths(current, 1))}
             aria-label="Следующий месяц"
           >
@@ -110,6 +112,7 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
             type="button"
             variant="ghost"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() => {
               const today = new Date();
               setMonth(startOfMonth(today));
@@ -121,8 +124,8 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4">
-        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+      <CardContent className="space-y-4 overflow-hidden">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
           <span className="flex items-center gap-2">
             <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
             Ожидаемое прибытие
@@ -133,69 +136,68 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
           </span>
         </div>
 
-        <div className="overflow-x-auto">
-          <div className="min-w-[18rem]">
-            <div className="mb-2 grid grid-cols-7 gap-1">
-              {WEEKDAYS.map((day) => (
-                <div
-                  key={day}
-                  className="py-1 text-center text-xs font-medium text-muted-foreground"
+        <div className="w-full min-w-0">
+          <div className="mb-1 grid grid-cols-7 gap-0.5 sm:mb-2 sm:gap-1">
+            {WEEKDAYS.map((day) => (
+              <div
+                key={day}
+                className="min-w-0 truncate py-1 text-center text-[10px] font-medium text-muted-foreground sm:text-xs"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+            {calendarDays.map((day) => {
+              const dayKey = toDateKey(day);
+              const dayEvents = eventsByDay.get(dayKey) ?? [];
+              const inMonth = isSameMonth(day, month);
+              const selected = isSameDay(day, selectedDay);
+              const today = isToday(day);
+              const hasExpected = dayEvents.some((event) => event.kind === "expected");
+              const hasActual = dayEvents.some((event) => event.kind === "actual");
+
+              return (
+                <button
+                  key={dayKey}
+                  type="button"
+                  onClick={() => setSelectedDay(day)}
+                  className={cn(
+                    "box-border flex min-h-[3.25rem] min-w-0 flex-col items-center rounded-md border p-0.5 text-center transition-colors sm:min-h-[4.5rem] sm:items-start sm:rounded-lg sm:p-1.5 sm:text-left",
+                    inMonth ? "bg-background" : "bg-muted/20 text-muted-foreground",
+                    selected && "border-brand ring-1 ring-inset ring-brand/30",
+                    !selected && "hover:bg-muted/40",
+                  )}
                 >
-                  {day}
-                </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-7 gap-1">
-              {calendarDays.map((day) => {
-                const dayKey = toDateKey(day);
-                const dayEvents = eventsByDay.get(dayKey) ?? [];
-                const inMonth = isSameMonth(day, month);
-                const selected = isSameDay(day, selectedDay);
-                const today = isToday(day);
-                const hasExpected = dayEvents.some((event) => event.kind === "expected");
-                const hasActual = dayEvents.some((event) => event.kind === "actual");
-
-                return (
-                  <button
-                    key={dayKey}
-                    type="button"
-                    onClick={() => setSelectedDay(day)}
+                  <span
                     className={cn(
-                      "flex min-h-[4.5rem] flex-col rounded-lg border p-1.5 text-left transition-colors",
-                      inMonth ? "bg-background" : "bg-muted/20 text-muted-foreground",
-                      selected && "border-brand ring-1 ring-brand/30",
-                      !selected && "hover:bg-muted/40",
+                      "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-medium sm:mb-1 sm:h-6 sm:w-6 sm:text-xs",
+                      today && "bg-brand text-brand-foreground",
                     )}
                   >
-                    <span
-                      className={cn(
-                        "mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium",
-                        today && "bg-brand text-brand-foreground",
-                      )}
-                    >
-                      {format(day, "d")}
-                    </span>
+                    {format(day, "d")}
+                  </span>
 
-                    {dayEvents.length > 0 && (
-                      <div className="mt-auto space-y-1">
-                        <div className="flex flex-wrap gap-0.5">
-                          {hasExpected && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                          )}
-                          {hasActual && (
-                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                          )}
-                        </div>
-                        <span className="block text-[10px] font-medium leading-none text-foreground">
-                          {dayEvents.length} авто
-                        </span>
+                  {dayEvents.length > 0 && (
+                    <div className="mt-auto flex min-w-0 flex-col items-center gap-0.5 sm:items-start sm:space-y-1">
+                      <div className="flex flex-wrap justify-center gap-0.5 sm:justify-start">
+                        {hasExpected && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                        )}
+                        {hasActual && (
+                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                        )}
                       </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                      <span className="hidden max-w-full truncate text-[10px] font-medium leading-none text-foreground sm:block">
+                        {dayEvents.length} авто
+                      </span>
+                      <span className="sr-only sm:hidden">{dayEvents.length} авто</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
