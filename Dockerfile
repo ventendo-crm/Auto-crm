@@ -1,7 +1,7 @@
 FROM node:22-alpine AS base
 # Зеркало Alpine для Timeweb (dl-cdn часто зависает)
 RUN sed -i 's|https://dl-cdn.alpinelinux.org|https://mirror.yandex.ru/mirrors|g' /etc/apk/repositories \
-  && apk add --no-cache libc6-compat openssl
+  && apk add --no-cache libc6-compat openssl su-exec
 WORKDIR /app
 
 # ─── Dependencies ─────────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ RUN npm install prisma@6.8.0 tsx bcryptjs --omit=dev \
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-USER nextjs
 EXPOSE 3000
 
+# Entrypoint runs as root to fix uploads volume permissions, then drops to nextjs.
 ENTRYPOINT ["/entrypoint.sh"]
