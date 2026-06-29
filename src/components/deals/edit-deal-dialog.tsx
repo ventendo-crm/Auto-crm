@@ -7,6 +7,7 @@ import { ManagerSelect } from "@/components/deals/manager-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -118,16 +119,17 @@ export function EditDealDialog({ deal, onUpdated, canEdit: canEditProp }: Props)
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[90dvh] w-[calc(100%-2rem)] max-w-2xl flex-col gap-0 overflow-hidden p-0">
+        <DialogHeader className="shrink-0 space-y-1.5 px-6 pb-4 pt-6 pr-12 text-left">
           <DialogTitle>Редактирование сделки</DialogTitle>
           <DialogDescription>
             Измените данные клиента, автомобиля и логистики
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-6 py-1">
+            <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="edit-clientName">Клиент</Label>
               <Input
@@ -246,11 +248,19 @@ export function EditDealDialog({ deal, onUpdated, canEdit: canEditProp }: Props)
               />
             </div>
           </div>
+          </div>
 
-          <Button type="submit" variant="brand" className="w-full" disabled={loading}>
-            {loading && <Loader2 className="animate-spin" />}
-            Сохранить изменения
-          </Button>
+          <div className="flex shrink-0 gap-2 border-t bg-background px-6 py-4">
+            <DialogClose asChild>
+              <Button type="button" variant="outline" className="flex-1" disabled={loading}>
+                Отмена
+              </Button>
+            </DialogClose>
+            <Button type="submit" variant="brand" className="flex-1" disabled={loading}>
+              {loading && <Loader2 className="animate-spin" />}
+              Сохранить
+            </Button>
+          </div>
         </form>
       </DialogContent>
     </Dialog>
