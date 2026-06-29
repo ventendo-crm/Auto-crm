@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { DashboardCharts } from "@/components/dashboard/charts";
-import { EtaList } from "@/components/dashboard/eta-list";
+import { ArrivalCalendar } from "@/components/dashboard/arrival-calendar";
 import { ManagerStatsOverview } from "@/components/dashboard/manager-stats-overview";
 import { RecentDeals } from "@/components/dashboard/recent-deals";
 import { StatsCards } from "@/components/dashboard/stats-cards";
@@ -99,7 +99,7 @@ export default function DashboardPage() {
             {data.managerStats && data.managerStats.length > 0 && (
               <ManagerStatsOverview managerStats={data.managerStats} />
             )}
-            <EtaList etaDeals={data.charts.etaDeals} />
+            <ArrivalCalendar events={data.arrivalEvents} />
             <DashboardCharts charts={data.charts} />
             <RecentDeals deals={data.recentDeals} />
           </>

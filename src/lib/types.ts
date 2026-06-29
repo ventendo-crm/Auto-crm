@@ -206,6 +206,16 @@ export interface DashboardStats {
   eta: number;
 }
 
+export interface DashboardArrivalEvent {
+  dealId: string;
+  clientName: string;
+  carLabel: string;
+  vin: string;
+  date: string;
+  kind: "expected" | "actual";
+  currentStage: DealStageType;
+}
+
 export interface DashboardChartData {
   byStage: { stage: DealStageType; name: string; value: number }[];
   stageBar: { name: string; count: number }[];
@@ -236,6 +246,7 @@ export interface DashboardManagerStat {
 export interface DashboardData {
   stats: DashboardStats;
   charts: DashboardChartData;
+  arrivalEvents: DashboardArrivalEvent[];
   recentDeals: DashboardRecentDeal[];
   managerStats?: DashboardManagerStat[];
 }

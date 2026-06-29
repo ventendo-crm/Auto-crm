@@ -6,8 +6,6 @@ import {
   CartesianGrid,
   Cell,
   Legend,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -102,36 +100,6 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
             </ResponsiveContainer>
           ) : (
             <EmptyChart />
-          )}
-        </CardContent>
-      </Card>
-
-      <Card className="border-0 shadow-card">
-        <CardHeader>
-          <CardTitle className="text-base">Ближайшие прибытия</CardTitle>
-          <CardDescription>Дней до ожидаемого прибытия</CardDescription>
-        </CardHeader>
-        <CardContent className="h-72">
-          {charts.etaDeals.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={charts.etaDeals} margin={{ top: 8, right: 16, left: -16, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                <XAxis dataKey="name" tick={{ fontSize: 12 }} />
-                <YAxis allowDecimals={false} tick={{ fontSize: 12 }} label={{ value: "дней", angle: -90, position: "insideLeft", fontSize: 11 }} />
-                <Tooltip content={<ChartTooltip />} />
-                <Line
-                  type="monotone"
-                  dataKey="days"
-                  name="Дней до прибытия"
-                  stroke="#F59E0B"
-                  strokeWidth={2.5}
-                  dot={{ r: 5, fill: "#F59E0B", strokeWidth: 2, stroke: "#fff" }}
-                  activeDot={{ r: 7 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : (
-            <EmptyChart message="Нет сделок с будущим прибытием" />
           )}
         </CardContent>
       </Card>

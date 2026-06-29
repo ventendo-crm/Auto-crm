@@ -2,7 +2,7 @@ import { DealStageType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
 import { AuthUser, ROLES } from "@/lib/permissions";
-import { DashboardChartData, DashboardData, DashboardManagerStat, DashboardStats } from "@/lib/types";
+import { DashboardChartData, DashboardData, DashboardArrivalEvent, DashboardManagerStat, DashboardStats } from "@/lib/types";
 
 function buildDealWhere(user: AuthUser, managerId?: string): Prisma.DealWhereInput {
   if (user.role === ROLES.MANAGER) {
@@ -21,6 +21,7 @@ type DealRow = {
   clientName: string;
   currentStage: DealStageType;
   expectedArrival: Date | null;
+  actualArrival: Date | null;
   stageEnteredAt: Date;
   createdAt: Date;
   updatedAt: Date;
@@ -122,6 +123,36 @@ function computeCharts(deals: DealRow[]): DashboardChartData {
   return { byStage, etaDeals, etaTimeline, stageBar, statusPie };
 }
 
+function formatCarLabel(carBrand: string | null, carModel: string | null, vin: string): string {
+  const label = [carBrand, carModel].filter(Boolean).join(" ").trim();
+  return label || vin;
+}
+
+function computeArrivalEvents(deals: DealRow[]): DashboardArrivalEvent[] {
+  const events: DashboardArrivalEvent[] = [];
+
+  for (const deal of deals) {
+    const isDelivered = deal.currentStage === DealStageType.DELIVERY;
+    const arrivalDate = isDelivered
+      ? (deal.actualArrival ?? deal.expectedArrival)
+      : deal.expectedArrival;
+
+    if (!arrivalDate) continue;
+
+    events.push({
+      dealId: deal.id,
+      clientName: deal.clientName,
+      carLabel: formatCarLabel(deal.carBrand, deal.carModel, deal.vin),
+      vin: deal.vin,
+      date: arrivalDate.toISOString(),
+      kind: isDelivered && deal.actualArrival ? "actual" : "expected",
+      currentStage: deal.currentStage,
+    });
+  }
+
+  return events.sort((a, b) => a.date.localeCompare(b.date));
+}
+
 function computeManagerStats(deals: DealRow[]): DashboardManagerStat[] {
   const grouped = new Map<string, { managerName: string; deals: DealRow[] }>();
 
@@ -162,6 +193,7 @@ export async function getDashboardData(
       clientName: true,
       currentStage: true,
       expectedArrival: true,
+      actualArrival: true,
       stageEnteredAt: true,
       createdAt: true,
       updatedAt: true,
@@ -176,6 +208,7 @@ export async function getDashboardData(
 
   const stats = computeStats(deals);
   const charts = computeCharts(deals);
+  const arrivalEvents = computeArrivalEvents(deals);
 
   const recentDeals = deals.slice(0, 8).map((d) => ({
     id: d.id,
@@ -195,5 +228,5 @@ export async function getDashboardData(
       ? computeManagerStats(deals)
       : undefined;
 
-  return { stats, charts, recentDeals, managerStats };
+  return { stats, charts, arrivalEvents, recentDeals, managerStats };
 }
