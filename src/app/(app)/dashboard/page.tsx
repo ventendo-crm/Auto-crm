@@ -82,6 +82,7 @@ export default function DashboardPage() {
 
         {loading ? (
           <>
+            <Skeleton className="h-[28rem] rounded-xl" />
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 3 }).map((_, i) => (
                 <Skeleton key={i} className="h-32 rounded-xl" />
@@ -95,13 +96,13 @@ export default function DashboardPage() {
           </>
         ) : data ? (
           <>
-            <StatsCards stats={data.stats} />
+            <ArrivalCalendar events={data.arrivalEvents} />
+            <RecentDeals deals={data.recentDeals} />
             {data.managerStats && data.managerStats.length > 0 && (
               <ManagerStatsOverview managerStats={data.managerStats} />
             )}
-            <ArrivalCalendar events={data.arrivalEvents} />
             <DashboardCharts charts={data.charts} />
-            <RecentDeals deals={data.recentDeals} />
+            <StatsCards stats={data.stats} />
           </>
         ) : null}
       </div>
