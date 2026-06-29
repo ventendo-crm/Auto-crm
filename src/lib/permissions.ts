@@ -117,6 +117,10 @@ export function canManageUsers(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }
 
+export function canManageManagers(role: RoleName): boolean {
+  return role === ROLES.ADMIN || role === ROLES.MANAGER;
+}
+
 export function canViewAllDeals(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.VIEWER;
 }

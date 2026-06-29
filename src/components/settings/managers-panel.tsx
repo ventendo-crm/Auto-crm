@@ -27,7 +27,13 @@ function roleLabel(name: string): string {
   return ROLE_LABELS[name] ?? name;
 }
 
-export function ManagersPanel() {
+export function ManagersPanel({
+  canDeleteUsers = false,
+  showOtherUsers = false,
+}: {
+  canDeleteUsers?: boolean;
+  showOtherUsers?: boolean;
+}) {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -193,19 +199,21 @@ export function ManagersPanel() {
                     <p className="text-xs">сделок</p>
                   </div>
 
-                  <DeleteUserDialog
-                    userId={manager.id}
-                    userName={manager.name}
-                    dealsCount={manager._count?.deals ?? 0}
-                    onDeleted={load}
-                  />
+                  {canDeleteUsers && (
+                    <DeleteUserDialog
+                      userId={manager.id}
+                      userName={manager.name}
+                      dealsCount={manager._count?.deals ?? 0}
+                      onDeleted={load}
+                    />
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        {!loading && users.some((user) => user.role.name !== "MANAGER") && (
+        {!loading && showOtherUsers && users.some((user) => user.role.name !== "MANAGER") && (
           <div className="rounded-lg border border-dashed p-4">
             <p className="text-sm font-medium">Другие пользователи</p>
             <div className="mt-2 space-y-2">

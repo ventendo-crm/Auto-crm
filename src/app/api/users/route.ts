@@ -1,39 +1,50 @@
 import { withAuth, assertAllowed } from "@/lib/api-handler";
 import { created, error, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
-import { canManageUsers } from "@/lib/permissions";
+import { canManageManagers, canManageUsers, ROLES } from "@/lib/permissions";
 import { createUser } from "@/lib/services/users";
 import { serialize } from "@/lib/serialize";
 import { createManagerSchema, createUserSchema } from "@/lib/validators/user";
+
+const userSelect = {
+  id: true,
+  name: true,
+  email: true,
+  telegramChatId: true,
+  createdAt: true,
+  role: { select: { id: true, name: true } },
+  clientDeal: { select: { id: true, clientName: true } },
+  _count: { select: { deals: true } },
+} as const;
+
 export const GET = withAuth(async (_request, { user }) => {
-  assertAllowed(canManageUsers(user.role));
+  const isAdmin = canManageUsers(user.role);
+  assertAllowed(isAdmin || canManageManagers(user.role));
 
   const users = await prisma.user.findMany({
+    where: isAdmin ? undefined : { role: { name: ROLES.MANAGER } },
     orderBy: { name: "asc" },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      telegramChatId: true,
-      createdAt: true,
-      role: { select: { id: true, name: true } },
-      clientDeal: { select: { id: true, clientName: true } },
-      _count: { select: { deals: true } },    },
+    select: userSelect,
   });
 
   return ok(serialize(users));
 });
 
 export const POST = withAuth(async (request, { user }) => {
-  assertAllowed(canManageUsers(user.role));
+  const isAdmin = canManageUsers(user.role);
+  assertAllowed(isAdmin || canManageManagers(user.role));
 
   const rawBody = await request.json();
-  const body = createUserSchema.safeParse(rawBody);
+  const parsedUser = createUserSchema.safeParse(rawBody);
 
   try {
-    const payload = body.success
-      ? body.data
-      : { ...createManagerSchema.parse(rawBody), role: "MANAGER" as const };
+    const payload = parsedUser.success
+      ? parsedUser.data
+      : { ...createManagerSchema.parse(rawBody), role: ROLES.MANAGER };
+
+    if (!isAdmin && payload.role !== ROLES.MANAGER) {
+      assertAllowed(false);
+    }
 
     const createdUser = await createUser({
       actorId: user.id,
