@@ -168,14 +168,14 @@ export function ClientDealView() {
             dealId={deal.id}
             documents={deal.documents}
             managerId={deal.managerId}
-            clientUserId={deal.clientUserId ?? user?.id}
+            clientUserId={user?.id}
             onUpdated={refreshDeal}
           />
           <DealDocuments
             dealId={deal.id}
             documents={deal.documents}
             managerId={deal.managerId}
-            clientUserId={deal.clientUserId ?? user?.id}
+            clientUserId={user?.id}
             title="Полученные документы"
             documentTypes={RECEIVED_DEAL_DOCUMENT_TYPES}
             onUpdated={refreshDeal}
