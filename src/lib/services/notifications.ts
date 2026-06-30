@@ -1,6 +1,7 @@
 import { DealStageType, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendBrowserPushToUser } from "@/lib/push/send";
+import { dispatchPushToUser } from "@/lib/push/dispatch";
 import { AuthUser, ROLES } from "@/lib/permissions";
 import {
   CLIENT_STAGE_NOTIFICATIONS,
@@ -35,7 +36,7 @@ export async function createNotification(params: CreateNotificationParams) {
     },
   });
 
-  void sendBrowserPushToUser(params.userId, {
+  void dispatchPushToUser(params.userId, {
     title: params.title,
     body: params.message,
     url: params.dealId ? `/deals/${params.dealId}` : "/settings",

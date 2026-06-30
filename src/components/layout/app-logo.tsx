@@ -1,4 +1,4 @@
-import Image from "next/image";
+import { AppIconMark } from "@/components/brand/app-icon-mark";
 
 interface AppLogoProps {
   size?: number;
@@ -6,14 +6,5 @@ interface AppLogoProps {
 }
 
 export function AppLogo({ size = 32, className }: AppLogoProps) {
-  return (
-    <Image
-      src="/icon-192.png"
-      alt="Auto-CRM"
-      width={size}
-      height={size}
-      className={className ?? "shrink-0 rounded-lg"}
-      priority
-    />
-  );
+  return <AppIconMark size={size} className={className ?? "shrink-0"} />;
 }

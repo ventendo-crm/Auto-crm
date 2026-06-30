@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">Import CRM</string>
+    <string name="notification_channel_name">Уведомления Import CRM</string>
+    <string name="notification_channel_description">События по сделкам и комментариям</string>
+    <string name="error_loading">Не удалось загрузить сайт</string>
+    <string name="error_offline">Нет интернета. Показана сохранённая версия, если она есть.</string>
+    <string name="retry">Повторить</string>
+    <string name="choose_file">Выберите файл</string>
+</resources>

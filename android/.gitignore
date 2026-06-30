@@ -1,0 +1,22 @@
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Gradle
+.gradle/
+build/
+local.properties
+
+# Android Studio
+.idea/
+*.iml
+.cxx/
+
+# Firebase (скачайте свой файл из консоли Firebase)
+app/google-services.json
+
+# Keystore
+*.jks
+*.keystore

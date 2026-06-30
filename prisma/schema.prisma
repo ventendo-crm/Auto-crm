@@ -32,6 +32,7 @@ model User {
   uploadedMedia     MediaFile[]    @relation("MediaUploadedBy")
   notifications     Notification[]
   pushSubscriptions PushSubscription[]
+  fcmDevices        FcmDevice[]
   stageChanges      StageHistory[] @relation("StageChangedBy")
   createdTasks      Task[]         @relation("TaskCreatedBy")
   updatedAdditionalOptions DealAdditionalOption[] @relation("AdditionalOptionUpdatedBy")
@@ -303,6 +304,19 @@ model PushSubscription {
 
   @@index([userId])
   @@map("push_subscriptions")
+}
+
+model FcmDevice {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  label     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("fcm_devices")
 }
 
 model AuditLog {

@@ -81,10 +81,3 @@ export async function sendBrowserPushToUser(
   }
 }
 
-export async function sendTestBrowserPush(userId: string, userName: string): Promise<void> {
-  await sendBrowserPushToUser(userId, {
-    title: "Auto-CRM",
-    body: `${userName}, браузерные уведомления работают.`,
-    url: "/settings",
-  });
-}

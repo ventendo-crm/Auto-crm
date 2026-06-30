@@ -1,7 +1,7 @@
 import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
 import { isPushConfigured } from "@/lib/push/vapid";
-import { sendTestBrowserPush } from "@/lib/push/send";
+import { sendTestBrowserPush } from "@/lib/push/dispatch";
 
 export const POST = withAuth(async (_request, { user }) => {
   if (!isPushConfigured()) {

@@ -45,7 +45,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
 RUN --mount=type=cache,target=/root/.npm \
-  npm install prisma@6.8.0 tsx bcryptjs --omit=dev --no-audit --no-fund --progress=false \
+  npm install prisma@6.8.0 tsx bcryptjs firebase-admin --omit=dev --no-audit --no-fund --progress=false \
   && chown -R nextjs:nodejs /app
 
 COPY docker/entrypoint.sh /entrypoint.sh
