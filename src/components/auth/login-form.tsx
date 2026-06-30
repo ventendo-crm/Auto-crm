@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Car, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { AppLogo } from "@/components/layout/app-logo";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,9 +33,7 @@ export function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#FFF8F6_0%,#F8FAFC_50%,#F0FDF4_100%)] p-4">
       <Card className="w-full max-w-md border-0 shadow-card-hover">
         <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand text-brand-foreground shadow-sm">
-            <Car className="h-6 w-6" />
-          </div>
+          <AppLogo size={48} className="mx-auto rounded-2xl shadow-sm" />
           <div>
             <CardTitle className="text-2xl">Auto-CRM</CardTitle>
             <CardDescription className="mt-1">

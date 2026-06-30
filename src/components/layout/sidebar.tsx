@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Car, Kanban, LayoutDashboard, PanelLeft, PanelLeftClose, Settings } from "lucide-react";
+import { AppLogo } from "@/components/layout/app-logo";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useSidebar } from "@/hooks/use-sidebar";
@@ -55,9 +56,7 @@ export function Sidebar() {
         )}
       >
         <div className="flex h-14 items-center gap-2 border-b px-4">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand text-brand-foreground">
-            <Car className="h-4 w-4" />
-          </div>
+          <AppLogo size={32} />
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold">Auto-CRM</p>
             <p className="truncate text-[11px] text-muted-foreground">Импорт автомобилей</p>

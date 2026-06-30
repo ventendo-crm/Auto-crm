@@ -10,6 +10,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "Auto-CRM",
   description: "CRM для импорта автомобилей",
+  icons: {
+    icon: [{ url: "/icon-192.png", type: "image/png" }],
+    apple: [{ url: "/icon-192.png", type: "image/png" }],
+  },
 };
 
 export const viewport = {

@@ -3,7 +3,8 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Car, LogOut, Settings } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
+import { AppLogo } from "@/components/layout/app-logo";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
@@ -41,9 +42,7 @@ export function ClientShell({ children }: { children: React.ReactNode }) {
     <div className="flex h-[100dvh] flex-col overflow-hidden bg-background">
       <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-4 sm:px-6">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand text-brand-foreground">
-            <Car className="h-4 w-4" />
-          </div>
+          <AppLogo size={32} />
           <div>
             <p className="text-sm font-semibold">Auto-CRM</p>
             <p className="text-[11px] text-muted-foreground">Личный кабинет клиента</p>
