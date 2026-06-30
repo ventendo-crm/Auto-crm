@@ -44,8 +44,17 @@ if (!webhookUrl) {
   process.exit(1);
 }
 
+const apiBase = (process.env.TELEGRAM_API_BASE_URL ?? "https://api.telegram.org").replace(/\/$/, "");
+if (process.env.TELEGRAM_PROXY_URL?.trim()) {
+  process.env.HTTP_PROXY = process.env.TELEGRAM_PROXY_URL.trim();
+  process.env.HTTPS_PROXY = process.env.TELEGRAM_PROXY_URL.trim();
+  process.env.NODE_USE_ENV_PROXY = "1";
+  console.log("Using proxy:", process.env.TELEGRAM_PROXY_URL.replace(/:[^:@/]+@/, ":***@"));
+}
+console.log("API base:", apiBase);
+
 async function tg(method, body) {
-  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
+  const res = await fetch(`${apiBase}/bot${token}/${method}`, {
     method: body ? "POST" : "GET",
     headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,

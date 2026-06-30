@@ -28,9 +28,17 @@ interface DealInfoProps {
   deal: DealDetail;
   onUpdated?: () => void;
   canEdit?: boolean;
+  canViewFinances?: boolean;
 }
 
-export function DealInfo({ deal, onUpdated, canEdit }: DealInfoProps) {
+export function DealInfo({ deal, onUpdated, canEdit, canViewFinances = false }: DealInfoProps) {
+  const visibleFields = fields.filter((field) => {
+    if (!canViewFinances && ["Стоимость", "Предоплата", "Остаток"].includes(field.label)) {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <Card className="border-0 shadow-card">
       <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
@@ -38,7 +46,7 @@ export function DealInfo({ deal, onUpdated, canEdit }: DealInfoProps) {
         <EditDealDialog deal={deal} onUpdated={onUpdated} canEdit={canEdit} />
       </CardHeader>
       <CardContent className="grid gap-4 sm:grid-cols-2">
-        {fields.map((field) => (
+        {visibleFields.map((field) => (
           <div key={field.label} className="rounded-lg border bg-muted/30 p-3">
             <p className="text-xs text-muted-foreground">{field.label}</p>
             <p className="mt-1 text-sm font-medium">{field.value(deal)}</p>

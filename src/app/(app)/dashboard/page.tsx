@@ -7,6 +7,7 @@ import { ArrivalCalendar } from "@/components/dashboard/arrival-calendar";
 import { ManagerStatsOverview } from "@/components/dashboard/manager-stats-overview";
 import { RecentDeals } from "@/components/dashboard/recent-deals";
 import { StatsCards } from "@/components/dashboard/stats-cards";
+import { TodayReminders } from "@/components/dashboard/today-reminders";
 import { Header } from "@/components/layout/header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   const [selectedManagerId, setSelectedManagerId] = useState(ALL_MANAGERS);
 
   const isAdmin = user?.role.name === "ADMIN";
+  const isStaff = user?.role.name === "ADMIN" || user?.role.name === "MANAGER";
 
   const load = useCallback(async (managerId: string) => {
     setLoading(true);
@@ -97,6 +99,7 @@ export default function DashboardPage() {
         ) : data ? (
           <>
             <ArrivalCalendar events={data.arrivalEvents} />
+            {isStaff && <TodayReminders />}
             <RecentDeals deals={data.recentDeals} />
             {data.managerStats && data.managerStats.length > 0 && (
               <ManagerStatsOverview managerStats={data.managerStats} />

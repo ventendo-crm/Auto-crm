@@ -171,6 +171,31 @@ export interface StageHistoryItem {
   changedBy: { id: string; name: string; email: string };
 }
 
+export interface ReminderItem {
+  id: string;
+  dealId: string;
+  title: string;
+  dueDate: string;
+  completed: boolean;
+  createdAt: string;
+  deal?: {
+    id: string;
+    clientName: string;
+    vin: string;
+    managerId: string | null;
+  };
+}
+
+export interface DealFinancialSummary {
+  prepayment: number;
+  balance: number;
+  clientTotal: number;
+  purchasePrice: number;
+  expensesTotal: number;
+  costsTotal: number;
+  estimatedMargin: number;
+}
+
 export interface NotificationItem {
   id: string;
   dealId?: string | null;

@@ -1,7 +1,7 @@
 "use client";
 
+import { BellRing, KeyRound, Loader2, Send } from "lucide-react";
 import { useState } from "react";
-import { KeyRound, Loader2, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
+import { useBrowserNotifications } from "@/hooks/use-browser-notifications";
 import { api } from "@/lib/api-client";
 import { formatDateTime } from "@/lib/utils";
 
 export function ProfilePanel() {
   const { user, refresh } = useAuth();
+  const browserPush = useBrowserNotifications();
   const [chatId, setChatId] = useState(user?.telegramChatId ?? "");
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -67,6 +69,42 @@ export function ProfilePanel() {
       setTesting(false);
     }
   };
+
+  const enableBrowserPush = async () => {
+    try {
+      await browserPush.enable();
+      toast.success("Браузерные уведомления включены");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось включить уведомления");
+    }
+  };
+
+  const disableBrowserPush = async () => {
+    try {
+      await browserPush.disable();
+      toast.success("Браузерные уведомления отключены");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось отключить уведомления");
+    }
+  };
+
+  const testBrowserPush = async () => {
+    try {
+      await browserPush.test();
+      toast.success("Тестовое уведомление отправлено");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось отправить тест");
+    }
+  };
+
+  const browserPushStatus = (() => {
+    if (browserPush.loading) return "Проверка…";
+    if (browserPush.state === "unsupported") return "Браузер не поддерживает push-уведомления";
+    if (browserPush.state === "server-off") return "На сервере не заданы VAPID ключи";
+    if (browserPush.state === "denied") return "Доступ запрещён в настройках браузера";
+    if (browserPush.state === "subscribed") return "Включены на этом устройстве";
+    return "Не включены";
+  })();
 
   const changePassword = async () => {
     if (!currentPassword.trim()) {
@@ -177,6 +215,58 @@ export function ProfilePanel() {
             {passwordLoading ? <Loader2 className="animate-spin" /> : <KeyRound className="h-4 w-4" />}
             Сохранить пароль
           </Button>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+          <div>
+            <p className="text-sm font-medium">Уведомления в браузере</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Push-уведомления о смене этапа, комментариях и других событиях — даже если вкладка
+              свёрнута. Работает без Telegram.
+            </p>
+            <p className="mt-2 text-xs font-medium text-muted-foreground">{browserPushStatus}</p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {browserPush.configured && !browserPush.subscribed && browserPush.state !== "denied" && (
+              <Button
+                variant="brand"
+                size="sm"
+                onClick={enableBrowserPush}
+                disabled={browserPush.busy || browserPush.loading}
+              >
+                {browserPush.busy ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <BellRing className="h-4 w-4" />
+                )}
+                Включить
+              </Button>
+            )}
+            {browserPush.subscribed && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={disableBrowserPush}
+                  disabled={browserPush.busy}
+                >
+                  Отключить
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={testBrowserPush}
+                  disabled={browserPush.busy}
+                >
+                  {browserPush.busy ? <Loader2 className="animate-spin" /> : <BellRing className="h-4 w-4" />}
+                  Тест
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         <Separator />

@@ -11,6 +11,8 @@ import { DealAdditionalOptions } from "@/components/deals/deal-additional-option
 import { DealComments } from "@/components/deals/deal-comments";
 import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
 import { DealExpenses } from "@/components/deals/deal-expenses";
+import { DealFinancialSummaryCard } from "@/components/deals/deal-financial-summary";
+import { DealReminders } from "@/components/deals/deal-reminders";
 import { DealHeader } from "@/components/deals/deal-header";
 import { DealInfo } from "@/components/deals/deal-info";
 import { DealImportProcess } from "@/components/deals/deal-import-process";
@@ -27,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
-import { canManageDealClient, canManageDealExpenses, canUploadDealDocuments, getClientRoleName } from "@/lib/permissions";
+import { canManageDealClient, canManageDealExpenses, canManageDealReminders, canUploadDealDocuments, canViewDealFinances, getClientRoleName } from "@/lib/permissions";
 import { DealActivityItem } from "@/lib/services/deal-activity";
 import { DealDetail } from "@/lib/types";
 
@@ -45,6 +47,12 @@ export default function DealPage() {
   const role = getClientRoleName(user);
   const canViewExpenses =
     deal && role && user ? canManageDealExpenses(role, user.id, deal.managerId) : false;
+
+  const canViewFinances =
+    deal && role && user ? canViewDealFinances(role, user.id, deal.managerId) : false;
+
+  const canManageReminders =
+    deal && role && user ? canManageDealReminders(role, user.id, deal.managerId) : false;
 
   const canUploadDocuments =
     deal && role && user
@@ -215,7 +223,12 @@ export default function DealPage() {
 
             <div className="grid gap-4 lg:grid-cols-2">
             <div className="space-y-4">
-              <DealInfo deal={deal} onUpdated={refreshDeal} canEdit={canManageDeal} />
+              <DealInfo
+                deal={deal}
+                onUpdated={refreshDeal}
+                canEdit={canManageDeal}
+                canViewFinances={canViewFinances}
+              />
               <DealImportProcessToggle
                 dealId={deal.id}
                 enabled={deal.importProcessEnabled}
@@ -224,18 +237,21 @@ export default function DealPage() {
               />
             </div>
 
-            <DealClientAccount
-              deal={deal}
-              canManage={canManageDeal}
-              onUpdated={refreshDeal}
-            />
-
-            <DealLogistics
-              dealId={deal.id}
-              shipment={deal.shipment}
-              canEdit={canManageDeal}
-              onUpdated={refreshDeal}
-            />
+            <div className="space-y-4">
+              {canViewFinances && <DealFinancialSummaryCard deal={deal} />}
+              {canManageReminders && <DealReminders dealId={deal.id} canManage />}
+              <DealClientAccount
+                deal={deal}
+                canManage={canManageDeal}
+                onUpdated={refreshDeal}
+              />
+              <DealLogistics
+                dealId={deal.id}
+                shipment={deal.shipment}
+                canEdit={canManageDeal}
+                onUpdated={refreshDeal}
+              />
+            </div>
             </div>
           </TabsContent>
 

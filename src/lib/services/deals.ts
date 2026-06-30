@@ -351,6 +351,9 @@ export async function changeDealStage(user: AuthUser, id: string, toStage: DealS
       dealId: id,
       clientName: deal.clientName,
       vin: deal.vin,
+      carBrand: deal.carBrand,
+      carModel: deal.carModel,
+      clientUserId: deal.clientUserId,
       fromStage,
       toStage,
       manager: deal.manager

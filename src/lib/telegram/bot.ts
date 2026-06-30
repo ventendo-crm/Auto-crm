@@ -1,3 +1,5 @@
+import { callTelegramApi } from "@/lib/telegram/http";
+
 const STAGE_LABELS: Record<string, string> = {
   LEADS: "Лиды",
   SEARCH: "Поиск авто",
@@ -7,8 +9,6 @@ const STAGE_LABELS: Record<string, string> = {
   TRANSPORT: "Транспортировка",
   DELIVERY: "Получение",
 };
-
-const TELEGRAM_TIMEOUT_MS = 15_000;
 
 function getBotToken(): string | null {
   const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
@@ -35,35 +35,18 @@ async function postTelegramMessage(
     return { ok: false, chatId, error: "TELEGRAM_BOT_TOKEN is not set" };
   }
 
-  try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), TELEGRAM_TIMEOUT_MS);
+  const result = await callTelegramApi(token, "sendMessage", {
+    chat_id: chatId,
+    text,
+    ...(parseMode ? { parse_mode: parseMode } : {}),
+    disable_web_page_preview: true,
+  });
 
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text,
-        ...(parseMode ? { parse_mode: parseMode } : {}),
-        disable_web_page_preview: true,
-      }),
-      signal: controller.signal,
-    });
-
-    clearTimeout(timeout);
-
-    const data = (await response.json()) as { ok: boolean; description?: string };
-
-    if (!data.ok) {
-      return { ok: false, chatId, error: data.description ?? "Unknown Telegram API error" };
-    }
-
-    return { ok: true, chatId };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, chatId, error: message };
+  if (!result.ok) {
+    return { ok: false, chatId, error: result.error };
   }
+
+  return { ok: true, chatId };
 }
 
 export async function sendTelegramMessage(chatId: string, text: string): Promise<boolean> {
@@ -108,6 +91,33 @@ export function formatCommentMessage(params: {
     "",
     escapeHtml(preview),
   ].join("\n");
+}
+
+export function formatClientStageNotificationMessage(params: {
+  stageLabel: string;
+  body: string;
+  carLabel?: string | null;
+  vin?: string | null;
+}): string {
+  const lines = [
+    "📣 <b>Обновление по вашей сделке</b>",
+    "",
+    `<b>Этап:</b> ${escapeHtml(params.stageLabel)}`,
+    "",
+    escapeHtml(params.body),
+  ];
+
+  if (params.carLabel?.trim()) {
+    lines.push("", `<b>Автомобиль:</b> ${escapeHtml(params.carLabel.trim())}`);
+  }
+
+  if (params.vin?.trim()) {
+    lines.push(`<b>VIN:</b> ${escapeHtml(params.vin.trim())}`);
+  }
+
+  lines.push("", "Подробности — в личном кабинете Auto-CRM.");
+
+  return lines.join("\n");
 }
 
 export function formatStageChangeMessage(params: {

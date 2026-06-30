@@ -10,6 +10,7 @@ import {
   MediaItem,
   NotificationItem,
   Paginated,
+  ReminderItem,
   Role,
   ImportProcessEntry,
   SearchProcessEntry,
@@ -172,6 +173,31 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ enabled }),
       }),
+  },
+
+  reminders: {
+    today: () => request<ReminderItem[]>("/api/reminders"),
+    listByDeal: (dealId: string) => request<ReminderItem[]>(`/api/deals/${dealId}/reminders`),
+    create: (dealId: string, data: { title: string; dueDate: string }) =>
+      request<ReminderItem>(`/api/deals/${dealId}/reminders`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (id: string, data: { title?: string; dueDate?: string; completed?: boolean }) =>
+      request<ReminderItem>(`/api/reminders/${id}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    delete: async (id: string) => {
+      const response = await fetch(`/api/reminders/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const json = (await response.json()) as ApiResponse<unknown>;
+        throw new Error(json.error ?? "Delete failed");
+      }
+    },
   },
 
   importProcess: {
@@ -390,6 +416,21 @@ export const api = {
       request<NotificationItem>(`/api/notifications/${id}`, { method: "PATCH" }),
     markAllRead: () =>
       request<{ updated: number }>("/api/notifications/read-all", { method: "POST" }),
+  },
+
+  push: {
+    getPublicKey: () => request<{ publicKey: string }>("/api/push/vapid-public-key"),
+    subscribe: (data: { endpoint: string; p256dh: string; auth: string }) =>
+      request<{ id: string }>("/api/push/subscribe", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    unsubscribe: (data?: { endpoint: string }) =>
+      request<{ removed: number }>("/api/push/subscribe", {
+        method: "DELETE",
+        body: JSON.stringify(data ?? {}),
+      }),
+    test: () => request<{ delivered: boolean }>("/api/push/test", { method: "POST" }),
   },
 
   users: {

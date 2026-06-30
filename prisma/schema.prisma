@@ -31,6 +31,7 @@ model User {
   uploadedDocuments Document[]     @relation("DocumentUploadedBy")
   uploadedMedia     MediaFile[]    @relation("MediaUploadedBy")
   notifications     Notification[]
+  pushSubscriptions PushSubscription[]
   stageChanges      StageHistory[] @relation("StageChangedBy")
   createdTasks      Task[]         @relation("TaskCreatedBy")
   updatedAdditionalOptions DealAdditionalOption[] @relation("AdditionalOptionUpdatedBy")
@@ -290,6 +291,20 @@ model Notification {
   @@map("notifications")
 }
 
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String
@@ -324,6 +339,7 @@ enum MediaType {
 
 enum DocumentType {
   PASSPORT
+  PASSPORT_2
   INN
   SNILS
   PAYMENT

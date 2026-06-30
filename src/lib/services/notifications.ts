@@ -1,8 +1,14 @@
-import { NotificationType } from "@prisma/client";
+import { DealStageType, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { sendBrowserPushToUser } from "@/lib/push/send";
 import { AuthUser, ROLES } from "@/lib/permissions";
-import { COMMENT_AUTHOR_ROLE_LABELS } from "@/lib/constants";
 import {
+  CLIENT_STAGE_NOTIFICATIONS,
+  COMMENT_AUTHOR_ROLE_LABELS,
+  STAGE_LABELS,
+} from "@/lib/constants";
+import {
+  formatClientStageNotificationMessage,
   formatCommentMessage,
   formatStageChangeMessage,
   getDefaultTelegramChatIds,
@@ -19,7 +25,7 @@ interface CreateNotificationParams {
 }
 
 export async function createNotification(params: CreateNotificationParams) {
-  return prisma.notification.create({
+  const notification = await prisma.notification.create({
     data: {
       userId: params.userId,
       title: params.title,
@@ -28,6 +34,14 @@ export async function createNotification(params: CreateNotificationParams) {
       dealId: params.dealId,
     },
   });
+
+  void sendBrowserPushToUser(params.userId, {
+    title: params.title,
+    body: params.message,
+    url: params.dealId ? `/deals/${params.dealId}` : "/settings",
+  });
+
+  return notification;
 }
 
 async function getUserTelegramChatId(userId: string): Promise<string | null> {
@@ -38,9 +52,10 @@ async function getUserTelegramChatId(userId: string): Promise<string | null> {
   return user?.telegramChatId ?? null;
 }
 
-async function dispatchTelegramNotification(params: {
+async function dispatchTelegramToUsers(params: {
   userIds: string[];
   text: string;
+  includeDefaultChatIds?: boolean;
 }): Promise<void> {
   if (!isTelegramConfigured()) {
     console.warn("[notifications] Telegram skipped: TELEGRAM_BOT_TOKEN is not set");
@@ -48,7 +63,7 @@ async function dispatchTelegramNotification(params: {
   }
 
   const chatIds = await Promise.all(params.userIds.map(getUserTelegramChatId));
-  const defaultChatIds = getDefaultTelegramChatIds();
+  const defaultChatIds = params.includeDefaultChatIds === false ? [] : getDefaultTelegramChatIds();
   const uniqueChatIds = [
     ...new Set([...chatIds.filter((id): id is string => Boolean(id?.trim())), ...defaultChatIds]),
   ];
@@ -77,6 +92,9 @@ export async function notifyStageChange(params: {
   dealId: string;
   clientName: string;
   vin: string;
+  carBrand?: string | null;
+  carModel?: string | null;
+  clientUserId?: string | null;
   fromStage: string;
   toStage: string;
   manager: { id: string; name: string } | null;
@@ -117,9 +135,67 @@ export async function notifyStageChange(params: {
     });
   }
 
-  await dispatchTelegramNotification({
+  await dispatchTelegramToUsers({
     userIds: [...recipientIds],
     text: telegramText,
+  });
+
+  await notifyClientStageChange({
+    dealId: params.dealId,
+    clientUserId: params.clientUserId,
+    toStage: params.toStage,
+    carBrand: params.carBrand,
+    carModel: params.carModel,
+    vin: params.vin,
+  });
+}
+
+async function notifyClientStageChange(params: {
+  dealId: string;
+  clientUserId?: string | null;
+  toStage: string;
+  carBrand?: string | null;
+  carModel?: string | null;
+  vin: string;
+}) {
+  if (!params.clientUserId) {
+    return;
+  }
+
+  if (!isDealStageType(params.toStage)) {
+    return;
+  }
+
+  const body = CLIENT_STAGE_NOTIFICATIONS[params.toStage];
+  const stageLabel = STAGE_LABELS[params.toStage];
+  const carLabel = [params.carBrand, params.carModel].filter(Boolean).join(" ").trim() || null;
+  const title = `Этап: ${stageLabel}`;
+
+  const message = [
+    body,
+    ...(carLabel ? ["", `Автомобиль: ${carLabel}`] : []),
+    ...(params.vin?.trim() ? [`VIN: ${params.vin.trim()}`] : []),
+  ].join("\n");
+
+  await createNotification({
+    userId: params.clientUserId,
+    dealId: params.dealId,
+    title,
+    message,
+    type: NotificationType.SYSTEM,
+  });
+
+  const telegramText = formatClientStageNotificationMessage({
+    stageLabel,
+    body,
+    carLabel,
+    vin: params.vin,
+  });
+
+  await dispatchTelegramToUsers({
+    userIds: [params.clientUserId],
+    text: telegramText,
+    includeDefaultChatIds: false,
   });
 }
 
@@ -189,7 +265,7 @@ export async function notifyCommentAdded(params: {
   }
 
   if (recipientIds.size > 0) {
-    await dispatchTelegramNotification({
+    await dispatchTelegramToUsers({
       userIds: [...recipientIds],
       text: telegramText,
     });
@@ -248,14 +324,12 @@ export async function markAllNotificationsRead(userId: string) {
 }
 
 function formatStage(stage: string): string {
-  const labels: Record<string, string> = {
-    LEADS: "Лиды",
-    SEARCH: "Поиск авто",
-    INVOICE: "Инвойс",
-    PREPARATION: "Подготовка",
-    CUSTOMS: "Таможня",
-    TRANSPORT: "Транспортировка",
-    DELIVERY: "Получение",
-  };
-  return labels[stage] ?? stage;
+  if (isDealStageType(stage)) {
+    return STAGE_LABELS[stage];
+  }
+  return stage;
+}
+
+function isDealStageType(value: string): value is DealStageType {
+  return Object.prototype.hasOwnProperty.call(CLIENT_STAGE_NOTIFICATIONS, value);
 }

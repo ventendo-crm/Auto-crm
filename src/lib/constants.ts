@@ -22,6 +22,24 @@ export const STAGE_LABELS: Record<DealStageType, string> = {
   [DealStageType.DELIVERY]: "Получение",
 };
 
+/** Сообщения клиенту при переходе сделки на этап (личный кабинет + Telegram). */
+export const CLIENT_STAGE_NOTIFICATIONS: Record<DealStageType, string> = {
+  [DealStageType.LEADS]:
+    "Ваша заявка принята в работу. Менеджер свяжется с вами при необходимости.",
+  [DealStageType.SEARCH]:
+    "Мы начали поиск автомобиля по вашим параметрам. Новые варианты появятся в личном кабинете.",
+  [DealStageType.INVOICE]:
+    "Вам выставили инвойс, для его оплаты обратитесь в ВТБ банк.",
+  [DealStageType.PREPARATION]:
+    "Автомобиль готовится к отправке. Мы сообщим о следующих шагах.",
+  [DealStageType.CUSTOMS]:
+    "Автомобиль находится на таможенном оформлении.",
+  [DealStageType.TRANSPORT]:
+    "Автомобиль в пути. Следите за обновлениями в личном кабинете.",
+  [DealStageType.DELIVERY]:
+    "Автомобиль готов к получению. Спасибо, что выбрали нас!",
+};
+
 export const STAGE_COLORS: Record<DealStageType, string> = {
   [DealStageType.LEADS]:
     "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800",
@@ -51,6 +69,7 @@ export const STAGE_COLUMN_BG: Record<DealStageType, string> = {
 
 export const DOCUMENT_LABELS = {
   PASSPORT: "Паспорт",
+  PASSPORT_2: "Паспорт (2-й файл)",
   INN: "ИНН",
   SNILS: "СНИЛС",
   PAYMENT: "Оплата",
@@ -77,6 +96,10 @@ export const CLIENT_DOCUMENT_ORDER = [
 ] as const;
 
 export const RECEIVED_DOCUMENT_ORDER = ["EPTS", "PTD", "SBKTS"] as const;
+
+export const PASSPORT_DOCUMENT_TYPES = ["PASSPORT", "PASSPORT_2"] as const;
+
+export const PASSPORT_FILE_LABELS = ["Файл 1", "Файл 2"] as const;
 
 /** @deprecated Use CLIENT_DOCUMENT_ORDER or RECEIVED_DOCUMENT_ORDER */
 export const DOCUMENT_ORDER = CLIENT_DOCUMENT_ORDER;

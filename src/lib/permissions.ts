@@ -147,6 +147,22 @@ export function canManageDealExpenses(
   return false;
 }
 
+export function canViewDealFinances(
+  role: RoleName,
+  userId: string,
+  managerId: string | null,
+): boolean {
+  return canManageDealExpenses(role, userId, managerId);
+}
+
+export function canManageDealReminders(
+  role: RoleName,
+  userId: string,
+  managerId: string | null,
+): boolean {
+  return canManageDealExpenses(role, userId, managerId);
+}
+
 export function canManageClientAccount(role: RoleName, userId: string, managerId: string | null): boolean {
   return canUpdateDeal(role, userId, managerId);
 }
