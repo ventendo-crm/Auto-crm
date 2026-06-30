@@ -12,8 +12,8 @@ import { useAuth } from "@/hooks/use-auth";
 
 export function LoginForm() {
   const { login } = useAuth();
-  const [email, setEmail] = useState("alex@auto-crm.local");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,13 +44,14 @@ export function LoginForm() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Логин</Label>
               <Input
                 id="email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
+                placeholder="Введите логин"
+                autoComplete="username"
                 required
               />
             </div>
@@ -61,6 +62,8 @@ export function LoginForm() {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                placeholder="Введите пароль"
+                autoComplete="current-password"
                 required
               />
             </div>
@@ -69,9 +72,6 @@ export function LoginForm() {
               Войти
             </Button>
           </form>
-          <p className="mt-4 text-center text-xs text-muted-foreground">
-            Seed: admin@auto-crm.local / password123
-          </p>
         </CardContent>
       </Card>
     </div>
