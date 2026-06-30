@@ -21,6 +21,7 @@ echo "==> Версия кода: $(git log -1 --oneline)"
 BUILD_ARGS=()
 if [ "${FORCE_REBUILD:-}" = "1" ]; then
   echo "==> Принудительная пересборка (FORCE_REBUILD=1)..."
+  echo "    npm ci может занять 5–20 мин на VPS — это нормально при медленном доступе к registry.npmjs.org"
   BUILD_ARGS+=(--no-cache)
 fi
 
@@ -37,7 +38,8 @@ if docker exec auto-crm-app sh -c 'grep -rq skipSaveRef /app/.next 2>/dev/null';
   echo "OK: образ содержит актуальный фронтенд (deal-expenses)."
 else
   echo ""
-  echo "ВНИМАНИЕ: в образе не найден код расходов. Запустите: FORCE_REBUILD=1 bash deploy/scripts/deploy.sh"
+  echo "ВНИМАНИЕ: в образе не найден код расходов. Запустите: bash deploy/scripts/deploy.sh"
+  echo "          (FORCE_REBUILD=1 — только если менялись Dockerfile или package-lock.json)"
 fi
 
 echo ""

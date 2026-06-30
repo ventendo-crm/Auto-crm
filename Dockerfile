@@ -6,8 +6,13 @@ WORKDIR /app
 
 # ─── Dependencies ─────────────────────────────────────────────────────────────
 FROM base AS deps
-COPY package.json ./
-RUN npm install
+COPY package.json package-lock.json .npmrc ./
+ARG NPM_REGISTRY=https://registry.npmjs.org
+RUN npm config set registry "${NPM_REGISTRY}" \
+  && npm config set fetch-timeout 600000 \
+  && npm config set fetch-retries 5
+RUN --mount=type=cache,target=/root/.npm \
+  npm ci --no-audit --no-fund --progress=false
 
 # ─── Build ────────────────────────────────────────────────────────────────────
 FROM base AS builder
@@ -39,7 +44,8 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma/client ./node_modules/@prisma/client
-RUN npm install prisma@6.8.0 tsx bcryptjs --omit=dev \
+RUN --mount=type=cache,target=/root/.npm \
+  npm install prisma@6.8.0 tsx bcryptjs --omit=dev --no-audit --no-fund --progress=false \
   && chown -R nextjs:nodejs /app
 
 COPY docker/entrypoint.sh /entrypoint.sh
