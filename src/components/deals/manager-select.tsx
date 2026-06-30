@@ -43,7 +43,7 @@ export function ManagerSelect({
   }, []);
 
   if (loading) {
-    return <Skeleton className="h-9 w-full max-w-xs" />;
+    return <Skeleton className="h-9 w-full" />;
   }
 
   return (
@@ -54,10 +54,10 @@ export function ManagerSelect({
       }
       disabled={disabled || managers.length === 0}
     >
-      <SelectTrigger id={id} className={className ?? "w-full max-w-xs"}>
+      <SelectTrigger id={id} className={className ?? "w-full"}>
         <SelectValue placeholder="Выберите менеджера" />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent position="popper" sideOffset={4}>
         {allowEmpty && (
           <SelectItem value={EMPTY_MANAGER_VALUE}>Не назначен</SelectItem>
         )}
