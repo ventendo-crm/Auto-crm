@@ -2,6 +2,7 @@ import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLES, RoleName } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
+import { linkManagers } from "@/lib/services/manager-links";
 import { getRoleByName } from "@/lib/services/roles";
 import { staffRoleSchema } from "@/lib/validators/user";
 import { z } from "zod";
@@ -59,6 +60,15 @@ export async function createUser(params: {
     action: "CREATE",
     newValue: { email: user.email, role: role.name },
   });
+
+  const actor = await prisma.user.findUnique({
+    where: { id: params.actorId },
+    select: { role: { select: { name: true } } },
+  });
+
+  if (actor?.role.name === ROLES.MANAGER && params.roleName === ROLES.MANAGER) {
+    await linkManagers(params.actorId, user.id);
+  }
 
   return user;
 }

@@ -1,4 +1,5 @@
 -- Связать менеджеров, которых создавал другой менеджер (по audit_logs).
+-- Идемпотентно: повторный запуск безопасен. Замыкание сети — в scripts/backfill-manager-links.mjs.
 INSERT INTO "manager_links" ("id", "userAId", "userBId", "createdById", "createdAt")
 SELECT DISTINCT ON (pairs."userAId", pairs."userBId")
   substr(md5('mgrlink_' || pairs."userAId" || '_' || pairs."userBId"), 1, 25),

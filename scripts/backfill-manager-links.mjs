@@ -2,6 +2,62 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
+function normalizePair(userId, peerId) {
+  if (userId === peerId) {
+    throw new Error("INVALID_MANAGER_LINK");
+  }
+  return userId < peerId ? [userId, peerId] : [peerId, userId];
+}
+
+async function getPeerIds(managerId) {
+  const links = await prisma.managerLink.findMany({
+    where: {
+      OR: [{ userAId: managerId }, { userBId: managerId }],
+    },
+    select: { userAId: true, userBId: true },
+  });
+
+  return links.map((link) => (link.userAId === managerId ? link.userBId : link.userAId));
+}
+
+async function getVisibleManagerIds(managerId) {
+  const peers = await getPeerIds(managerId);
+  return [managerId, ...peers];
+}
+
+async function upsertLink(userId, peerId, createdById) {
+  const [userAId, userBId] = normalizePair(userId, peerId);
+  const existing = await prisma.managerLink.findUnique({
+    where: { userAId_userBId: { userAId, userBId } },
+  });
+
+  if (existing) {
+    return false;
+  }
+
+  await prisma.managerLink.create({
+    data: { userAId, userBId, createdById },
+  });
+
+  return true;
+}
+
+async function linkManagersNetwork(createdById, peerId) {
+  const networkIds = await getVisibleManagerIds(createdById);
+  let linked = 0;
+
+  for (const memberId of networkIds) {
+    if (memberId === peerId) {
+      continue;
+    }
+    if (await upsertLink(memberId, peerId, createdById)) {
+      linked += 1;
+    }
+  }
+
+  return linked;
+}
+
 async function main() {
   const logs = await prisma.auditLog.findMany({
     where: { entity: "User", action: "CREATE" },
@@ -13,7 +69,7 @@ async function main() {
   let skipped = 0;
 
   for (const log of logs) {
-    const role = (log.newValue as { role?: string } | null)?.role;
+    const role = log.newValue?.role;
     if (role !== "MANAGER") {
       skipped += 1;
       continue;
@@ -45,24 +101,13 @@ async function main() {
       continue;
     }
 
-    const userAId = creator.id < created.id ? creator.id : created.id;
-    const userBId = creator.id < created.id ? created.id : creator.id;
-
-    const existing = await prisma.managerLink.findUnique({
-      where: { userAId_userBId: { userAId, userBId } },
-    });
-
-    if (existing) {
+    const createdLinks = await linkManagersNetwork(creator.id, created.id);
+    if (createdLinks > 0) {
+      linked += createdLinks;
+      console.log(`Связаны: ${creator.name} ↔ сеть ↔ ${created.name} (+${createdLinks})`);
+    } else {
       skipped += 1;
-      continue;
     }
-
-    await prisma.managerLink.create({
-      data: { userAId, userBId, createdById: creator.id },
-    });
-
-    linked += 1;
-    console.log(`Связаны: ${creator.name} <-> ${created.name}`);
   }
 
   const total = await prisma.managerLink.count();

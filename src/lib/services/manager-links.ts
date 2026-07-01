@@ -8,14 +8,30 @@ function normalizeManagerPair(userId: string, peerId: string): [string, string] 
   return userId < peerId ? [userId, peerId] : [peerId, userId];
 }
 
-export async function linkManagers(createdById: string, peerId: string) {
-  const [userAId, userBId] = normalizeManagerPair(createdById, peerId);
+async function upsertManagerLink(userId: string, peerId: string, createdById: string) {
+  const [userAId, userBId] = normalizeManagerPair(userId, peerId);
 
   return prisma.managerLink.upsert({
     where: { userAId_userBId: { userAId, userBId } },
     create: { userAId, userBId, createdById },
     update: {},
   });
+}
+
+/** Связывает нового менеджера со всей сетью того, кто его добавил. */
+export async function linkManagers(createdById: string, peerId: string) {
+  const networkIds = await getManagerVisibleManagerIds(createdById);
+  let linked = 0;
+
+  for (const memberId of networkIds) {
+    if (memberId === peerId) {
+      continue;
+    }
+    await upsertManagerLink(memberId, peerId, createdById);
+    linked += 1;
+  }
+
+  return linked;
 }
 
 export async function getManagerPeerIds(managerId: string): Promise<string[]> {
@@ -87,17 +103,10 @@ export async function backfillManagerLinksFromAudit(): Promise<number> {
       continue;
     }
 
-    const [userAId, userBId] = normalizeManagerPair(creator.id, created.id);
-    const existing = await prisma.managerLink.findUnique({
-      where: { userAId_userBId: { userAId, userBId } },
-    });
-
-    if (existing) {
-      continue;
+    const createdLinks = await linkManagers(creator.id, created.id);
+    if (createdLinks > 0) {
+      linked += createdLinks;
     }
-
-    await linkManagers(creator.id, created.id);
-    linked += 1;
   }
 
   return linked;

@@ -3,7 +3,6 @@ import { created, error, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { canManageManagers, canManageUsers, ROLES } from "@/lib/permissions";
 import { createUser } from "@/lib/services/users";
-import { linkManagers } from "@/lib/services/manager-links";
 import { serialize } from "@/lib/serialize";
 import { createManagerSchema, createUserSchema } from "@/lib/validators/user";
 
@@ -54,10 +53,6 @@ export const POST = withAuth(async (request, { user }) => {
       password: payload.password,
       roleName: payload.role,
     });
-
-    if (!isAdmin && user.role === ROLES.MANAGER && payload.role === ROLES.MANAGER) {
-      await linkManagers(user.id, createdUser.id);
-    }
 
     return created(serialize(createdUser));
   } catch (err) {

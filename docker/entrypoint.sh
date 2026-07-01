@@ -23,6 +23,15 @@ if [ -f ./prisma/ensure-roles.sql ]; then
     || echo "[auto-crm] Role ensure skipped or failed"
 fi
 
+echo "[auto-crm] Backfilling manager links..."
+if [ -f ./scripts/backfill-manager-links.mjs ]; then
+  run_as_nextjs node ./scripts/backfill-manager-links.mjs \
+    || echo "[auto-crm] Manager links backfill skipped or failed"
+elif [ -f ./prisma/backfill-manager-links.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/backfill-manager-links.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Manager links backfill skipped or failed"
+fi
+
 if [ "$RUN_SEED" = "true" ]; then
   echo "[auto-crm] Seeding database..."
   if [ -f ./node_modules/.bin/tsx ]; then
