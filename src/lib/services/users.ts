@@ -164,6 +164,11 @@ export async function deleteUser(params: { actorId: string; userId: string }) {
   }
 
   await prisma.$transaction(async (tx) => {
+    await tx.managerLink.deleteMany({
+      where: {
+        OR: [{ userAId: params.userId }, { userBId: params.userId }],
+      },
+    });
     await tx.document.updateMany({
       where: { uploadedById: params.userId },
       data: { uploadedById: null },

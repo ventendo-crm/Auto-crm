@@ -1,6 +1,6 @@
 import { withAuth, assertAllowed, assertFound } from "@/lib/api-handler";
 import { ok } from "@/lib/api-response";
-import { canViewAllDeals } from "@/lib/permissions";
+import { canUserViewDeal } from "@/lib/services/deal-access";
 import { getDeal } from "@/lib/services/deals";
 import { listStageHistory } from "@/lib/services/stage-history";
 import { serialize } from "@/lib/serialize";
@@ -8,7 +8,7 @@ import { serialize } from "@/lib/serialize";
 export const GET = withAuth(async (_request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
 
-  if (!canViewAllDeals(user.role) && deal.managerId !== user.id) {
+  if (!(await canUserViewDeal(user, deal))) {
     assertAllowed(false);
   }
 

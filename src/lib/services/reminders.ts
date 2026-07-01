@@ -1,7 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { AuthUser, ROLES } from "@/lib/permissions";
+import { AuthUser, ROLES, canViewDeal } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
+import { buildManagerDealsWhere, getManagerPeerIdsForUser } from "@/lib/services/deal-access";
 import { createReminderSchema, updateReminderSchema } from "@/lib/validators/reminders";
 import { z } from "zod";
 
@@ -19,9 +20,9 @@ const reminderInclude = {
   },
 } as const;
 
-function dealAccessWhere(user: AuthUser): Prisma.DealWhereInput {
+async function dealAccessWhere(user: AuthUser): Promise<Prisma.DealWhereInput> {
   if (user.role === ROLES.MANAGER) {
-    return { managerId: user.id };
+    return buildManagerDealsWhere(user);
   }
   if (user.role === ROLES.ADMIN) {
     return {};
@@ -29,7 +30,16 @@ function dealAccessWhere(user: AuthUser): Prisma.DealWhereInput {
   throw new Error("FORBIDDEN");
 }
 
-function assertDealAccess(user: AuthUser, managerId: string | null) {
+async function assertDealViewAccess(user: AuthUser, managerId: string | null) {
+  if (user.role === ROLES.ADMIN) return;
+  if (user.role === ROLES.MANAGER) {
+    const peerIds = await getManagerPeerIdsForUser(user);
+    if (canViewDeal(user.role, user.id, { managerId }, peerIds)) return;
+  }
+  throw new Error("FORBIDDEN");
+}
+
+function assertDealManageAccess(user: AuthUser, managerId: string | null) {
   if (user.role === ROLES.ADMIN) return;
   if (user.role === ROLES.MANAGER && managerId === user.id) return;
   throw new Error("FORBIDDEN");
@@ -65,7 +75,7 @@ export async function listDealReminders(user: AuthUser, dealId: string) {
     throw new Error("NOT_FOUND");
   }
 
-  assertDealAccess(user, deal.managerId);
+  await assertDealViewAccess(user, deal.managerId);
 
   return prisma.reminder.findMany({
     where: { dealId },
@@ -86,7 +96,7 @@ export async function listTodayReminders(user: AuthUser) {
     where: {
       completed: false,
       dueDate: { lte: endToday },
-      deal: dealAccessWhere(user),
+      deal: await dealAccessWhere(user),
     },
     orderBy: { dueDate: "asc" },
     include: reminderInclude,
@@ -107,7 +117,7 @@ export async function createReminder(
     throw new Error("NOT_FOUND");
   }
 
-  assertDealAccess(user, deal.managerId);
+  assertDealManageAccess(user, deal.managerId);
 
   const reminder = await prisma.reminder.create({
     data: {
@@ -143,7 +153,7 @@ export async function updateReminder(
     throw new Error("NOT_FOUND");
   }
 
-  assertDealAccess(user, existing.deal.managerId);
+  assertDealManageAccess(user, existing.deal.managerId);
 
   const reminder = await prisma.reminder.update({
     where: { id: reminderId },
@@ -176,7 +186,7 @@ export async function deleteReminder(user: AuthUser, reminderId: string) {
     throw new Error("NOT_FOUND");
   }
 
-  assertDealAccess(user, existing.deal.managerId);
+  assertDealManageAccess(user, existing.deal.managerId);
 
   await prisma.reminder.delete({ where: { id: reminderId } });
 

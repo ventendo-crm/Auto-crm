@@ -1,6 +1,7 @@
 import { AuthUser, canUpdateDeal, canViewDeal } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
+import { getManagerPeerIdsForUser } from "@/lib/services/deal-access";
 import {
   shipmentInputToData,
   UpdateShipmentInput,
@@ -20,8 +21,11 @@ async function assertDealShipmentAccess(user: AuthUser, dealId: string, write = 
     if (!canUpdateDeal(user.role, user.id, deal.managerId)) {
       throw new Error("Forbidden");
     }
-  } else if (!canViewDeal(user.role, user.id, deal)) {
-    throw new Error("Forbidden");
+  } else {
+    const peerIds = await getManagerPeerIdsForUser(user);
+    if (!canViewDeal(user.role, user.id, deal, peerIds)) {
+      throw new Error("Forbidden");
+    }
   }
 
   return deal;

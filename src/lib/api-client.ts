@@ -308,6 +308,10 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ status }),
       }),
+    delete: (dealId: string, type: DocumentType) =>
+      request<DocumentItem>(`/api/deals/${dealId}/documents/${type}`, {
+        method: "DELETE",
+      }),
   },
 
   searchProcess: {

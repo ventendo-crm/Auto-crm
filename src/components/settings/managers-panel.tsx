@@ -89,7 +89,7 @@ export function ManagersPanel({
         <div>
           <CardTitle className="text-base">Менеджеры</CardTitle>
           <CardDescription className="mt-1">
-            Добавляйте менеджеров и просматривайте активных пользователей системы
+            Добавляйте менеджеров — вы будете видеть сделки друг друга, но не чужих менеджеров
           </CardDescription>
         </div>
 

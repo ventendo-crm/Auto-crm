@@ -1,6 +1,7 @@
 import { withAuth, assertAllowed, assertFound } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
-import { canViewDeal } from "@/lib/permissions";
+import { canUpdateDeal } from "@/lib/permissions";
+import { canUserViewDeal } from "@/lib/services/deal-access";
 import {
   listAdditionalOptions,
   toggleAdditionalOption,
@@ -12,7 +13,7 @@ import { toggleAdditionalOptionSchema } from "@/lib/validators/additional-option
 export const GET = withAuth(async (_request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
 
-  if (!canViewDeal(user.role, user.id, deal)) {
+  if (!(await canUserViewDeal(user, deal))) {
     assertAllowed(false);
   }
 
@@ -23,9 +24,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 export const PATCH = withAuth(async (request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
 
-  if (!canViewDeal(user.role, user.id, deal)) {
-    assertAllowed(false);
-  }
+  assertAllowed(canUpdateDeal(user.role, user.id, deal.managerId));
 
   const body = toggleAdditionalOptionSchema.parse(await request.json());
 

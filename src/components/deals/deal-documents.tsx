@@ -1,7 +1,7 @@
 "use client";
 
 import { DocumentType } from "@prisma/client";
-import { CheckCircle2, Download, FileText, Loader2, Upload, XCircle } from "lucide-react";
+import { CheckCircle2, Download, FileText, Loader2, Trash2, Upload, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ import {
   PASSPORT_DOCUMENT_TYPES,
   PASSPORT_FILE_LABELS,
 } from "@/lib/constants";
-import { canUploadDealDocuments, getClientRoleName } from "@/lib/permissions";
+import { canDeleteDealDocuments, canUploadDealDocuments, getClientRoleName } from "@/lib/permissions";
 import { DocumentItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
@@ -83,6 +83,7 @@ interface DealDocumentsProps {
   onUpdated?: () => void;
   canUpload?: boolean;
   canVerify?: boolean;
+  canDelete?: boolean;
 }
 
 interface DocumentSlotProps {
@@ -93,12 +94,15 @@ interface DocumentSlotProps {
   compact?: boolean;
   canUpload: boolean;
   canVerify: boolean;
+  canDelete: boolean;
   uploadingType: DocumentType | null;
   statusUpdatingType: DocumentType | null;
+  deletingType: DocumentType | null;
   inputRef: (el: HTMLInputElement | null) => void;
   onPickFile: () => void;
   onUpload: (type: DocumentType, file: File) => void;
   onStatusChange: (type: DocumentType, status: "RECEIVED" | "VERIFIED") => void;
+  onDelete: (type: DocumentType) => void;
 }
 
 function DocumentSlot({
@@ -109,17 +113,21 @@ function DocumentSlot({
   compact = false,
   canUpload,
   canVerify,
+  canDelete,
   uploadingType,
   statusUpdatingType,
+  deletingType,
   inputRef,
   onPickFile,
   onUpload,
   onStatusChange,
+  onDelete,
 }: DocumentSlotProps) {
   const hasFile = Boolean(doc?.fileUrl);
   const fileName = doc?.fileUrl ? getFileNameFromUrl(doc.fileUrl) : null;
   const isUploading = uploadingType === type;
   const isUpdatingStatus = statusUpdatingType === type;
+  const isDeleting = deletingType === type;
 
   return (
     <div
@@ -207,6 +215,23 @@ function DocumentSlot({
           </Button>
         )}
 
+        {canDelete && hasFile && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={isDeleting || isUploading}
+            className="text-destructive hover:text-destructive"
+            onClick={() => onDelete(type)}
+          >
+            {isDeleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            Удалить
+          </Button>
+        )}
+
         {canUpload && (
           <>
             <input
@@ -250,11 +275,13 @@ export function DealDocuments({
   onUpdated,
   canUpload: canUploadProp,
   canVerify: canVerifyProp = false,
+  canDelete: canDeleteProp,
 }: DealDocumentsProps) {
   const { user } = useAuth();
   const inputRefs = useRef<Partial<Record<DocumentType, HTMLInputElement | null>>>({});
   const [uploadingType, setUploadingType] = useState<DocumentType | null>(null);
   const [statusUpdatingType, setStatusUpdatingType] = useState<DocumentType | null>(null);
+  const [deletingType, setDeletingType] = useState<DocumentType | null>(null);
 
   const role = getClientRoleName(user);
   const canUpload =
@@ -265,6 +292,9 @@ export function DealDocuments({
         canUploadDealDocuments(role, user.id, { managerId, clientUserId }),
     );
   const canVerify = canVerifyProp;
+  const canDelete =
+    canDeleteProp ??
+    Boolean(user && role && canDeleteDealDocuments(role, user.id, managerId));
 
   const documentsByType = Object.fromEntries(
     documents.map((doc) => [doc.type, doc]),
@@ -308,14 +338,34 @@ export function DealDocuments({
     }
   };
 
+  const handleDelete = async (type: DocumentType) => {
+    const label = DOCUMENT_LABELS[type as keyof typeof DOCUMENT_LABELS] ?? type;
+    if (!window.confirm(`Удалить документ «${label}»?`)) {
+      return;
+    }
+
+    setDeletingType(type);
+    try {
+      await api.documents.delete(dealId, type);
+      toast.success(`${label} удалён`);
+      onUpdated?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Ошибка удаления");
+    } finally {
+      setDeletingType(null);
+    }
+  };
+
   const slotProps = (type: DocumentType) => ({
     dealId,
     type,
     doc: documentsByType[type],
     canUpload,
     canVerify,
+    canDelete,
     uploadingType,
     statusUpdatingType,
+    deletingType,
     inputRef: (el: HTMLInputElement | null) => {
       inputRefs.current[type] = el;
     },
@@ -323,6 +373,7 @@ export function DealDocuments({
     onUpload: (uploadType: DocumentType, file: File) => void handleUpload(uploadType, file),
     onStatusChange: (changeType: DocumentType, status: "RECEIVED" | "VERIFIED") =>
       void handleStatusChange(changeType, status),
+    onDelete: (deleteType: DocumentType) => void handleDelete(deleteType),
   });
 
   return (

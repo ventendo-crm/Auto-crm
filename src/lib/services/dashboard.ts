@@ -2,11 +2,12 @@ import { DealStageType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
 import { AuthUser, ROLES } from "@/lib/permissions";
+import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { DashboardChartData, DashboardData, DashboardArrivalEvent, DashboardManagerStat, DashboardStats } from "@/lib/types";
 
-function buildDealWhere(user: AuthUser, managerId?: string): Prisma.DealWhereInput {
+async function buildDealWhere(user: AuthUser, managerId?: string): Promise<Prisma.DealWhereInput> {
   if (user.role === ROLES.MANAGER) {
-    return { managerId: user.id };
+    return buildManagerDealsWhere(user, managerId);
   }
 
   if (managerId) {
@@ -187,7 +188,7 @@ export async function getDashboardData(
   const effectiveManagerId = user.role === ROLES.ADMIN ? managerId : undefined;
 
   const deals = await prisma.deal.findMany({
-    where: buildDealWhere(user, effectiveManagerId),
+    where: await buildDealWhere(user, effectiveManagerId),
     select: {
       id: true,
       clientName: true,

@@ -2,7 +2,7 @@ import { DocumentStatus, DocumentType } from "@prisma/client";
 import { withAuth, assertAllowed, assertFound } from "@/lib/api-handler";
 import { ok } from "@/lib/api-response";
 import { canUpdateDeal } from "@/lib/permissions";
-import { updateDocumentStatus } from "@/lib/services/documents";
+import { deleteDealDocument, updateDocumentStatus } from "@/lib/services/documents";
 import { getDeal } from "@/lib/services/deals";
 import { serialize } from "@/lib/serialize";
 import { z } from "zod";
@@ -29,5 +29,18 @@ export const PATCH = withAuth(async (request, { user, params }) => {
   }
 
   const document = await updateDocumentStatus(user, params.id, type, body.status);
+  return ok(serialize(document));
+});
+
+export const DELETE = withAuth(async (_request, { user, params }) => {
+  if (!DOCUMENT_TYPES.has(params.type)) {
+    throw new Error("Not found");
+  }
+
+  const deal = assertFound(await getDeal(params.id));
+  assertAllowed(canUpdateDeal(user.role, user.id, deal.managerId));
+
+  const type = params.type as DocumentType;
+  const document = await deleteDealDocument(user, params.id, type);
   return ok(serialize(document));
 });

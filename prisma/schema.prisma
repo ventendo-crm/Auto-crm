@@ -37,6 +37,8 @@ model User {
   createdTasks      Task[]         @relation("TaskCreatedBy")
   updatedAdditionalOptions DealAdditionalOption[] @relation("AdditionalOptionUpdatedBy")
   role              Role           @relation(fields: [roleId], references: [id])
+  managerLinksAsA   ManagerLink[]  @relation("ManagerLinkUserA")
+  managerLinksAsB   ManagerLink[]  @relation("ManagerLinkUserB")
 
   @@index([roleId])
   @@map("users")
@@ -317,6 +319,21 @@ model FcmDevice {
 
   @@index([userId])
   @@map("fcm_devices")
+}
+
+model ManagerLink {
+  id          String   @id @default(cuid())
+  userAId     String
+  userBId     String
+  createdById String?
+  createdAt   DateTime @default(now())
+  userA       User     @relation("ManagerLinkUserA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB       User     @relation("ManagerLinkUserB", fields: [userBId], references: [id], onDelete: Cascade)
+
+  @@unique([userAId, userBId])
+  @@index([userAId])
+  @@index([userBId])
+  @@map("manager_links")
 }
 
 model AuditLog {

@@ -2,6 +2,7 @@ import { DealStageType, DocumentStatus, DocumentType, Prisma } from "@prisma/cli
 import { prisma } from "@/lib/prisma";
 import { AuthUser, ROLES } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
+import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { notifyStageChange } from "@/lib/services/notifications";
 import { recordStageChange } from "@/lib/services/stage-history";
 import { z } from "zod";
@@ -116,13 +117,13 @@ async function resolveUpdateManagerId(
   return inputManagerId;
 }
 
-function buildDealWhere(user: AuthUser, filters: ListDealsInput): Prisma.DealWhereInput {
+async function buildDealWhere(user: AuthUser, filters: ListDealsInput): Promise<Prisma.DealWhereInput> {
   const where: Prisma.DealWhereInput = {};
 
   if (user.role === ROLES.CLIENT) {
     where.clientUserId = user.id;
   } else if (user.role === ROLES.MANAGER) {
-    where.managerId = user.id;
+    Object.assign(where, await buildManagerDealsWhere(user, filters.managerId));
   } else if (filters.managerId) {
     where.managerId = filters.managerId;
   }
@@ -144,7 +145,7 @@ function buildDealWhere(user: AuthUser, filters: ListDealsInput): Prisma.DealWhe
 }
 
 export async function listDeals(user: AuthUser, filters: ListDealsInput) {
-  const where = buildDealWhere(user, filters);
+  const where = await buildDealWhere(user, filters);
 
   const [items, total] = await Promise.all([
     prisma.deal.findMany({

@@ -1,9 +1,12 @@
 import { DocumentStatus, DocumentType } from "@prisma/client";
-import { AuthUser, canUpdateDeal, canViewDeal } from "@/lib/permissions";
+import { unlink } from "fs/promises";
+import { AuthUser, canDeleteDealDocuments, canUpdateDeal, canViewDeal } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
+import { getManagerPeerIdsForUser } from "@/lib/services/deal-access";
 import {
   isLocalUploadUrl,
+  localUploadFilePath,
   openLocalUploadFile,
 } from "@/lib/storage/local-uploads";
 
@@ -64,6 +67,53 @@ export async function updateDocumentStatus(
   return updated;
 }
 
+export async function deleteDealDocument(user: AuthUser, dealId: string, type: DocumentType) {
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { managerId: true },
+  });
+
+  if (!deal) {
+    throw new Error("Not found");
+  }
+
+  if (!canDeleteDealDocuments(user.role, user.id, deal.managerId)) {
+    throw new Error("Forbidden");
+  }
+
+  const document = await prisma.document.findUnique({
+    where: { dealId_type: { dealId, type } },
+  });
+
+  if (!document?.fileUrl) {
+    throw new Error("Not found");
+  }
+
+  if (isLocalUploadUrl(document.fileUrl)) {
+    await unlink(localUploadFilePath(document.fileUrl)).catch(() => undefined);
+  }
+
+  const updated = await prisma.document.update({
+    where: { dealId_type: { dealId, type } },
+    data: {
+      fileUrl: null,
+      status: DocumentStatus.MISSING,
+      uploadedById: null,
+      uploadedAt: null,
+    },
+  });
+
+  await createAuditLog({
+    userId: user.id,
+    entity: "Document",
+    entityId: updated.id,
+    action: "DELETE",
+    oldValue: { dealId, type, fileUrl: document.fileUrl },
+  });
+
+  return updated;
+}
+
 export async function streamDealDocumentFile(
   user: AuthUser,
   dealId: string,
@@ -79,7 +129,7 @@ export async function streamDealDocumentFile(
     throw new Error("Not found");
   }
 
-  if (!canViewDeal(user.role, user.id, deal)) {
+  if (!canViewDeal(user.role, user.id, deal, await getManagerPeerIdsForUser(user))) {
     throw new Error("Forbidden");
   }
 

@@ -1,6 +1,7 @@
 import { withAuth, assertAllowed, assertFound } from "@/lib/api-handler";
 import { noContent, ok } from "@/lib/api-response";
-import { canModifyComment, canViewDeal } from "@/lib/permissions";
+import { canModifyComment } from "@/lib/permissions";
+import { canUserViewDeal } from "@/lib/services/deal-access";
 import { deleteComment, getComment, updateComment } from "@/lib/services/comments";
 import { serialize } from "@/lib/serialize";
 import { updateCommentSchema } from "@/lib/validators/comment";
@@ -9,10 +10,10 @@ export const GET = withAuth(async (_request, { user, params }) => {
   const comment = assertFound(await getComment(params.id));
 
   if (
-    !canViewDeal(user.role, user.id, {
+    !(await canUserViewDeal(user, {
       managerId: comment.deal.managerId,
       clientUserId: comment.deal.clientUserId,
-    })
+    }))
   ) {
     assertAllowed(false);
   }

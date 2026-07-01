@@ -3,8 +3,8 @@ import { noContent, ok } from "@/lib/api-response";
 import {
   canDeleteDeal,
   canUpdateDeal,
-  canViewDeal,
 } from "@/lib/permissions";
+import { canUserViewDeal } from "@/lib/services/deal-access";
 import { deleteDeal, getDeal, updateDeal } from "@/lib/services/deals";
 import { listDealMedia } from "@/lib/services/media";
 import { serialize } from "@/lib/serialize";
@@ -13,7 +13,7 @@ import { updateDealSchema } from "@/lib/validators/deal";
 export const GET = withAuth(async (_request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
 
-  if (!canViewDeal(user.role, user.id, deal)) {
+  if (!(await canUserViewDeal(user, deal))) {
     assertAllowed(false);
   }
 

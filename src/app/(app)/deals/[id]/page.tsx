@@ -264,6 +264,7 @@ export default function DealPage() {
               onUpdated={refreshDeal}
               canUpload={canUploadDocuments}
               canVerify={canManageDeal}
+              canDelete={canManageDeal}
             />
             <DealDocuments
               dealId={deal.id}
@@ -275,6 +276,7 @@ export default function DealPage() {
               onUpdated={refreshDeal}
               canUpload={canUploadDocuments}
               canVerify={canManageDeal}
+              canDelete={canManageDeal}
             />
           </TabsContent>
 

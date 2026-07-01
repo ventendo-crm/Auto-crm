@@ -52,9 +52,14 @@ export function canViewDeal(
   role: RoleName,
   userId: string,
   deal: { managerId: string | null; clientUserId?: string | null },
+  managerPeerIds: readonly string[] = [],
 ): boolean {
   if (role === ROLES.ADMIN || role === ROLES.VIEWER) return true;
-  if (role === ROLES.MANAGER) return deal.managerId !== null && userId === deal.managerId;
+  if (role === ROLES.MANAGER) {
+    if (!deal.managerId) return false;
+    if (deal.managerId === userId) return true;
+    return managerPeerIds.includes(deal.managerId);
+  }
   if (role === ROLES.CLIENT) return deal.clientUserId === userId;
   return false;
 }
@@ -130,7 +135,21 @@ export function canUploadDealDocuments(
   userId: string,
   deal: { managerId: string | null; clientUserId?: string | null },
 ): boolean {
+  if (role === ROLES.CLIENT) {
+    return deal.clientUserId === userId;
+  }
+  if (role === ROLES.MANAGER) {
+    return deal.managerId === userId;
+  }
   return canViewDeal(role, userId, deal);
+}
+
+export function canDeleteDealDocuments(
+  role: RoleName,
+  userId: string,
+  managerId: string | null,
+): boolean {
+  return canUpdateDeal(role, userId, managerId);
 }
 
 export function canAssignDealManager(role: RoleName): boolean {
