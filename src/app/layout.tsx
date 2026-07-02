@@ -11,8 +11,8 @@ export const metadata: Metadata = {
   title: "Auto-CRM",
   description: "CRM для импорта автомобилей",
   icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
-    apple: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    icon: [{ url: "/icon.svg?v=2", type: "image/svg+xml" }],
+    apple: [{ url: "/icon.svg?v=2", type: "image/svg+xml" }],
   },
 };
 
