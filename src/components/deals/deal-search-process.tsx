@@ -66,6 +66,7 @@ export function DealSearchProcess({ dealId, canEdit = false, onChanged }: DealSe
       loadErrorText="Не удалось загрузить процесс поиска"
       mediaPerEntryLabel="файлов на вариант"
       descriptionPlaceholder="Кратко опишите вариант..."
+      hideMediaCaptions
       entriesApi={entriesApi}
       showClientFeedback
       headerExtra={

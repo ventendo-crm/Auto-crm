@@ -23,6 +23,18 @@ if [ -f ./prisma/ensure-roles.sql ]; then
     || echo "[auto-crm] Role ensure skipped or failed"
 fi
 
+echo "[auto-crm] Ensuring contract document slots..."
+if [ -f ./prisma/ensure-contract-document.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-contract-document.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Contract document ensure skipped or failed"
+fi
+
+echo "[auto-crm] Ensuring search agreement document slots..."
+if [ -f ./prisma/ensure-search-agreement-document.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-search-agreement-document.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Search agreement document ensure skipped or failed"
+fi
+
 echo "[auto-crm] Backfilling manager links..."
 if [ -f ./scripts/backfill-manager-links.mjs ]; then
   run_as_nextjs node ./scripts/backfill-manager-links.mjs \

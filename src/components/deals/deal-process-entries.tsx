@@ -54,6 +54,7 @@ interface DealProcessEntriesProps {
   headerExtra?: ReactNode;
   showClientFeedback?: boolean;
   autoCreateFirst?: boolean;
+  hideMediaCaptions?: boolean;
 }
 
 interface PreviewState {
@@ -81,6 +82,7 @@ export function DealProcessEntries({
   headerExtra,
   showClientFeedback = false,
   autoCreateFirst = true,
+  hideMediaCaptions = false,
 }: DealProcessEntriesProps) {
   const [entries, setEntries] = useState<ProcessEntryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,6 +200,7 @@ export function DealProcessEntries({
                 descriptionPlaceholder={descriptionPlaceholder}
                 mediaPerEntryLabel={mediaPerEntryLabel}
                 showClientFeedback={showClientFeedback}
+                hideMediaCaptions={hideMediaCaptions}
                 entriesApi={entriesApi}
                 onUpdated={handleUpdateEntry}
                 onChanged={onChanged}
@@ -246,6 +249,7 @@ function ProcessEntryCard({
   descriptionPlaceholder,
   mediaPerEntryLabel,
   showClientFeedback,
+  hideMediaCaptions,
   entriesApi,
   onUpdated,
   onChanged,
@@ -261,6 +265,7 @@ function ProcessEntryCard({
   descriptionPlaceholder: string;
   mediaPerEntryLabel: string;
   showClientFeedback: boolean;
+  hideMediaCaptions: boolean;
   entriesApi: ProcessEntriesApi;
   onUpdated: (entry: ProcessEntryItem) => void;
   onChanged?: () => void;
@@ -424,6 +429,7 @@ function ProcessEntryCard({
                   key={item.id}
                   item={item}
                   canDelete={canEdit}
+                  hideCaption={hideMediaCaptions}
                   onPreview={() => onPreview(entry.media, item)}
                   onDelete={() => void handleDeleteMedia(item)}
                 />
@@ -457,11 +463,13 @@ function ProcessEntryCard({
 function ProcessMediaTile({
   item,
   canDelete,
+  hideCaption = false,
   onPreview,
   onDelete,
 }: {
   item: MediaItem;
   canDelete: boolean;
+  hideCaption?: boolean;
   onPreview: () => void;
   onDelete: () => void;
 }) {
@@ -518,10 +526,12 @@ function ProcessMediaTile({
           )}
         </div>
 
-        <div className="border-t px-2 py-1.5">
-          <p className="truncate text-[11px] font-medium">{item.fileName}</p>
-          <p className="text-[10px] text-muted-foreground">{formatFileSize(item.size)}</p>
-        </div>
+        {!hideCaption && (
+          <div className="border-t px-2 py-1.5">
+            <p className="truncate text-[11px] font-medium">{item.fileName}</p>
+            <p className="text-[10px] text-muted-foreground">{formatFileSize(item.size)}</p>
+          </div>
+        )}
       </div>
 
       {canDelete && (

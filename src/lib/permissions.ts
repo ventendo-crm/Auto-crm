@@ -73,6 +73,17 @@ export function canManageDealClient(
   return canUpdateDeal(role, user.id, managerId);
 }
 
+export function canToggleAdditionalOption(
+  role: RoleName,
+  userId: string,
+  deal: { managerId: string | null; clientUserId?: string | null },
+): boolean {
+  if (role === ROLES.CLIENT) {
+    return deal.clientUserId === userId;
+  }
+  return canUpdateDeal(role, userId, deal.managerId);
+}
+
 export function canCreateDeals(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }

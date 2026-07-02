@@ -68,12 +68,14 @@ export const STAGE_COLUMN_BG: Record<DealStageType, string> = {
 };
 
 export const DOCUMENT_LABELS = {
+  SEARCH_AGREEMENT: "Договор на поиск",
   PASSPORT: "Паспорт",
   PASSPORT_2: "Паспорт (2-й файл)",
   INN: "ИНН",
   SNILS: "СНИЛС",
   PAYMENT: "Оплата",
   INVOICE: "Инвойс",
+  CONTRACT: "Контракт",
   CUSTOMS_DUTY: "Таможенная пошлина",
   CUSTOMS_DUTY_RECEIPT: "Чек об оплате таможенной пошлины",
   BROKER_SERVICES_RECEIPT: "Квитанция услуг брокера",
@@ -84,10 +86,12 @@ export const DOCUMENT_LABELS = {
 } as const;
 
 export const CLIENT_DOCUMENT_ORDER = [
+  "SEARCH_AGREEMENT",
   "PASSPORT",
   "INN",
   "SNILS",
   "INVOICE",
+  "CONTRACT",
   "PAYMENT",
   "CUSTOMS_DUTY",
   "CUSTOMS_DUTY_RECEIPT",

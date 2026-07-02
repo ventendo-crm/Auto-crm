@@ -15,6 +15,7 @@ export const ADDITIONAL_OPTION_GROUPS: AdditionalOptionGroupDefinition[] = [
     title: "Установка оборудования / Электрика",
     options: [
       { key: "cavity_anti_corrosion", label: "Антикоррозийная обработка скрытых полостей" },
+      { key: "add_key", label: "Добавить ключ" },
       { key: "seat_heating", label: "Установка подогрева сидений" },
       { key: "floor_mats", label: "Установка ковриков" },
       { key: "steering_wheel_heating", label: "Установка подогрева руля" },
@@ -61,7 +62,6 @@ export const ADDITIONAL_OPTION_GROUPS: AdditionalOptionGroupDefinition[] = [
     id: "diagnostics",
     title: "🩺 Диагностика и обслуживание",
     options: [
-      { key: "engine_endoscopy", label: "Диагностика двигателя эндоскопом (осмотр цилиндров)" },
       { key: "presale_prep", label: "Полная предпродажная подготовка автомобиля" },
       { key: "interior_detailing", label: "Глубокая химчистка и реставрация салона" },
       {

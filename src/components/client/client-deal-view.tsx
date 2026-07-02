@@ -216,6 +216,7 @@ export function ClientDealView() {
                           <ClientMediaThumb
                             key={item.id}
                             item={item}
+                            hideCaption
                             onPreview={() => openPreview(entry.media, item)}
                           />
                         ))}
@@ -296,9 +297,11 @@ export function ClientDealView() {
 
 function ClientMediaThumb({
   item,
+  hideCaption = false,
   onPreview,
 }: {
   item: MediaItem;
+  hideCaption?: boolean;
   onPreview: () => void;
 }) {
   const isVideo = item.type === MediaType.VIDEO;
@@ -321,10 +324,12 @@ function ClientMediaThumb({
             />
           )}
         </div>
-        <div className="border-t bg-card p-2">
-          <p className="truncate text-xs font-medium">{item.fileName}</p>
-          <p className="text-[10px] text-muted-foreground">{formatFileSize(item.size)}</p>
-        </div>
+        {!hideCaption && (
+          <div className="border-t bg-card p-2">
+            <p className="truncate text-xs font-medium">{item.fileName}</p>
+            <p className="text-[10px] text-muted-foreground">{formatFileSize(item.size)}</p>
+          </div>
+        )}
       </button>
       <a
         href={getMediaDownloadUrl(item.id)}
