@@ -33,7 +33,7 @@ export function LoginForm() {
     <div className="flex min-h-screen items-center justify-center bg-[linear-gradient(135deg,#FFF8F6_0%,#F8FAFC_50%,#F0FDF4_100%)] p-4">
       <Card className="w-full max-w-md border-0 shadow-card-hover">
         <CardHeader className="space-y-4 text-center">
-          <AppIconMark size={48} className="mx-auto block" />
+          <AppIconMark size={48} />
           <div>
             <CardTitle className="text-2xl">Auto-CRM</CardTitle>
             <CardDescription className="mt-1">
