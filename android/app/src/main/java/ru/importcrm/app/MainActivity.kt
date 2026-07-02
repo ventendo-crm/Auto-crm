@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
@@ -20,13 +21,15 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.TextView
+import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
-import androidx.webkit.ServiceWorkerController
-import androidx.webkit.WebViewFeature
 import com.google.firebase.messaging.FirebaseMessaging
 
 class MainActivity : AppCompatActivity() {
@@ -36,7 +39,20 @@ class MainActivity : AppCompatActivity() {
     private lateinit var errorText: TextView
     private lateinit var retryButton: Button
 
+    private lateinit var webAppBridge: WebAppBridge
+
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
+
+    private val backPressedCallback = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            if (webView.canGoBack()) {
+                webView.goBack()
+            } else {
+                isEnabled = false
+                onBackPressedDispatcher.onBackPressed()
+            }
+        }
+    }
 
     private val notificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -57,6 +73,7 @@ class MainActivity : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContentView(R.layout.activity_main)
 
         webView = findViewById(R.id.webView)
@@ -65,13 +82,29 @@ class MainActivity : AppCompatActivity() {
         errorText = findViewById(R.id.errorText)
         retryButton = findViewById(R.id.retryButton)
 
+        webAppBridge = WebAppBridge { updateSwipeRefreshState() }
+        webView.addJavascriptInterface(webAppBridge, "ImportCrmAndroid")
+
+        applyWindowInsets()
         configureWebView()
         configureSwipeRefresh()
         retryButton.setOnClickListener { reloadSite() }
 
+        onBackPressedDispatcher.addCallback(this, backPressedCallback)
+
         requestNotificationPermission()
         registerFcmToken()
-        openInitialUrl(intent)
+
+        if (savedInstanceState != null) {
+            webView.restoreState(savedInstanceState)
+        } else {
+            openInitialUrl(intent)
+        }
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        webView.saveState(outState)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -83,26 +116,47 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         PushRegistrar.syncIfLoggedIn(this)
+        injectScrollTracker()
     }
 
-    @Deprecated("Deprecated in Java")
-    override fun onBackPressed() {
-        if (webView.canGoBack()) {
-            webView.goBack()
-        } else {
-            super.onBackPressed()
+    private fun applyWindowInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(swipeRefresh) { view, windowInsets ->
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout(),
+            )
+            view.setPadding(insets.left, insets.top, insets.right, insets.bottom)
+            windowInsets
         }
+        ViewCompat.requestApplyInsets(swipeRefresh)
     }
 
     private fun configureSwipeRefresh() {
         swipeRefresh.setColorSchemeResources(R.color.brand)
+        swipeRefresh.isEnabled = false
         swipeRefresh.setOnRefreshListener {
-            webView.reload()
+            if (webAppBridge.canPullToRefresh()) {
+                webView.reload()
+            } else {
+                swipeRefresh.isRefreshing = false
+            }
+        }
+        swipeRefresh.setOnChildScrollUpCallback { _, _ ->
+            !webAppBridge.canPullToRefresh()
+        }
+    }
+
+    private fun updateSwipeRefreshState() {
+        swipeRefresh.isEnabled = webAppBridge.canPullToRefresh()
+        if (!webAppBridge.canPullToRefresh()) {
+            swipeRefresh.isRefreshing = false
         }
     }
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun configureWebView() {
+        webView.overScrollMode = View.OVER_SCROLL_NEVER
+        webView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+
         CookieManager.getInstance().apply {
             setAcceptCookie(true)
             setAcceptThirdPartyCookies(webView, true)
@@ -126,17 +180,6 @@ class MainActivity : AppCompatActivity() {
             userAgentString = userAgentString + AppConfig.USER_AGENT_SUFFIX
         }
 
-        if (WebViewFeature.isFeatureSupported(WebViewFeature.SERVICE_WORKER_BASIC_USAGE)) {
-            ServiceWorkerController.getInstance().serviceWorkerWebSettings?.apply {
-                allowContentAccess = true
-                cacheMode = if (isOnline()) {
-                    WebSettings.LOAD_DEFAULT
-                } else {
-                    WebSettings.LOAD_CACHE_ELSE_NETWORK
-                }
-            }
-        }
-
         webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                 val url = request.url.toString()
@@ -148,10 +191,21 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            override fun onPageStarted(view: WebView, url: String?, favicon: Bitmap?) {
+                swipeRefresh.isRefreshing = false
+                updateBackNavigationState()
+            }
+
+            override fun doUpdateVisitedHistory(view: WebView, url: String?, isReload: Boolean) {
+                updateBackNavigationState()
+            }
+
             override fun onPageFinished(view: WebView, url: String?) {
                 swipeRefresh.isRefreshing = false
                 errorView.isVisible = false
                 webView.isVisible = true
+                updateBackNavigationState()
+                injectScrollTracker()
                 PushRegistrar.syncIfLoggedIn(this@MainActivity)
             }
 
@@ -181,6 +235,17 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
+    }
+
+    private fun injectScrollTracker() {
+        if (!webView.url.orEmpty().startsWith(AppConfig.BASE_URL)) {
+            return
+        }
+        webView.evaluateJavascript(WebAppBridge.SCROLL_TRACKER_JS, null)
+    }
+
+    private fun updateBackNavigationState() {
+        backPressedCallback.isEnabled = webView.canGoBack()
     }
 
     private fun openInitialUrl(intent: Intent?) {

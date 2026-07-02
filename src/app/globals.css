@@ -78,4 +78,11 @@
   .deal-card {
     @apply cursor-grab rounded-lg border bg-card p-3 shadow-card transition-shadow active:cursor-grabbing hover:shadow-card-hover;
   }
+
+  .kanban-android-scroll {
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    touch-action: pan-x pan-y;
+    scroll-snap-type: x mandatory;
+  }
 }

@@ -6,6 +6,7 @@ import { DealStageType } from "@prisma/client";
 import { Calendar, GripVertical, Loader2, User, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { useIsAndroidWebView } from "@/hooks/use-is-android-webview";
 import { DealListItem } from "@/lib/types";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 
@@ -24,6 +25,8 @@ export function DealCard({
   isOverlay,
   isSaving,
 }: DealCardProps) {
+  const isAndroidApp = useIsAndroidWebView();
+  const dragFromHandleOnly = isAndroidApp;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging: isSortableDragging } =
     useSortable({
       id: deal.id,
@@ -51,12 +54,12 @@ export function DealCard({
         "deal-card group relative",
         dragging && "opacity-40",
         isOverlay && "rotate-2 cursor-grabbing shadow-card-hover ring-2 ring-brand/30",
-        canDrag && !isOverlay && "cursor-grab active:cursor-grabbing",
+        canDrag && !isOverlay && !dragFromHandleOnly && "cursor-grab active:cursor-grabbing",
         !canDrag && "cursor-default",
         overdue && "border-rose-200 bg-rose-50/40 dark:border-rose-900 dark:bg-rose-950/30",
         isSaving && "pointer-events-none opacity-70",
       )}
-      {...(canDrag && !isOverlay ? { ...attributes, ...listeners } : {})}
+      {...(canDrag && !isOverlay && !dragFromHandleOnly ? { ...attributes, ...listeners } : attributes)}
     >
       {isSaving && (
         <div className="absolute inset-0 z-10 flex items-center justify-center rounded-lg bg-background/60">
@@ -79,8 +82,12 @@ export function DealCard({
 
         {canDrag && (
           <div
-            className="rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100"
-            aria-hidden
+            className={cn(
+              "rounded p-1 text-muted-foreground touch-none",
+              dragFromHandleOnly ? "opacity-100" : "opacity-0 transition-opacity group-hover:opacity-100",
+            )}
+            aria-label="Перетащить карточку"
+            {...(dragFromHandleOnly && !isOverlay ? listeners : {})}
           >
             <GripVertical className="h-4 w-4" />
           </div>

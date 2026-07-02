@@ -25,7 +25,9 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
+import { useIsAndroidWebView } from "@/hooks/use-is-android-webview";
 import { api } from "@/lib/api-client";
+import { androidBridge } from "@/lib/android-webview";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
 import {
   canDragDeal,
@@ -33,6 +35,7 @@ import {
   resolveDragOverStage,
 } from "@/lib/kanban-utils";
 import { DealListItem, User } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const ALL_MANAGERS = "all";
 
@@ -46,6 +49,7 @@ const collisionDetection: CollisionDetection = (args) => {
 
 export function KanbanBoard() {
   const { user } = useAuth();
+  const isAndroidApp = useIsAndroidWebView();
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [managers, setManagers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -103,6 +107,21 @@ export function KanbanBoard() {
     void loadDeals(appliedSearch, selectedManagerId);
   }, [appliedSearch, loadDeals, selectedManagerId]);
 
+  useEffect(() => {
+    if (!isAndroidApp) return;
+
+    androidBridge.setPullToRefreshEnabled(false);
+    return () => androidBridge.setPullToRefreshEnabled(true);
+  }, [isAndroidApp]);
+
+  const releaseHorizontalGesture = useCallback(() => {
+    androidBridge.setHorizontalGestureLock(false);
+  }, []);
+
+  const lockHorizontalGesture = useCallback(() => {
+    androidBridge.setHorizontalGestureLock(true);
+  }, []);
+
   const applySearch = useCallback(() => {
     setAppliedSearch(searchInput.trim());
   }, [searchInput]);
@@ -114,7 +133,7 @@ export function KanbanBoard() {
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { distance: 6 },
+      activationConstraint: isAndroidApp ? { distance: 16, tolerance: 8 } : { distance: 6 },
     }),
   );
 
@@ -241,7 +260,15 @@ export function KanbanBoard() {
         onDragEnd={handleDragEnd}
         onDragCancel={handleDragCancel}
       >
-        <div className="flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:gap-4 sm:p-6">
+        <div
+          className={cn(
+            "flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:gap-4 sm:p-6",
+            isAndroidApp && "kanban-android-scroll",
+          )}
+          onTouchStart={isAndroidApp ? lockHorizontalGesture : undefined}
+          onTouchEnd={isAndroidApp ? releaseHorizontalGesture : undefined}
+          onTouchCancel={isAndroidApp ? releaseHorizontalGesture : undefined}
+        >
           {STAGE_ORDER.map((stage) => (
             <KanbanColumn
               key={stage}
