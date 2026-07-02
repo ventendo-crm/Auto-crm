@@ -5,6 +5,7 @@ import { AuthUser } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
 import { enrichMediaRecord, SEARCH_PROCESS_MEDIA_INCLUDE } from "@/lib/services/media";
 import { getRoleByName, ensureDefaultRoles } from "@/lib/services/roles";
+import { deleteUser } from "@/lib/services/users";
 import { serialize } from "@/lib/serialize";
 
 const clientUserSelect = {
@@ -226,22 +227,5 @@ export async function unlinkClientAccount(actor: AuthUser, dealId: string) {
     throw new Error("CLIENT_NOT_LINKED");
   }
 
-  const clientUserId = deal.clientUserId;
-
-  await prisma.$transaction(async (tx) => {
-    await tx.deal.update({
-      where: { id: dealId },
-      data: { clientUserId: null },
-    });
-
-    await tx.user.delete({ where: { id: clientUserId } });
-  });
-
-  await createAuditLog({
-    userId: actor.id,
-    entity: "User",
-    entityId: clientUserId,
-    action: "DELETE",
-    oldValue: { dealId, role: "CLIENT" },
-  });
+  await deleteUser({ actorId: actor.id, userId: deal.clientUserId });
 }

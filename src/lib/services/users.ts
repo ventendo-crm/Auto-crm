@@ -124,6 +124,7 @@ export async function deleteUser(params: { actorId: string; userId: string }) {
         where: { uploadedById: params.userId },
         data: { uploadedById: null },
       });
+      await tx.comment.deleteMany({ where: { authorId: params.userId } });
       await tx.notification.deleteMany({ where: { userId: params.userId } });
       await tx.auditLog.deleteMany({ where: { userId: params.userId } });
       await tx.user.delete({ where: { id: params.userId } });
