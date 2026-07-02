@@ -1,6 +1,10 @@
 import { DealStageType, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { sendBrowserPushToUser } from "@/lib/push/send";
+import { sendEmailToClientUser } from "@/lib/email/send";
+import {
+  formatClientCommentEmail,
+  formatClientStageEmail,
+} from "@/lib/email/templates";
 import { dispatchPushToUser } from "@/lib/push/dispatch";
 import { AuthUser, ROLES } from "@/lib/permissions";
 import {
@@ -198,6 +202,15 @@ async function notifyClientStageChange(params: {
     text: telegramText,
     includeDefaultChatIds: false,
   });
+
+  const email = await formatClientStageEmail({
+    stageLabel,
+    body,
+    carLabel,
+    vin: params.vin,
+  });
+
+  void sendEmailToClientUser(params.clientUserId, email);
 }
 
 export async function notifyCommentAdded(params: {
@@ -270,6 +283,22 @@ export async function notifyCommentAdded(params: {
       userIds: [...recipientIds],
       text: telegramText,
     });
+  }
+
+  if (
+    params.author.role !== ROLES.CLIENT &&
+    params.deal.clientUserId &&
+    recipientIds.has(params.deal.clientUserId)
+  ) {
+    const email = await formatClientCommentEmail({
+      clientName: params.deal.clientName,
+      vin: params.deal.vin,
+      authorName: params.author.name,
+      authorRole: authorRoleLabel,
+      text: params.commentText,
+    });
+
+    void sendEmailToClientUser(params.deal.clientUserId, email);
   }
 }
 

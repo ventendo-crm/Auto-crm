@@ -196,6 +196,18 @@ export interface DealFinancialSummary {
   estimatedMargin: number;
 }
 
+export interface EmailTemplateItem {
+  key: string;
+  name: string;
+  subject: string;
+  textBody: string;
+  htmlTitle: string;
+  description: string | null;
+  updatedAt: string;
+  updatedById?: string | null;
+  placeholders?: string[];
+}
+
 export interface NotificationItem {
   id: string;
   dealId?: string | null;

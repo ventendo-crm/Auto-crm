@@ -7,6 +7,7 @@ import {
   DealDetail,
   DealListItem,
   DocumentItem,
+  EmailTemplateItem,
   MediaItem,
   NotificationItem,
   Paginated,
@@ -445,6 +446,20 @@ export const api = {
         body: JSON.stringify(data ?? {}),
       }),
     test: () => request<{ delivered: boolean }>("/api/push/test", { method: "POST" }),
+  },
+
+  email: {
+    status: () => request<{ configured: boolean }>("/api/email/status"),
+    test: () => request<{ delivered: boolean; to: string }>("/api/email/test", { method: "POST" }),
+    listTemplates: () => request<EmailTemplateItem[]>("/api/email/templates"),
+    updateTemplate: (
+      key: string,
+      data: { subject: string; textBody: string; htmlTitle: string },
+    ) =>
+      request<EmailTemplateItem>(`/api/email/templates/${key}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
   },
 
   users: {

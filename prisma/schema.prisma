@@ -353,6 +353,19 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model EmailTemplate {
+  key         String   @id
+  name        String
+  subject     String
+  textBody    String   @db.Text
+  htmlTitle   String
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+
+  @@map("email_templates")
+}
+
 enum DealStageType {
   LEADS
   SEARCH

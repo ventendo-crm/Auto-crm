@@ -1,5 +1,6 @@
 "use client";
 
+import { EmailTemplatesPanel } from "@/components/settings/email-templates-panel";
 import { Header } from "@/components/layout/header";
 import { ManagersPanel } from "@/components/settings/managers-panel";
 import { UsersPanel } from "@/components/settings/users-panel";
@@ -17,7 +18,7 @@ export function SettingsView() {
   const canManageManagersTab = role === "ADMIN" || role === "MANAGER";
 
   const subtitle = isAdmin
-    ? "Профиль, уведомления и пользователи"
+    ? "Профиль, уведомления, письма и пользователи"
     : canManageManagersTab
       ? "Профиль, уведомления и менеджеры"
       : isClient
@@ -35,6 +36,7 @@ export function SettingsView() {
               <TabsTrigger value="notifications">Уведомления</TabsTrigger>
               {canManageManagersTab && <TabsTrigger value="managers">Менеджеры</TabsTrigger>}
               {isAdmin && <TabsTrigger value="users">Пользователи</TabsTrigger>}
+              {isAdmin && <TabsTrigger value="email">Письма</TabsTrigger>}
             </TabsList>
           </div>
 
@@ -55,6 +57,12 @@ export function SettingsView() {
           {isAdmin && (
             <TabsContent value="users" className="mt-4">
               <UsersPanel />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="email" className="mt-4">
+              <EmailTemplatesPanel />
             </TabsContent>
           )}
         </Tabs>

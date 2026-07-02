@@ -1,7 +1,7 @@
 "use client";
 
-import { BellRing, KeyRound, Loader2, Send } from "lucide-react";
-import { useState } from "react";
+import { BellRing, KeyRound, Loader2, Mail, Send } from "lucide-react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { useBrowserNotifications } from "@/hooks/use-browser-notifications";
 import { api } from "@/lib/api-client";
+import { getClientRoleName } from "@/lib/permissions";
 import { formatDateTime } from "@/lib/utils";
 
 export function ProfilePanel() {
@@ -23,6 +24,20 @@ export function ProfilePanel() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordLoading, setPasswordLoading] = useState(false);
+  const [emailConfigured, setEmailConfigured] = useState(false);
+  const [emailTesting, setEmailTesting] = useState(false);
+
+  const role = getClientRoleName(user);
+  const isClient = role === "CLIENT";
+
+  useEffect(() => {
+    if (!isClient) return;
+
+    void api.email
+      .status()
+      .then((status) => setEmailConfigured(status.configured))
+      .catch(() => setEmailConfigured(false));
+  }, [isClient]);
 
   if (!user) return null;
 
@@ -67,6 +82,18 @@ export function ProfilePanel() {
       toast.error(err instanceof Error ? err.message : "Не удалось отправить тест");
     } finally {
       setTesting(false);
+    }
+  };
+
+  const testEmail = async () => {
+    setEmailTesting(true);
+    try {
+      const result = await api.email.test();
+      toast.success(`Тестовое письмо отправлено на ${result.to}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось отправить письмо");
+    } finally {
+      setEmailTesting(false);
     }
   };
 
@@ -309,6 +336,36 @@ export function ProfilePanel() {
             )}
           </div>
         </div>
+
+        {isClient && (
+          <>
+            <Separator />
+            <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+              <div>
+                <p className="text-sm font-medium">Уведомления на email</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  На адрес <span className="font-medium text-foreground">{user.email}</span> приходят
+                  письма о смене этапа сделки и комментариях менеджера.
+                </p>
+              </div>
+
+              {emailConfigured ? (
+                <Button variant="outline" size="sm" onClick={testEmail} disabled={emailTesting}>
+                  {emailTesting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Mail className="h-4 w-4" />
+                  )}
+                  Отправить тест
+                </Button>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Почтовый сервер на стороне CRM пока не настроен — письма не отправляются.
+                </p>
+              )}
+            </div>
+          </>
+        )}
 
         <p className="text-xs text-muted-foreground">
           Зарегистрирован: {formatDateTime(user.createdAt)}
