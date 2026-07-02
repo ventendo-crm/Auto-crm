@@ -1,12 +1,19 @@
+"use client";
+
 import {
   ArrowRightLeft,
   ClipboardList,
   FileText,
   ImageIcon,
+  Loader2,
   MessageSquare,
   Search,
+  Trash2,
   UserRound,
 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DealActivityItem } from "@/lib/services/deal-activity";
 import { cn, formatDateTime } from "@/lib/utils";
@@ -31,11 +38,62 @@ const categoryColors = {
   options: "border-orange-500 text-orange-500",
 } as const;
 
-export function DealActivityTimeline({ activity }: { activity: DealActivityItem[] }) {
+interface DealActivityTimelineProps {
+  activity: DealActivityItem[];
+  canClear?: boolean;
+  onClear?: () => Promise<void>;
+}
+
+export function DealActivityTimeline({
+  activity,
+  canClear = false,
+  onClear,
+}: DealActivityTimelineProps) {
+  const [clearing, setClearing] = useState(false);
+
+  const handleClear = async () => {
+    if (
+      !confirm(
+        "Очистить всю историю изменений по этой сделке? Действие необратимо.",
+      )
+    ) {
+      return;
+    }
+
+    if (!onClear) return;
+
+    setClearing(true);
+    try {
+      await onClear();
+      toast.success("История очищена");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось очистить историю");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   return (
     <Card className="border-0 shadow-card">
-      <CardHeader>
+      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
         <CardTitle className="text-base">История изменений</CardTitle>
+        {canClear && activity.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="shrink-0 text-destructive hover:text-destructive"
+            disabled={clearing}
+            onClick={() => void handleClear()}
+          >
+            {clearing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4" />
+            )}
+            Очистить
+          </Button>
+        )}
       </CardHeader>
       <CardContent>
         <div className="relative space-y-0">

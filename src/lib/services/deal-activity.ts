@@ -1,4 +1,4 @@
-import { DealStageType } from "@prisma/client";
+import { DealStageType, Prisma } from "@prisma/client";
 import { DOCUMENT_LABELS, STAGE_LABELS } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { listStageHistory } from "@/lib/services/stage-history";
@@ -376,27 +376,71 @@ function formatAuditLog(log: {
   }
 }
 
+async function buildDealActivityAuditWhere(dealId: string): Promise<Prisma.AuditLogWhereInput> {
+  const [documents, comments, searchEntries, importEntries, media, options] = await Promise.all([
+    prisma.document.findMany({ where: { dealId }, select: { id: true } }),
+    prisma.comment.findMany({ where: { dealId }, select: { id: true } }),
+    prisma.searchProcessEntry.findMany({ where: { dealId }, select: { id: true } }),
+    prisma.importProcessEntry.findMany({ where: { dealId }, select: { id: true } }),
+    prisma.mediaFile.findMany({ where: { dealId }, select: { id: true } }),
+    prisma.dealAdditionalOption.findMany({ where: { dealId }, select: { id: true } }),
+  ]);
+
+  const or: Prisma.AuditLogWhereInput[] = [
+    { entity: "Deal", entityId: dealId },
+    { newValue: { path: ["dealId"], equals: dealId } },
+    { oldValue: { path: ["dealId"], equals: dealId } },
+  ];
+
+  const documentIds = documents.map((item) => item.id);
+  if (documentIds.length > 0) {
+    or.push({ entity: "Document", entityId: { in: documentIds } });
+  }
+
+  const commentIds = comments.map((item) => item.id);
+  if (commentIds.length > 0) {
+    or.push({ entity: "Comment", entityId: { in: commentIds } });
+  }
+
+  const searchEntryIds = searchEntries.map((item) => item.id);
+  if (searchEntryIds.length > 0) {
+    or.push({ entity: "SearchProcessEntry", entityId: { in: searchEntryIds } });
+  }
+
+  const importEntryIds = importEntries.map((item) => item.id);
+  if (importEntryIds.length > 0) {
+    or.push({ entity: "ImportProcessEntry", entityId: { in: importEntryIds } });
+  }
+
+  const mediaIds = media.map((item) => item.id);
+  if (mediaIds.length > 0) {
+    or.push({ entity: "MediaFile", entityId: { in: mediaIds } });
+  }
+
+  const optionIds = options.map((item) => item.id);
+  if (optionIds.length > 0) {
+    or.push({ entity: "DealAdditionalOption", entityId: { in: optionIds } });
+  }
+
+  return { OR: or };
+}
+
+export async function clearDealHistory(dealId: string): Promise<void> {
+  const auditWhere = await buildDealActivityAuditWhere(dealId);
+
+  await prisma.$transaction([
+    prisma.stageHistory.deleteMany({ where: { dealId } }),
+    prisma.auditLog.deleteMany({ where: auditWhere }),
+  ]);
+}
+
 export async function listDealActivity(dealId: string): Promise<DealActivityItem[]> {
-  const documentIds = (
-    await prisma.document.findMany({
-      where: { dealId },
-      select: { id: true },
-    })
-  ).map((document) => document.id);
+  const auditWhere = await buildDealActivityAuditWhere(dealId);
 
   const [stageHistory, auditLogs] = await Promise.all([
     listStageHistory(dealId),
     prisma.auditLog.findMany({
-      where: {
-        OR: [
-          { entity: "Deal", entityId: dealId },
-          { newValue: { path: ["dealId"], equals: dealId } },
-          { oldValue: { path: ["dealId"], equals: dealId } },
-          ...(documentIds.length > 0
-            ? [{ entity: "Document", entityId: { in: documentIds } }]
-            : []),
-        ],
-      },
+      where: auditWhere,
       include: {
         user: { select: { id: true, name: true, email: true } },
       },

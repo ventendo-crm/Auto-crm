@@ -94,6 +94,16 @@ export const api = {
     },
     get: (id: string) => request<DealDetail>(`/api/deals/${id}`),
     activity: (id: string) => request<DealActivityItem[]>(`/api/deals/${id}/activity`),
+    clearActivity: async (id: string) => {
+      const response = await fetch(`/api/deals/${id}/activity`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const json = (await response.json()) as ApiResponse<unknown>;
+        throw new Error(json.error ?? "Clear activity failed");
+      }
+    },
     shipment: {
       get: (dealId: string) => request<import("@/lib/types").Shipment | null>(`/api/deals/${dealId}/shipment`),
       save: (

@@ -29,7 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
-import { canManageDealClient, canManageDealExpenses, canManageDealReminders, canUploadDealDocuments, canViewDealFinances, getClientRoleName } from "@/lib/permissions";
+import { canClearDealHistory, canManageDealClient, canManageDealExpenses, canManageDealReminders, canUploadDealDocuments, canViewDealFinances, getClientRoleName } from "@/lib/permissions";
 import { DealActivityItem } from "@/lib/services/deal-activity";
 import { DealDetail } from "@/lib/types";
 
@@ -45,6 +45,8 @@ export default function DealPage() {
   const canManageDeal = deal ? canManageDealClient(user, deal.managerId) : false;
 
   const role = getClientRoleName(user);
+  const canClearHistory =
+    deal && role && user ? canClearDealHistory(role, user.id, deal.managerId) : false;
   const canViewExpenses =
     deal && role && user ? canManageDealExpenses(role, user.id, deal.managerId) : false;
 
@@ -92,6 +94,13 @@ export default function DealPage() {
     } catch {
       // история не критична для работы карточки
     }
+  }, [params.id]);
+
+  const clearActivity = useCallback(async () => {
+    if (!params.id) return;
+
+    await api.deals.clearActivity(params.id);
+    setActivity([]);
   }, [params.id]);
 
   const load = useCallback(async () => {
@@ -309,7 +318,11 @@ export default function DealPage() {
           )}
 
           <TabsContent value="history">
-            <DealActivityTimeline activity={activity} />
+            <DealActivityTimeline
+              activity={activity}
+              canClear={canClearHistory}
+              onClear={clearActivity}
+            />
           </TabsContent>
 
           <TabsContent value="comments">

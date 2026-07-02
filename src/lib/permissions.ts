@@ -84,6 +84,16 @@ export function canToggleAdditionalOption(
   return canUpdateDeal(role, userId, deal.managerId);
 }
 
+export function canClearDealHistory(
+  role: RoleName,
+  userId: string,
+  managerId: string | null,
+): boolean {
+  if (role === ROLES.ADMIN) return true;
+  if (role === ROLES.MANAGER) return managerId !== null && userId === managerId;
+  return false;
+}
+
 export function canCreateDeals(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
