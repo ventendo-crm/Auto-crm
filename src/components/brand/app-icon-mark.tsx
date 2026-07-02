@@ -1,12 +1,19 @@
 import { cn } from "@/lib/utils";
+import {
+  BRAND_ICON_BODY_PATH,
+  BRAND_ICON_FILL,
+  BRAND_ICON_ACCENT,
+  BRAND_ICON_VIEWBOX,
+  BRAND_ICON_WHEELS,
+  BRAND_ICON_WINDSHIELD_PATH,
+} from "@/lib/brand-icon";
 
 interface AppIconMarkProps {
   size?: number;
   className?: string;
 }
 
-/** Drive Classic — единый знак бренда для сайта и Android */
-export const BRAND_ICON_VIEWBOX = "0 0 64 64";
+export { BRAND_ICON_VIEWBOX };
 
 export function AppIconMark({ size = 32, className }: AppIconMarkProps) {
   return (
@@ -21,14 +28,12 @@ export function AppIconMark({ size = 32, className }: AppIconMarkProps) {
       preserveAspectRatio="xMidYMid meet"
       aria-hidden
     >
-      <rect width="64" height="64" rx="14" fill="#FF7F5C" />
-      <path
-        fill="#FFFFFF"
-        d="M16 39.5c0-1.4 1.1-2.5 2.5-2.5h2l2.7-4.8c0.4-0.8 1.2-1.2 2-1.2h17.4c0.8 0 1.6 0.4 2 1.2l2.7 4.8h2c1.4 0 2.5 1.1 2.5 2.5V43H16V39.5zm5-9.3 2.3-4.1h19.4l2.3 4.1H21z"
-      />
-      <path fill="#E85F3A" d="M25.5 28h13l1.7 3.1H23.8L25.5 28z" />
-      <circle cx="22.5" cy="41" r="2.8" fill="#FFFFFF" />
-      <circle cx="41.5" cy="41" r="2.8" fill="#FFFFFF" />
+      <rect width="64" height="64" rx="14" fill={BRAND_ICON_FILL} />
+      <path fill="#FFFFFF" d={BRAND_ICON_BODY_PATH} />
+      <path fill={BRAND_ICON_ACCENT} d={BRAND_ICON_WINDSHIELD_PATH} />
+      {BRAND_ICON_WHEELS.map((wheel) => (
+        <circle key={`${wheel.cx}-${wheel.cy}`} cx={wheel.cx} cy={wheel.cy} r={wheel.r} fill="#FFFFFF" />
+      ))}
     </svg>
   );
 }
