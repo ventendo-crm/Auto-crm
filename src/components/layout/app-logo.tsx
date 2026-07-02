@@ -6,5 +6,5 @@ interface AppLogoProps {
 }
 
 export function AppLogo({ size = 32, className }: AppLogoProps) {
-  return <AppIconMark size={size} className={className ?? "shrink-0"} />;
+  return <AppIconMark size={size} className={className ?? "shrink-0 block"} />;
 }
