@@ -31,7 +31,9 @@ interface EditDealForm {
   destinationCity: string;
   destinationCountry: string;
   expectedArrival: string;
+  actualArrival: string;
   prepayment: string;
+  balance: string;
   managerId: string | null;
 }
 
@@ -39,9 +41,13 @@ interface Props {
   deal: DealDetail;
   onUpdated?: () => void;
   canEdit?: boolean;
+  canViewFinances?: boolean;
 }
 
 function toForm(deal: DealDetail): EditDealForm {
+  const toDate = (value?: string | null) =>
+    value ? new Date(value).toISOString().split("T")[0] : "";
+
   return {
     clientName: deal.clientName ?? "",
     phone: deal.phone ?? "",
@@ -51,15 +57,20 @@ function toForm(deal: DealDetail): EditDealForm {
     carModel: deal.carModel ?? "",
     destinationCity: deal.destinationCity ?? "",
     destinationCountry: deal.destinationCountry ?? "",
-    expectedArrival: deal.expectedArrival
-      ? new Date(deal.expectedArrival).toISOString().split("T")[0]
-      : "",
+    expectedArrival: toDate(deal.expectedArrival),
+    actualArrival: toDate(deal.actualArrival),
     prepayment: deal.prepayment != null ? String(deal.prepayment) : "",
+    balance: deal.balance != null ? String(deal.balance) : "",
     managerId: deal.managerId,
   };
 }
 
-export function EditDealDialog({ deal, onUpdated, canEdit: canEditProp }: Props) {
+export function EditDealDialog({
+  deal,
+  onUpdated,
+  canEdit: canEditProp,
+  canViewFinances = false,
+}: Props) {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -96,7 +107,9 @@ export function EditDealDialog({ deal, onUpdated, canEdit: canEditProp }: Props)
         destinationCity: form.destinationCity,
         destinationCountry: form.destinationCountry,
         expectedArrival: form.expectedArrival || null,
+        actualArrival: form.actualArrival || null,
         prepayment: form.prepayment ? Number(form.prepayment) : null,
+        ...(canViewFinances ? { balance: form.balance ? Number(form.balance) : null } : {}),
         ...(canAssignManager ? { managerId: form.managerId } : {}),
       });
 
@@ -238,6 +251,18 @@ export function EditDealDialog({ deal, onUpdated, canEdit: canEditProp }: Props)
             </div>
 
             <div className="space-y-2">
+              <Label htmlFor="edit-actualArrival">Фактическое прибытие</Label>
+              <Input
+                id="edit-actualArrival"
+                type="date"
+                value={form.actualArrival}
+                onChange={(e) =>
+                  setForm({ ...form, actualArrival: e.target.value })
+                }
+              />
+            </div>
+
+            <div className="space-y-2">
               <Label htmlFor="edit-prepayment">Предоплата (₽)</Label>
               <Input
                 id="edit-prepayment"
@@ -247,6 +272,19 @@ export function EditDealDialog({ deal, onUpdated, canEdit: canEditProp }: Props)
                 onChange={(e) => setForm({ ...form, prepayment: e.target.value })}
               />
             </div>
+
+            {canViewFinances && (
+              <div className="space-y-2">
+                <Label htmlFor="edit-balance">Остаток (₽)</Label>
+                <Input
+                  id="edit-balance"
+                  type="number"
+                  min={0}
+                  value={form.balance}
+                  onChange={(e) => setForm({ ...form, balance: e.target.value })}
+                />
+              </div>
+            )}
           </div>
           </div>
 
