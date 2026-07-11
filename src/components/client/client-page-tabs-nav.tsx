@@ -1,5 +1,15 @@
 "use client";
 
+import {
+  FileText,
+  History,
+  ImageIcon,
+  ListChecks,
+  MessageSquare,
+  Package,
+  Search,
+  Truck,
+} from "lucide-react";
 import { useMemo } from "react";
 import { GroupedTabGroup, GroupedTabsNav } from "@/components/ui/grouped-tabs-nav";
 import { CLIENT_DOCUMENT_ORDER } from "@/lib/constants";
@@ -22,23 +32,25 @@ export function ClientPageTabsNav({ deal }: ClientPageTabsNavProps) {
         {
           value: "documents",
           label: "Документы",
+          icon: FileText,
           badge: missingDocuments > 0 ? missingDocuments : undefined,
         },
         {
           value: "comments",
           label: "Комментарии",
+          icon: MessageSquare,
           badge: deal.comments.length > 0 ? deal.comments.length : undefined,
         },
       ],
     };
 
     const processItems: GroupedTabGroup["items"] = [
-      { value: "search-process", label: "Поиск" },
-      { value: "additional-options", label: "Опции" },
+      { value: "search-process", label: "Поиск авто", icon: Search },
+      { value: "additional-options", label: "Доп. опции", icon: ListChecks },
     ];
 
     if (deal.importProcessEnabled) {
-      processItems.push({ value: "import-process", label: "Импорт" });
+      processItems.push({ value: "import-process", label: "Импорт авто", icon: Truck });
     }
 
     const processGroup: GroupedTabGroup = {
@@ -52,10 +64,11 @@ export function ClientPageTabsNav({ deal }: ClientPageTabsNavProps) {
         {
           value: "media",
           label: "Медиа",
+          icon: ImageIcon,
           badge: deal.media.length > 0 ? deal.media.length : undefined,
         },
-        { value: "history", label: "История" },
-        { value: "logistics", label: "Логистика" },
+        { value: "history", label: "История", icon: History },
+        { value: "logistics", label: "Логистика", icon: Package },
       ],
     };
 
