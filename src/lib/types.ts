@@ -222,9 +222,7 @@ export interface DealFinancialSummary {
   prepayment: number;
   balance: number;
   clientTotal: number;
-  purchasePrice: number;
   expensesTotal: number;
-  costsTotal: number;
   estimatedMargin: number;
 }
 

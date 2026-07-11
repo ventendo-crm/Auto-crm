@@ -10,24 +10,19 @@ export function buildDealFinancialSummary(
   deal: {
     prepayment?: number | null;
     balance?: number | null;
-    purchasePrice?: number | null;
   },
   expenses: DealExpenseItem[],
 ): DealFinancialSummary {
   const prepayment = toNumber(deal.prepayment);
   const balance = toNumber(deal.balance);
-  const purchasePrice = toNumber(deal.purchasePrice);
   const expensesTotal = sumDealExpenses(expenses);
   const clientTotal = prepayment + balance;
-  const costsTotal = purchasePrice + expensesTotal;
 
   return {
     prepayment,
     balance,
     clientTotal,
-    purchasePrice,
     expensesTotal,
-    costsTotal,
-    estimatedMargin: clientTotal - costsTotal,
+    estimatedMargin: clientTotal - expensesTotal,
   };
 }

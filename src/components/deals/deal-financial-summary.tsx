@@ -96,9 +96,11 @@ export function DealFinancialSummaryCard({ deal }: DealFinancialSummaryProps) {
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Затраты
               </p>
-              <SummaryRow label="Закупка авто" value={formatCurrency(summary.purchasePrice)} />
-              <SummaryRow label="Операционные расходы" value={formatCurrency(summary.expensesTotal)} />
-              <SummaryRow label="Всего затрат" value={formatCurrency(summary.costsTotal)} emphasis />
+              <SummaryRow
+                label="Операционные расходы"
+                value={formatCurrency(summary.expensesTotal)}
+                emphasis
+              />
             </div>
 
             <div className="rounded-lg border border-brand/20 bg-brand-muted/30 p-4">
@@ -109,7 +111,7 @@ export function DealFinancialSummaryCard({ deal }: DealFinancialSummaryProps) {
                 positive={summary.estimatedMargin > 0 ? true : summary.estimatedMargin < 0 ? false : undefined}
               />
               <p className="mt-2 text-xs text-muted-foreground">
-                Предоплата + остаток − закупка − расходы по сделке
+                Предоплата + остаток − операционные расходы по сделке
               </p>
             </div>
           </div>
