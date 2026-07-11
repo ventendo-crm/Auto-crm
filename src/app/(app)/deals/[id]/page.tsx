@@ -171,7 +171,11 @@ export default function DealPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <DealPageTabsNav deal={deal} canViewExpenses={canViewExpenses} />
+          <DealPageTabsNav
+            deal={deal}
+            canViewExpenses={canViewExpenses}
+            activeTab={activeTab}
+          />
 
           <TabsContent value="overview" className="space-y-4">
             <DealOverviewSummary

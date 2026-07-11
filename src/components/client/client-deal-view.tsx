@@ -44,6 +44,7 @@ export function ClientDealView() {
   const [activity, setActivity] = useState<DealActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const [activeTab, setActiveTab] = useState("documents");
 
   const refreshDeal = useCallback(async () => {
     try {
@@ -142,8 +143,8 @@ export function ClientDealView() {
         className="mb-6"
       />
 
-      <Tabs defaultValue="documents" className="space-y-4">
-        <ClientPageTabsNav deal={deal} />
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+        <ClientPageTabsNav deal={deal} activeTab={activeTab} />
 
         <TabsContent value="documents" className="space-y-4">
           <DealDocuments

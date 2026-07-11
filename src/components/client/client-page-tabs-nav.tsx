@@ -12,19 +12,27 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import { GroupedTabGroup, GroupedTabsNav } from "@/components/ui/grouped-tabs-nav";
-import { CLIENT_DOCUMENT_ORDER } from "@/lib/constants";
+import { useAuth } from "@/hooks/use-auth";
+import { useDealCommentsUnread } from "@/hooks/use-deal-comments-unread";
+import { countUploadedDealDocuments } from "@/lib/deal-tab-badges";
 import { ClientPortalDeal } from "@/lib/types";
 
 interface ClientPageTabsNavProps {
   deal: ClientPortalDeal;
+  activeTab: string;
 }
 
-export function ClientPageTabsNav({ deal }: ClientPageTabsNavProps) {
+export function ClientPageTabsNav({ deal, activeTab }: ClientPageTabsNavProps) {
+  const { user } = useAuth();
+  const unreadComments = useDealCommentsUnread(
+    deal.id,
+    user?.id,
+    deal.comments,
+    activeTab === "comments",
+  );
+
   const groups = useMemo(() => {
-    const missingDocuments = CLIENT_DOCUMENT_ORDER.filter((type) => {
-      const doc = deal.documents.find((item) => item.type === type);
-      return !doc || doc.status === "MISSING";
-    }).length;
+    const uploadedDocuments = countUploadedDealDocuments(deal.documents);
 
     const mainGroup: GroupedTabGroup = {
       label: "Основное",
@@ -33,13 +41,7 @@ export function ClientPageTabsNav({ deal }: ClientPageTabsNavProps) {
           value: "documents",
           label: "Документы",
           icon: FileText,
-          badge: missingDocuments > 0 ? missingDocuments : undefined,
-        },
-        {
-          value: "comments",
-          label: "Комментарии",
-          icon: MessageSquare,
-          badge: deal.comments.length > 0 ? deal.comments.length : undefined,
+          badge: uploadedDocuments > 0 ? uploadedDocuments : undefined,
         },
         { value: "additional-options", label: "Доп. опции", icon: ListChecks },
       ],
@@ -50,7 +52,7 @@ export function ClientPageTabsNav({ deal }: ClientPageTabsNavProps) {
     ];
 
     if (deal.importProcessEnabled) {
-      processItems.push({ value: "import-process", label: "Импорт авто", icon: Truck });
+      processItems.push({ value: "import-process", label: "Доставка", icon: Truck });
     }
 
     const processGroup: GroupedTabGroup = {
@@ -61,6 +63,12 @@ export function ClientPageTabsNav({ deal }: ClientPageTabsNavProps) {
     const moreGroup: GroupedTabGroup = {
       label: "Прочее",
       items: [
+        {
+          value: "comments",
+          label: "Комментарии",
+          icon: MessageSquare,
+          badge: unreadComments > 0 ? unreadComments : undefined,
+        },
         {
           value: "media",
           label: "Медиа",
@@ -73,7 +81,7 @@ export function ClientPageTabsNav({ deal }: ClientPageTabsNavProps) {
     };
 
     return [mainGroup, processGroup, moreGroup];
-  }, [deal]);
+  }, [deal, unreadComments]);
 
   return <GroupedTabsNav groups={groups} />;
 }
