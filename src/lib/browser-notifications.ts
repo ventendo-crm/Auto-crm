@@ -1,4 +1,10 @@
+import { isAndroidWebView } from "@/lib/android-webview";
+
 export function isBrowserNotificationSupported(): boolean {
+  if (isAndroidWebView()) {
+    return false;
+  }
+
   return (
     typeof window !== "undefined" &&
     "Notification" in window &&
@@ -42,12 +48,16 @@ export async function getCurrentPushSubscription(): Promise<PushSubscription | n
     return null;
   }
 
-  const registration = await navigator.serviceWorker.getRegistration("/");
-  if (!registration) {
+  try {
+    const registration = await navigator.serviceWorker.getRegistration("/");
+    if (!registration) {
+      return null;
+    }
+
+    return registration.pushManager.getSubscription();
+  } catch {
     return null;
   }
-
-  return registration.pushManager.getSubscription();
 }
 
 export async function subscribeToBrowserPush(publicKey: string): Promise<PushSubscription> {

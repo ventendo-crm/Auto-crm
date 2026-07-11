@@ -55,38 +55,39 @@ class WebAppBridge(
               }
               window.__importCrmScrollHook = true;
 
+              var scheduled = false;
               function computeAtTop() {
                 if (window.scrollY > 1) return false;
-                var nodes = document.querySelectorAll('*');
+                var nodes = document.querySelectorAll('[data-scroll-container], main, [class*="overflow-y-auto"], [class*="overflow-auto"]');
                 for (var i = 0; i < nodes.length; i++) {
                   var el = nodes[i];
-                  var style = window.getComputedStyle(el);
-                  var overflowY = style.overflowY;
-                  if (
-                    (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
-                    el.scrollHeight > el.clientHeight + 1 &&
-                    el.scrollTop > 1
-                  ) {
+                  if (el.scrollHeight > el.clientHeight + 1 && el.scrollTop > 1) {
                     return false;
                   }
                 }
                 return true;
               }
 
-              function report() {
+              function reportNow() {
+                scheduled = false;
                 if (window.ImportCrmAndroid && window.ImportCrmAndroid.setPageAtTop) {
                   window.ImportCrmAndroid.setPageAtTop(computeAtTop());
                 }
+              }
+
+              function report() {
+                if (scheduled) return;
+                scheduled = true;
+                window.requestAnimationFrame(reportNow);
               }
 
               window.__importCrmReportScroll = report;
               document.addEventListener('scroll', report, { capture: true, passive: true });
               window.addEventListener('resize', report, { passive: true });
               window.addEventListener('popstate', report);
-              new MutationObserver(report).observe(document.documentElement, {
+              new MutationObserver(report).observe(document.body, {
                 childList: true,
                 subtree: true,
-                attributes: true,
               });
               report();
             })();

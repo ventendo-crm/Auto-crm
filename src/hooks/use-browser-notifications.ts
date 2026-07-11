@@ -30,15 +30,19 @@ export function useBrowserNotifications() {
       return;
     }
 
-    if (Notification.permission === "denied") {
-      setState("denied");
-      setLoading(false);
-      return;
-    }
+    try {
+      if (Notification.permission === "denied") {
+        setState("denied");
+        return;
+      }
 
-    const subscription = await getCurrentPushSubscription();
-    setState(subscription ? "subscribed" : "default");
-    setLoading(false);
+      const subscription = await getCurrentPushSubscription();
+      setState(subscription ? "subscribed" : "default");
+    } catch {
+      setState("default");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {

@@ -222,6 +222,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         webView.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(message: android.webkit.ConsoleMessage): Boolean {
+                if (message.messageLevel() == android.webkit.ConsoleMessage.MessageLevel.ERROR) {
+                    android.util.Log.e("ImportCRM-WebView", "${message.sourceId()}:${message.lineNumber()} ${message.message()}")
+                }
+                return super.onConsoleMessage(message)
+            }
+
             override fun onShowFileChooser(
                 webView: WebView,
                 filePathCallback: ValueCallback<Array<Uri>>,

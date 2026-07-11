@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { Providers } from "@/components/providers";
+import { BRAND_ICON_MIME, getBrandIconUrl } from "@/lib/brand-icon";
 import "./globals.css";
 const inter = Inter({
   subsets: ["latin", "cyrillic"],
@@ -11,8 +12,8 @@ export const metadata: Metadata = {
   title: "Auto-CRM",
   description: "CRM для импорта автомобилей",
   icons: {
-    icon: [{ url: "/icon.svg?v=5", type: "image/svg+xml" }],
-    apple: [{ url: "/icon.svg?v=5", type: "image/svg+xml" }],
+    icon: [{ url: getBrandIconUrl(), type: BRAND_ICON_MIME }],
+    apple: [{ url: getBrandIconUrl(), type: BRAND_ICON_MIME }],
   },
 };
 

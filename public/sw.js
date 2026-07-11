@@ -16,8 +16,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/icon.svg?v=5",
-      badge: "/icon.svg?v=5",
+      icon: "/brand-logo.png?v=12",
+      badge: "/brand-logo.png?v=12",
       tag: "auto-crm-notification",
       data: { url: payload.url },
     }),

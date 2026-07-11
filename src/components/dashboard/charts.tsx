@@ -8,11 +8,11 @@ import {
   Legend,
   Pie,
   PieChart,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
+import { ChartContainer } from "@/components/dashboard/chart-container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DashboardChartData } from "@/lib/types";
 
@@ -51,7 +51,7 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
         </CardHeader>
         <CardContent className="h-72">
           {charts.stageBar.some((s) => s.count > 0) ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ChartContainer className="h-full w-full">
               <BarChart data={charts.stageBar} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} interval={0} angle={-20} textAnchor="end" height={56} />
@@ -63,7 +63,7 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
                   ))}
                 </Bar>
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           ) : (
             <EmptyChart />
           )}
@@ -77,7 +77,7 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
         </CardHeader>
         <CardContent className="h-72">
           {charts.statusPie.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ChartContainer className="h-full w-full">
               <PieChart>
                 <Pie
                   data={charts.statusPie}
@@ -97,7 +97,7 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
                 <Tooltip content={<ChartTooltip />} />
                 <Legend />
               </PieChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           ) : (
             <EmptyChart />
           )}
@@ -111,7 +111,7 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
         </CardHeader>
         <CardContent className="h-64">
           {charts.etaTimeline.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
+            <ChartContainer className="h-full w-full">
               <BarChart data={charts.etaTimeline}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" vertical={false} />
                 <XAxis dataKey="label" tick={{ fontSize: 12 }} />
@@ -119,7 +119,7 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
                 <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="count" name="Сделок" fill="#FF7A59" radius={[6, 6, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </ChartContainer>
           ) : (
             <EmptyChart message="Нет данных по прибытиям" />
           )}

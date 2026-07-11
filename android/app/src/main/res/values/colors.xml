@@ -2,4 +2,5 @@
     <color name="brand">#FF7F5C</color>
     <color name="brand_dark">#E85F3A</color>
     <color name="white">#FFFFFF</color>
+    <color name="launcher_bg">#000000</color>
 </resources>
