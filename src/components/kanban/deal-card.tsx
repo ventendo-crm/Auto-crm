@@ -6,7 +6,7 @@ import { DealStageType } from "@prisma/client";
 import { Calendar, GripVertical, Loader2, User, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { formatDealManagersLabel } from "@/lib/deal-managers";
+import { formatDealManagersLabel, getDealManagers } from "@/lib/deal-managers";
 import { useIsAndroidWebView } from "@/hooks/use-is-android-webview";
 import { DealListItem } from "@/lib/types";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -46,6 +46,9 @@ export function DealCard({
     deal.expectedArrival &&
     deal.currentStage !== DealStageType.DELIVERY &&
     new Date(deal.expectedArrival) < new Date();
+
+  const managers = getDealManagers(deal);
+  const managersLabel = formatDealManagersLabel(deal);
 
   return (
     <div
@@ -98,9 +101,23 @@ export function DealCard({
       <p className="mb-2 font-mono text-[11px] tracking-wide text-muted-foreground">{deal.vin}</p>
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-        <span className="flex items-center gap-1">
-          <User className="h-3 w-3" />
-          {formatDealManagersLabel(deal).split(",")[0]?.trim() || "—"}
+        <span
+          className="flex w-full min-w-0 items-start gap-1"
+          title={managers.length > 1 ? managersLabel : undefined}
+        >
+          <User className="mt-0.5 h-3 w-3 shrink-0" />
+          {managers.length > 0 ? (
+            <span className="min-w-0 break-words leading-snug">
+              {managers.map((manager, index) => (
+                <span key={manager.id}>
+                  {index > 0 && ", "}
+                  {manager.name}
+                </span>
+              ))}
+            </span>
+          ) : (
+            <span>—</span>
+          )}
         </span>
         {deal.clientUser && (
           <span

@@ -85,8 +85,8 @@ export function MediaPreviewDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {activeMedia ? (
-        <DialogContent className="z-[100] max-w-5xl gap-0 overflow-hidden p-0">
-        <DialogHeader className="border-b px-6 py-4">
+        <DialogContent className="z-[100] flex w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
+        <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center justify-between gap-4 pr-8">
             <div className="min-w-0">
               <DialogTitle className="truncate text-base">{activeMedia.fileName}</DialogTitle>
@@ -110,14 +110,14 @@ export function MediaPreviewDialog({
           </div>
         </DialogHeader>
 
-        <div className="relative flex min-h-[320px] items-center justify-center bg-black/5 p-4">
+        <div className="relative flex w-full min-w-0 items-center justify-center bg-black/5 p-2 sm:p-4">
           {gallery.length > 1 && (
             <>
               <Button
                 type="button"
                 variant="secondary"
                 size="icon"
-                className="absolute left-4 top-1/2 z-10 -translate-y-1/2 shadow-md"
+                className="absolute left-2 top-1/2 z-10 -translate-y-1/2 shadow-md sm:left-4"
                 disabled={!hasPrev}
                 onClick={() => goTo(-1)}
               >
@@ -127,7 +127,7 @@ export function MediaPreviewDialog({
                 type="button"
                 variant="secondary"
                 size="icon"
-                className="absolute right-4 top-1/2 z-10 -translate-y-1/2 shadow-md"
+                className="absolute right-2 top-1/2 z-10 -translate-y-1/2 shadow-md sm:right-4"
                 disabled={!hasNext}
                 onClick={() => goTo(1)}
               >
@@ -136,26 +136,28 @@ export function MediaPreviewDialog({
             </>
           )}
 
-          {activeMedia.type === MediaType.PHOTO ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              key={activeMedia.id}
-              src={activeMedia.fileUrl}
-              alt={activeMedia.fileName}
-              className="max-h-[70vh] max-w-full rounded-lg object-contain shadow-sm"
-            />
-          ) : (
-            <video
-              key={activeMedia.id}
-              src={activeMedia.fileUrl}
-              controls
-              autoPlay
-              playsInline
-              className="max-h-[70vh] max-w-full rounded-lg bg-black shadow-sm"
-            >
-              <track kind="captions" />
-            </video>
-          )}
+          <div className="flex w-full min-w-0 max-w-full items-center justify-center px-8 sm:px-12">
+            {activeMedia.type === MediaType.PHOTO ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={activeMedia.id}
+                src={activeMedia.fileUrl}
+                alt={activeMedia.fileName}
+                className="mx-auto block h-auto max-h-[70dvh] w-auto max-w-full object-contain"
+              />
+            ) : (
+              <video
+                key={activeMedia.id}
+                src={activeMedia.fileUrl}
+                controls
+                autoPlay
+                playsInline
+                className="mx-auto block h-auto max-h-[70dvh] w-full max-w-full bg-black object-contain"
+              >
+                <track kind="captions" />
+              </video>
+            )}
+          </div>
         </div>
         </DialogContent>
       ) : null}

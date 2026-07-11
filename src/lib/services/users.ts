@@ -82,6 +82,31 @@ export async function createManagerUser(params: {
   return createUser({ ...params, roleName: ROLES.MANAGER });
 }
 
+export const userListSelect = {
+  id: true,
+  name: true,
+  email: true,
+  telegramChatId: true,
+  createdAt: true,
+  role: { select: { id: true, name: true } },
+  clientDeal: { select: { id: true, clientName: true } },
+  _count: { select: { dealManagerAssignments: true } },
+} as const;
+
+export function mapUserListItem<
+  T extends { _count: { dealManagerAssignments: number } & Record<string, number> },
+>(user: T) {
+  const { _count, ...rest } = user;
+  const { dealManagerAssignments, ...otherCounts } = _count;
+  return {
+    ...rest,
+    _count: {
+      ...otherCounts,
+      deals: dealManagerAssignments,
+    },
+  };
+}
+
 export async function deleteUser(params: { actorId: string; userId: string }) {
   if (params.actorId === params.userId) {
     throw new Error("CANNOT_DELETE_SELF");
@@ -94,7 +119,7 @@ export async function deleteUser(params: { actorId: string; userId: string }) {
       clientDeal: { select: { id: true, clientName: true } },
       _count: {
         select: {
-          deals: true,
+          dealManagerAssignments: true,
           comments: true,
           stageChanges: true,
           createdTasks: true,
@@ -149,8 +174,8 @@ export async function deleteUser(params: { actorId: string; userId: string }) {
     throw new Error("UNSUPPORTED_ROLE");
   }
 
-  if (user._count.deals > 0) {
-    throw new Error(`USER_HAS_DEALS:${user._count.deals}`);
+  if (user._count.dealManagerAssignments > 0) {
+    throw new Error(`USER_HAS_DEALS:${user._count.dealManagerAssignments}`);
   }
 
   const activityCount =

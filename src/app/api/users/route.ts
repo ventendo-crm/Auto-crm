@@ -2,20 +2,9 @@ import { withAuth, assertAllowed } from "@/lib/api-handler";
 import { created, error, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { canManageManagers, canManageUsers, ROLES } from "@/lib/permissions";
-import { createUser } from "@/lib/services/users";
+import { createUser, mapUserListItem, userListSelect } from "@/lib/services/users";
 import { serialize } from "@/lib/serialize";
 import { createManagerSchema, createUserSchema } from "@/lib/validators/user";
-
-const userSelect = {
-  id: true,
-  name: true,
-  email: true,
-  telegramChatId: true,
-  createdAt: true,
-  role: { select: { id: true, name: true } },
-  clientDeal: { select: { id: true, clientName: true } },
-  _count: { select: { deals: true } },
-} as const;
 
 export const GET = withAuth(async (_request, { user }) => {
   const isAdmin = canManageUsers(user.role);
@@ -24,10 +13,10 @@ export const GET = withAuth(async (_request, { user }) => {
   const users = await prisma.user.findMany({
     where: isAdmin ? undefined : { role: { name: ROLES.MANAGER } },
     orderBy: { name: "asc" },
-    select: userSelect,
+    select: userListSelect,
   });
 
-  return ok(serialize(users));
+  return ok(serialize(users.map(mapUserListItem)));
 });
 
 export const POST = withAuth(async (request, { user }) => {

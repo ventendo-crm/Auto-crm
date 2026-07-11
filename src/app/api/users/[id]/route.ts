@@ -2,7 +2,7 @@ import { withAuth, assertAllowed, assertFound } from "@/lib/api-handler";
 import { error, noContent, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { canManageUsers } from "@/lib/permissions";
-import { deleteUser } from "@/lib/services/users";
+import { deleteUser, mapUserListItem } from "@/lib/services/users";
 import { serialize } from "@/lib/serialize";
 
 export const GET = withAuth(async (_request, { user, params }) => {
@@ -20,12 +20,12 @@ export const GET = withAuth(async (_request, { user, params }) => {
         telegramChatId: true,
         createdAt: true,
         role: { select: { id: true, name: true } },
-        _count: { select: { deals: true, comments: true } },
+        _count: { select: { dealManagerAssignments: true, comments: true } },
       },
     }),
   );
 
-  return ok(serialize(dbUser));
+  return ok(serialize(mapUserListItem(dbUser)));
 });
 
 export const DELETE = withAuth(async (_request, { user, params }) => {

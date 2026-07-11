@@ -196,7 +196,7 @@ export function ManagersPanel({
                     <p className="font-medium text-foreground">
                       {manager._count?.deals ?? 0}
                     </p>
-                    <p className="text-xs">сделок</p>
+                    <p className="text-xs">привязанных сделок</p>
                   </div>
 
                   {canDeleteUsers && (
