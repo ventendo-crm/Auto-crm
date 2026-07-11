@@ -132,6 +132,13 @@ export interface CarCarrierTrackingData {
   destination: CarCarrierDestination | null;
 }
 
+export interface GeocodeResult {
+  displayName: string;
+  shortName: string;
+  latitude: number;
+  longitude: number;
+}
+
 export interface SearchProcessEntry {
   id: string;
   dealId: string;

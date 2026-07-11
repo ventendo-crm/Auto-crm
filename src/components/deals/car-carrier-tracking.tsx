@@ -1,12 +1,14 @@
 "use client";
 
 import { MediaType } from "@prisma/client";
-import { Flag, ImagePlus, Loader2, MapPin, Trash2, Truck } from "lucide-react";
+import { Flag, ImagePlus, Loader2, MapPin, Search, Trash2, Truck } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   CarCarrierMapMode,
   CarCarrierTrackingMap,
+  MapSearchPreview,
+  MapViewTarget,
 } from "@/components/deals/car-carrier-tracking-map";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_TRACKING_POINT_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
-import { CarCarrierDestination, CarCarrierTrackingPoint } from "@/lib/types";
+import { CarCarrierDestination, CarCarrierTrackingPoint, GeocodeResult } from "@/lib/types";
 import { cn, formatDate } from "@/lib/utils";
 
 interface CarCarrierTrackingProps {
@@ -40,6 +42,12 @@ export function CarCarrierTracking({
   const [addMode, setAddMode] = useState<CarCarrierMapMode>(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
+  const [searchPreview, setSearchPreview] = useState<MapSearchPreview | null>(null);
+  const [viewTarget, setViewTarget] = useState<MapViewTarget | null>(null);
+  const [autoFitBounds, setAutoFitBounds] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedPoint = points.find((point) => point.id === selectedPointId) ?? null;
@@ -71,8 +79,13 @@ export function CarCarrierTracking({
     }
   };
 
-  const handleMapClick = async (latitude: number, longitude: number) => {
+  const handleMapClick = async (latitude: number, longitude: number, title?: string) => {
     if (!canEdit || !addMode) return;
+    await placeAt(latitude, longitude, title);
+  };
+
+  const placeAt = async (latitude: number, longitude: number, title?: string) => {
+    if (!canEdit) return;
 
     setSaving(true);
     try {
@@ -80,28 +93,85 @@ export function CarCarrierTracking({
         const nextDestination = await api.carCarrierTracking.setDestination(dealId, {
           latitude,
           longitude,
-          title: destination?.title || "Точка назначения",
+          title: title || destination?.title || "Точка назначения",
         });
         setDestination(nextDestination);
         setAddMode(false);
+        setSearchPreview(null);
+        setSearchResults([]);
+        setAutoFitBounds(true);
         toast.success("Точка назначения установлена");
         return;
       }
 
+      if (!addMode) return;
+
       const point = await api.carCarrierTracking.create(dealId, {
         latitude,
         longitude,
-        title: `Точка ${points.length + 1}`,
+        title: title || `Точка ${points.length + 1}`,
       });
       setPoints((current) => [...current, point]);
       setSelectedPointId(point.id);
       setAddMode(false);
+      setSearchPreview(null);
+      setSearchResults([]);
+      setAutoFitBounds(true);
       toast.success("Точка добавлена на карту");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Не удалось сохранить точку");
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSearch = async (event: React.FormEvent) => {
+    event.preventDefault();
+    const query = searchQuery.trim();
+    if (query.length < 2) {
+      toast.error("Введите минимум 2 символа");
+      return;
+    }
+
+    setSearching(true);
+    try {
+      const results = await api.geocode.search(query);
+      setSearchResults(results);
+      if (results.length === 0) {
+        setSearchPreview(null);
+        toast.error("Город не найден");
+        return;
+      }
+      selectSearchResult(results[0]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Ошибка поиска");
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectSearchResult = (result: GeocodeResult) => {
+    setSearchPreview({
+      latitude: result.latitude,
+      longitude: result.longitude,
+      label: result.shortName,
+    });
+    setViewTarget({
+      latitude: result.latitude,
+      longitude: result.longitude,
+      zoom: 10,
+      key: Date.now(),
+    });
+    setAutoFitBounds(false);
+  };
+
+  const placeSearchPreview = async () => {
+    if (!searchPreview) return;
+    if (!addMode && canEdit) {
+      toast.error("Сначала выберите «Добавить точку» или «Точка назначения»");
+      return;
+    }
+    await placeAt(searchPreview.latitude, searchPreview.longitude, searchPreview.label);
   };
 
   const updateSelectedPoint = async (
@@ -207,7 +277,7 @@ export function CarCarrierTracking({
         </CardTitle>
         <CardDescription>
           {canEdit
-            ? "Отмечайте точки маршрута и финальное назначение на карте. Точки соединяются красной линией."
+            ? "Ищите город по названию или кликайте на карту. Точки маршрута соединяются красной линией."
             : "Маршрут автовоза с отметками, финальной точкой назначения и фотографиями."}
         </CardDescription>
       </CardHeader>
@@ -218,6 +288,69 @@ export function CarCarrierTracking({
           </div>
         ) : (
           <>
+            <form onSubmit={(event) => void handleSearch(event)} className="flex gap-2">
+              <Input
+                type="search"
+                placeholder="Поиск города..."
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="flex-1"
+              />
+              <Button type="submit" variant="outline" size="sm" disabled={searching}>
+                {searching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+                <span className="sr-only sm:not-sr-only">Найти</span>
+              </Button>
+            </form>
+
+            {searchResults.length > 1 && (
+              <div className="flex flex-wrap gap-2">
+                {searchResults.map((result) => (
+                  <Button
+                    key={`${result.latitude}-${result.longitude}-${result.shortName}`}
+                    type="button"
+                    size="sm"
+                    variant={
+                      searchPreview?.label === result.shortName &&
+                      searchPreview.latitude === result.latitude
+                        ? "brand"
+                        : "outline"
+                    }
+                    onClick={() => selectSearchResult(result)}
+                  >
+                    {result.shortName}
+                  </Button>
+                ))}
+              </div>
+            )}
+
+            {searchPreview && (
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+                <p className="text-sm">
+                  <span className="text-muted-foreground">Найдено: </span>
+                  {searchPreview.label}
+                </p>
+                {canEdit && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="brand"
+                    disabled={saving || !addMode}
+                    onClick={() => void placeSearchPreview()}
+                  >
+                    {addMode === "destination"
+                      ? "Установить назначение"
+                      : addMode === "tracking"
+                        ? "Добавить точку здесь"
+                        : "Выберите режим добавления"}
+                  </Button>
+                )}
+              </div>
+            )}
+
             {canEdit && (
               <div className="flex flex-wrap gap-2">
                 <Button
@@ -258,6 +391,9 @@ export function CarCarrierTracking({
               selectedPointId={selectedPointId}
               canAddPoints={canEdit}
               addMode={addMode}
+              viewTarget={viewTarget}
+              searchPreview={searchPreview}
+              autoFitBounds={autoFitBounds}
               onMapClick={(lat, lng) => void handleMapClick(lat, lng)}
               onPointSelect={setSelectedPointId}
             />

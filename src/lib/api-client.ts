@@ -17,6 +17,7 @@ import {
   CarCarrierTrackingPoint,
   CarCarrierTrackingData,
   CarCarrierDestination,
+  GeocodeResult,
   SearchProcessEntry,
   SearchProcessData,
   SearchProcessLinks,
@@ -364,6 +365,13 @@ export const api = {
         const json = (await response.json()) as ApiResponse<unknown>;
         throw new Error(json.error ?? "Delete failed");
       }
+    },
+  },
+
+  geocode: {
+    search: (query: string) => {
+      const params = new URLSearchParams({ q: query });
+      return request<GeocodeResult[]>(`/api/geocode/search?${params.toString()}`);
     },
   },
 

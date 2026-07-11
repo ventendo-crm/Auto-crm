@@ -36,10 +36,32 @@ const destinationIcon = L.icon({
   shadowSize: [41, 41],
 });
 
+const searchPreviewIcon = L.icon({
+  iconUrl: "https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
+
 const DEFAULT_CENTER: L.LatLngExpression = [55.7558, 37.6173];
 const DEFAULT_ZOOM = 4;
 
 export type CarCarrierMapMode = "tracking" | "destination" | false;
+
+export interface MapViewTarget {
+  latitude: number;
+  longitude: number;
+  zoom?: number;
+  key?: number;
+}
+
+export interface MapSearchPreview {
+  latitude: number;
+  longitude: number;
+  label: string;
+}
 
 interface CarCarrierTrackingMapProps {
   points: CarCarrierTrackingPoint[];
@@ -47,6 +69,9 @@ interface CarCarrierTrackingMapProps {
   selectedPointId?: string | null;
   canAddPoints?: boolean;
   addMode?: CarCarrierMapMode;
+  viewTarget?: MapViewTarget | null;
+  searchPreview?: MapSearchPreview | null;
+  autoFitBounds?: boolean;
   onMapClick?: (latitude: number, longitude: number) => void;
   onPointSelect?: (pointId: string) => void;
   className?: string;
@@ -58,6 +83,9 @@ export function CarCarrierTrackingMap({
   selectedPointId,
   canAddPoints = false,
   addMode = false,
+  viewTarget,
+  searchPreview,
+  autoFitBounds = true,
   onMapClick,
   onPointSelect,
   className,
@@ -138,6 +166,19 @@ export function CarCarrierTrackingMap({
       layer.addLayer(destMarker);
     }
 
+    if (searchPreview) {
+      const previewLatLng: L.LatLngExpression = [
+        searchPreview.latitude,
+        searchPreview.longitude,
+      ];
+      const previewMarker = L.marker(previewLatLng, { icon: searchPreviewIcon });
+      previewMarker.bindTooltip(searchPreview.label, {
+        direction: "top",
+        offset: [0, -36],
+      });
+      layer.addLayer(previewMarker);
+    }
+
     if (routeLatLngs.length >= 2) {
       routeRef.current = L.polyline(routeLatLngs, {
         color: ROUTE_COLOR,
@@ -146,16 +187,28 @@ export function CarCarrierTrackingMap({
       }).addTo(map);
     }
 
-    if (boundsPoints.length === 1) {
-      map.setView(boundsPoints[0], 10, { animate: true });
-    } else if (boundsPoints.length > 1) {
-      map.fitBounds(L.latLngBounds(boundsPoints), {
-        padding: [40, 40],
-        maxZoom: 12,
-        animate: true,
-      });
+    if (autoFitBounds) {
+      if (boundsPoints.length === 1) {
+        map.setView(boundsPoints[0], 10, { animate: true });
+      } else if (boundsPoints.length > 1) {
+        map.fitBounds(L.latLngBounds(boundsPoints), {
+          padding: [40, 40],
+          maxZoom: 12,
+          animate: true,
+        });
+      }
     }
-  }, [points, destination, selectedPointId, onPointSelect]);
+  }, [points, destination, selectedPointId, searchPreview, autoFitBounds, onPointSelect]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !viewTarget) return;
+
+    map.flyTo([viewTarget.latitude, viewTarget.longitude], viewTarget.zoom ?? 10, {
+      animate: true,
+      duration: 0.8,
+    });
+  }, [viewTarget?.latitude, viewTarget?.longitude, viewTarget?.zoom, viewTarget?.key]);
 
   useEffect(() => {
     const map = mapRef.current;
