@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { ChevronDown } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
@@ -12,6 +19,18 @@ interface ManagersMultiSelectProps {
   disabled?: boolean;
   id?: string;
   className?: string;
+}
+
+function formatSelectedLabel(managers: User[], value: string[]): string {
+  if (value.length === 0) {
+    return "Выберите менеджеров";
+  }
+
+  const selectedNames = managers
+    .filter((manager) => value.includes(manager.id))
+    .map((manager) => manager.name);
+
+  return selectedNames.length > 0 ? selectedNames.join(", ") : "Выберите менеджеров";
 }
 
 export function ManagersMultiSelect({
@@ -32,6 +51,8 @@ export function ManagersMultiSelect({
       .finally(() => setLoading(false));
   }, []);
 
+  const triggerLabel = useMemo(() => formatSelectedLabel(managers, value), [managers, value]);
+
   const toggleManager = (managerId: string, checked: boolean) => {
     if (checked) {
       if (!value.includes(managerId)) {
@@ -44,7 +65,7 @@ export function ManagersMultiSelect({
   };
 
   if (loading) {
-    return <Skeleton className="h-24 w-full" />;
+    return <Skeleton className="h-9 w-full" />;
   }
 
   if (managers.length === 0) {
@@ -52,38 +73,42 @@ export function ManagersMultiSelect({
   }
 
   return (
-    <div
-      id={id}
-      role="group"
-      aria-label="Менеджеры"
-      className={cn("rounded-md border bg-background", disabled && "opacity-70", className)}
-    >
-      <ul className="max-h-48 divide-y overflow-y-auto">
-        {managers.map((manager) => {
-          const isChecked = value.includes(manager.id);
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        id={id}
+        disabled={disabled}
+        className={cn(
+          "flex h-9 w-full items-center justify-between gap-2 whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+          className,
+        )}
+      >
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-left",
+            value.length === 0 && "text-muted-foreground",
+          )}
+        >
+          {triggerLabel}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
+      </DropdownMenuTrigger>
 
-          return (
-            <li key={manager.id}>
-              <label
-                className={cn(
-                  "flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors",
-                  isChecked ? "bg-primary/5" : "hover:bg-muted/40",
-                  disabled && "cursor-default hover:bg-transparent",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 shrink-0 rounded border-input accent-primary"
-                  checked={isChecked}
-                  disabled={disabled}
-                  onChange={(event) => toggleManager(manager.id, event.target.checked)}
-                />
-                <span className="text-sm">{manager.name}</span>
-              </label>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+      <DropdownMenuContent
+        align="start"
+        className="max-h-64 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+      >
+        {managers.map((manager) => (
+          <DropdownMenuCheckboxItem
+            key={manager.id}
+            checked={value.includes(manager.id)}
+            disabled={disabled}
+            onCheckedChange={(checked) => toggleManager(manager.id, checked === true)}
+            onSelect={(event) => event.preventDefault()}
+          >
+            {manager.name}
+          </DropdownMenuCheckboxItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
