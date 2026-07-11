@@ -102,6 +102,15 @@ async function buildDealWhere(user: AuthUser, filters: ListDealsInput): Promise<
     ];
   }
 
+  if (filters.overdue) {
+    where.expectedArrival = { lt: new Date() };
+    where.currentStage = { not: DealStageType.DELIVERY };
+  }
+
+  if (filters.withClientPortal) {
+    where.clientUserId = { not: null };
+  }
+
   return where;
 }
 

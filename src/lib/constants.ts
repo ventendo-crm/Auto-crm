@@ -79,6 +79,16 @@ export const STAGE_COLUMN_BG: Record<DealStageType, string> = {
   [DealStageType.DELIVERY]: "border-t-teal-400",
 };
 
+export const STAGE_LEFT_BORDER: Record<DealStageType, string> = {
+  [DealStageType.LEADS]: "border-l-amber-400",
+  [DealStageType.SEARCH]: "border-l-blue-400",
+  [DealStageType.INVOICE]: "border-l-orange-400",
+  [DealStageType.PREPARATION]: "border-l-purple-400",
+  [DealStageType.CUSTOMS]: "border-l-rose-400",
+  [DealStageType.TRANSPORT]: "border-l-emerald-400",
+  [DealStageType.DELIVERY]: "border-l-teal-400",
+};
+
 export const DOCUMENT_LABELS = {
   SEARCH_AGREEMENT: "Договор на поиск",
   PASSPORT: "Паспорт",

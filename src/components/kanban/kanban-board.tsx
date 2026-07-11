@@ -14,16 +14,12 @@ import {
   type CollisionDetection,
 } from "@dnd-kit/core";
 import { DealStageType } from "@prisma/client";
-import { Plus, Search } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CreateDealDialog } from "@/components/deals/create-deal-dialog";
 import { DealCard } from "@/components/kanban/deal-card";
+import { ALL_MANAGERS, KanbanFilters } from "@/components/kanban/kanban-filters";
 import { KanbanColumn } from "@/components/kanban/kanban-column";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAndroidWebView } from "@/hooks/use-is-android-webview";
 import { useIsMobile } from "@/hooks/use-is-mobile";
@@ -38,7 +34,7 @@ import {
 import { DealListItem, User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const ALL_MANAGERS = "all";
+const COMPACT_VIEW_STORAGE_KEY = "kanban-compact-view";
 
 const collisionDetection: CollisionDetection = (args) => {
   const pointerCollisions = pointerWithin(args);
@@ -47,6 +43,13 @@ const collisionDetection: CollisionDetection = (args) => {
   }
   return closestCorners(args);
 };
+
+interface KanbanQuery {
+  search: string;
+  managerId: string;
+  overdue: boolean;
+  withClientPortal: boolean;
+}
 
 export function KanbanBoard() {
   const { user } = useAuth();
@@ -59,12 +62,32 @@ export function KanbanBoard() {
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [selectedManagerId, setSelectedManagerId] = useState(ALL_MANAGERS);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [withClientPortalOnly, setWithClientPortalOnly] = useState(false);
+  const [compactView, setCompactView] = useState(false);
   const [activeDeal, setActiveDeal] = useState<DealListItem | null>(null);
   const [overStage, setOverStage] = useState<DealStageType | null>(null);
   const [savingDealId, setSavingDealId] = useState<string | null>(null);
 
   const isAdmin = user?.role.name === "ADMIN";
   const canCreate = isAdmin || user?.role.name === "MANAGER";
+
+  useEffect(() => {
+    try {
+      setCompactView(localStorage.getItem(COMPACT_VIEW_STORAGE_KEY) === "true");
+    } catch {
+      // localStorage недоступен
+    }
+  }, []);
+
+  const handleCompactViewChange = useCallback((value: boolean) => {
+    setCompactView(value);
+    try {
+      localStorage.setItem(COMPACT_VIEW_STORAGE_KEY, String(value));
+    } catch {
+      // localStorage недоступен
+    }
+  }, []);
 
   const dealsByStage = useMemo(() => {
     const map = Object.fromEntries(STAGE_ORDER.map((stage) => [stage, [] as DealListItem[]])) as Record<
@@ -79,13 +102,25 @@ export function KanbanBoard() {
     return map;
   }, [deals]);
 
-  const loadDeals = useCallback(async (query: string, managerId: string) => {
+  const currentQuery = useMemo<KanbanQuery>(
+    () => ({
+      search: appliedSearch,
+      managerId: selectedManagerId,
+      overdue: overdueOnly,
+      withClientPortal: withClientPortalOnly,
+    }),
+    [appliedSearch, overdueOnly, selectedManagerId, withClientPortalOnly],
+  );
+
+  const loadDeals = useCallback(async (query: KanbanQuery) => {
     setLoading(true);
     try {
       const result = await api.deals.list({
         limit: 100,
-        search: query || undefined,
-        managerId: managerId !== ALL_MANAGERS ? managerId : undefined,
+        search: query.search || undefined,
+        managerId: query.managerId !== ALL_MANAGERS ? query.managerId : undefined,
+        overdue: query.overdue || undefined,
+        withClientPortal: query.withClientPortal || undefined,
       });
       setDeals(result.items);
     } catch (err) {
@@ -107,8 +142,8 @@ export function KanbanBoard() {
   }, [isAdmin]);
 
   useEffect(() => {
-    void loadDeals(appliedSearch, selectedManagerId);
-  }, [appliedSearch, loadDeals, selectedManagerId]);
+    void loadDeals(currentQuery);
+  }, [currentQuery, loadDeals]);
 
   useEffect(() => {
     if (!isAndroidApp) return;
@@ -129,7 +164,7 @@ export function KanbanBoard() {
     setAppliedSearch(searchInput.trim());
   }, [searchInput]);
 
-  const handleSearchSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     applySearch();
   };
@@ -201,59 +236,45 @@ export function KanbanBoard() {
 
   if (loading && deals.length === 0) {
     return (
-      <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:gap-4 sm:p-6">
-        {STAGE_ORDER.map((stage) => (
-          <Skeleton key={stage} className="h-[calc(100dvh-11rem)] w-[min(85vw,18rem)] shrink-0 snap-center rounded-xl sm:w-72 md:h-[calc(100vh-12rem)] md:w-80" />
-        ))}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="border-b bg-card px-3 py-3 sm:px-6">
+          <Skeleton className="h-9 w-full max-w-md" />
+          <Skeleton className="mt-3 h-8 w-full max-w-xl" />
+        </div>
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:gap-4 sm:p-6">
+          {STAGE_ORDER.map((stage) => (
+            <Skeleton
+              key={stage}
+              className={cn(
+                "h-[calc(100dvh-13rem)] shrink-0 snap-center rounded-xl",
+                compactView ? "w-56 md:w-60" : "w-[min(85vw,18rem)] sm:w-72 md:h-[calc(100vh-13rem)] md:w-80",
+              )}
+            />
+          ))}
+        </div>
       </div>
     );
   }
 
   return (
     <div className="flex flex-1 flex-col overflow-hidden">
-      <div className="flex flex-col gap-3 border-b bg-card px-3 py-3 sm:px-6">
-        {isAdmin && managers.length > 0 && (
-          <Tabs value={selectedManagerId} onValueChange={setSelectedManagerId}>
-            <div className="-mx-1 overflow-x-auto pb-1">
-              <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
-                <TabsTrigger value={ALL_MANAGERS}>Все менеджеры</TabsTrigger>
-                {managers.map((manager) => (
-                  <TabsTrigger key={manager.id} value={manager.id}>
-                    {manager.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-          </Tabs>
-        )}
-
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <form
-          onSubmit={handleSearchSubmit}
-          className="flex w-full gap-2 sm:max-w-md"
-        >
-          <Input
-            type="search"
-            placeholder="Поиск по клиенту, VIN, марке..."
-            className="w-full"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-          />
-          <Button type="submit" variant="outline" size="sm" className="shrink-0">
-            <Search className="h-4 w-4" />
-            <span className="sr-only sm:not-sr-only">Найти</span>
-          </Button>
-        </form>
-        {canCreate && (
-          <CreateDealDialog onCreated={() => loadDeals(appliedSearch, selectedManagerId)}>
-            <Button variant="brand" size="sm" className="w-full sm:w-auto">
-              <Plus className="h-4 w-4" />
-              Новая сделка
-            </Button>
-          </CreateDealDialog>
-        )}
-        </div>
-      </div>
+      <KanbanFilters
+        searchInput={searchInput}
+        onSearchInputChange={setSearchInput}
+        onSearchSubmit={handleSearchSubmit}
+        isAdmin={isAdmin}
+        managers={managers}
+        selectedManagerId={selectedManagerId}
+        onManagerChange={setSelectedManagerId}
+        overdueOnly={overdueOnly}
+        onOverdueOnlyChange={setOverdueOnly}
+        withClientPortalOnly={withClientPortalOnly}
+        onWithClientPortalOnlyChange={setWithClientPortalOnly}
+        compactView={compactView}
+        onCompactViewChange={handleCompactViewChange}
+        canCreate={canCreate}
+        onDealCreated={() => loadDeals(currentQuery)}
+      />
 
       <DndContext
         sensors={sensors}
@@ -277,6 +298,7 @@ export function KanbanBoard() {
               key={stage}
               stage={stage}
               deals={dealsByStage[stage]}
+              compact={compactView}
               isOver={overStage === stage}
               dragEnabled={dragEnabled}
               canDrag={(deal) =>
@@ -289,7 +311,7 @@ export function KanbanBoard() {
 
         <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
           {activeDeal ? (
-            <DealCard deal={activeDeal} isOverlay canDrag={false} />
+            <DealCard deal={activeDeal} compact={compactView} isOverlay canDrag={false} />
           ) : null}
         </DragOverlay>
       </DndContext>

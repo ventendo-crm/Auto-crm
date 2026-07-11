@@ -11,6 +11,8 @@ export const GET = withAuth(async (request, { user }) => {
     stage: searchParams.get("stage") ?? undefined,
     managerId: searchParams.get("managerId") ?? undefined,
     search: searchParams.get("search") ?? undefined,
+    overdue: searchParams.get("overdue") ?? undefined,
+    withClientPortal: searchParams.get("withClientPortal") ?? undefined,
     page: searchParams.get("page") ?? undefined,
     limit: searchParams.get("limit") ?? undefined,
   });

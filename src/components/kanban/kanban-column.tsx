@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 interface KanbanColumnProps {
   stage: DealStageType;
   deals: DealListItem[];
+  compact?: boolean;
   isOver?: boolean;
   dragEnabled?: boolean;
   canDrag: (deal: DealListItem) => boolean;
@@ -21,6 +22,7 @@ interface KanbanColumnProps {
 export function KanbanColumn({
   stage,
   deals,
+  compact = false,
   isOver,
   dragEnabled = true,
   canDrag,
@@ -36,7 +38,11 @@ export function KanbanColumn({
   return (
     <div
       className={cn(
-        "flex h-[calc(100dvh-11rem)] w-[min(85vw,18rem)] shrink-0 snap-center flex-col rounded-xl border border-t-4 bg-muted/20 shadow-sm transition-all sm:w-72 md:h-[calc(100vh-12rem)] md:w-80",
+        "flex h-[calc(100dvh-13rem)] shrink-0 snap-center flex-col rounded-xl border border-t-4 bg-muted/20 shadow-sm transition-all",
+        compact
+          ? "w-[min(78vw,14.5rem)] sm:w-56 md:w-60"
+          : "w-[min(85vw,18rem)] sm:w-72 md:h-[calc(100vh-13rem)] md:w-80",
+        !compact && "md:h-[calc(100vh-13rem)]",
         STAGE_COLUMN_BG[stage],
         highlighted && "scale-[1.01] ring-2 ring-brand/50 shadow-card-hover",
       )}
@@ -53,11 +59,12 @@ export function KanbanColumn({
         className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-3"
       >
         <SortableContext items={deals.map((d) => d.id)} strategy={verticalListSortingStrategy}>
-          <div className="min-h-[200px] flex-1 space-y-2">
+          <div className={cn("min-h-[200px] flex-1", compact ? "space-y-1.5" : "space-y-2")}>
             {deals.map((deal) => (
               <DealCard
                 key={deal.id}
                 deal={deal}
+                compact={compact}
                 canDrag={canDrag(deal)}
                 isSaving={savingDealId === deal.id}
               />

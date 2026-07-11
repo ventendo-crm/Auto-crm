@@ -32,10 +32,17 @@ export const changeStageSchema = z.object({
   toStage: z.nativeEnum(DealStageType),
 });
 
+const optionalBooleanQuery = z
+  .enum(["true", "false"])
+  .optional()
+  .transform((value) => value === "true");
+
 export const listDealsSchema = z.object({
   stage: z.nativeEnum(DealStageType).optional(),
   managerId: z.string().cuid().optional(),
   search: z.string().optional(),
+  overdue: optionalBooleanQuery,
+  withClientPortal: optionalBooleanQuery,
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
