@@ -19,7 +19,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 export const DELETE = withAuth(async (_request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
 
-  assertAllowed(canClearDealHistory(user.role, user.id, deal.managerId));
+  assertAllowed(canClearDealHistory(user.role, user.id, deal));
 
   await clearDealHistory(params.id);
   return noContent();

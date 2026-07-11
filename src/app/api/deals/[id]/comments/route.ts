@@ -1,6 +1,7 @@
+import { getDealManagerIds } from "@/lib/deal-managers";
 import { withAuth, assertAllowed, assertFound } from "@/lib/api-handler";
 import { created, ok } from "@/lib/api-response";
-import { canCommentOnDeal, ROLES } from "@/lib/permissions";
+import { canCommentOnDeal, isAssignedDealManager, ROLES } from "@/lib/permissions";
 import { canUserViewDeal } from "@/lib/services/deal-access";
 import { createComment, listComments } from "@/lib/services/comments";
 import { getDeal } from "@/lib/services/deals";
@@ -23,7 +24,7 @@ export const POST = withAuth(async (request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
   assertAllowed(canCommentOnDeal(user.role, user.id, deal));
 
-  if (user.role === ROLES.MANAGER && deal.managerId !== user.id) {
+  if (user.role === ROLES.MANAGER && !isAssignedDealManager(user.id, getDealManagerIds(deal))) {
     assertAllowed(false);
   }
 
@@ -40,6 +41,7 @@ export const POST = withAuth(async (request, { user, params }) => {
       clientName: deal.clientName,
       vin: deal.vin,
       managerId: deal.managerId,
+      managerIds: deal.managerIds,
       clientUserId: deal.clientUserId,
     },
     author: user,

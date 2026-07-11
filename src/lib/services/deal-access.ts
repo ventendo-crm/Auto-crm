@@ -1,6 +1,10 @@
 import { Prisma } from "@prisma/client";
 import { AuthUser, ROLES, canViewDeal } from "@/lib/permissions";
 import {
+  buildDealManagerFilter,
+  buildDealManagersFilter,
+} from "@/lib/deal-managers";
+import {
   getManagerPeerIds,
   getManagerVisibleManagerIds,
 } from "@/lib/services/manager-links";
@@ -14,7 +18,7 @@ export async function getManagerPeerIdsForUser(user: AuthUser): Promise<string[]
 
 export async function canUserViewDeal(
   user: AuthUser,
-  deal: { managerId: string | null; clientUserId?: string | null },
+  deal: { managerId: string | null; clientUserId?: string | null; managerIds?: string[] },
 ): Promise<boolean> {
   const peerIds = await getManagerPeerIdsForUser(user);
   return canViewDeal(user.role, user.id, deal, peerIds);
@@ -28,10 +32,10 @@ export async function buildManagerDealsWhere(
 
   if (managerIdFilter) {
     if (!visibleManagerIds.includes(managerIdFilter)) {
-      return { managerId: { in: [] } };
+      return buildDealManagersFilter([]);
     }
-    return { managerId: managerIdFilter };
+    return buildDealManagerFilter(managerIdFilter);
   }
 
-  return { managerId: { in: visibleManagerIds } };
+  return buildDealManagersFilter(visibleManagerIds);
 }

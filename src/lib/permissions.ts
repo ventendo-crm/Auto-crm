@@ -1,3 +1,5 @@
+import { DealWithManagerAssignments, getDealManagerIds, normalizeManagerIds } from "@/lib/deal-managers";
+
 export const ROLES = {
   ADMIN: "ADMIN",
   MANAGER: "MANAGER",
@@ -48,17 +50,31 @@ export function getClientRoleName(user: ClientUser | null | undefined): RoleName
   return isRoleName(role.name) ? role.name : null;
 }
 
+function resolveManagerIds(
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
+): string[] {
+  if (typeof managerIdOrIds === "object" && managerIdOrIds !== null && !Array.isArray(managerIdOrIds)) {
+    return getDealManagerIds(managerIdOrIds);
+  }
+  return normalizeManagerIds(managerIdOrIds);
+}
+
+export function isAssignedDealManager(userId: string, managerIds: string[]): boolean {
+  return managerIds.includes(userId);
+}
+
 export function canViewDeal(
   role: RoleName,
   userId: string,
-  deal: { managerId: string | null; clientUserId?: string | null },
+  deal: DealWithManagerAssignments & { clientUserId?: string | null },
   managerPeerIds: readonly string[] = [],
 ): boolean {
   if (role === ROLES.ADMIN || role === ROLES.VIEWER) return true;
   if (role === ROLES.MANAGER) {
-    if (!deal.managerId) return false;
-    if (deal.managerId === userId) return true;
-    return managerPeerIds.includes(deal.managerId);
+    const managerIds = getDealManagerIds(deal);
+    if (managerIds.length === 0) return false;
+    if (isAssignedDealManager(userId, managerIds)) return true;
+    return managerIds.some((managerId) => managerPeerIds.includes(managerId));
   }
   if (role === ROLES.CLIENT) return deal.clientUserId === userId;
   return false;
@@ -66,31 +82,34 @@ export function canViewDeal(
 
 export function canManageDealClient(
   user: ClientUser | null | undefined,
-  managerId: string | null,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
 ): boolean {
   const role = getClientRoleName(user);
   if (!user || !role) return false;
-  return canUpdateDeal(role, user.id, managerId);
+  return canUpdateDeal(role, user.id, managerIdOrIds);
 }
 
 export function canToggleAdditionalOption(
   role: RoleName,
   userId: string,
-  deal: { managerId: string | null; clientUserId?: string | null },
+  deal: DealWithManagerAssignments & { clientUserId?: string | null },
 ): boolean {
   if (role === ROLES.CLIENT) {
     return deal.clientUserId === userId;
   }
-  return canUpdateDeal(role, userId, deal.managerId);
+  return canUpdateDeal(role, userId, deal);
 }
 
 export function canClearDealHistory(
   role: RoleName,
   userId: string,
-  managerId: string | null,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
 ): boolean {
   if (role === ROLES.ADMIN) return true;
-  if (role === ROLES.MANAGER) return managerId !== null && userId === managerId;
+  if (role === ROLES.MANAGER) {
+    const managerIds = resolveManagerIds(managerIdOrIds);
+    return managerIds.length > 0 && isAssignedDealManager(userId, managerIds);
+  }
   return false;
 }
 
@@ -98,20 +117,25 @@ export function canCreateDeals(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
 
-export function canUpdateDeal(role: RoleName, userId: string, managerId: string | null): boolean {
+export function canUpdateDeal(
+  role: RoleName,
+  userId: string,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
+): boolean {
   if (role === ROLES.CLIENT) return false;
   if (role === ROLES.ADMIN) return true;
-  if (!managerId) return false;
-  if (role === ROLES.MANAGER) return userId === managerId;
+  const managerIds = resolveManagerIds(managerIdOrIds);
+  if (managerIds.length === 0) return false;
+  if (role === ROLES.MANAGER) return isAssignedDealManager(userId, managerIds);
   return false;
 }
 
-export function canDeleteDeal(role: RoleName, userId: string, managerId: string | null): boolean {
-  if (role === ROLES.CLIENT) return false;
-  if (role === ROLES.ADMIN) return true;
-  if (!managerId) return false;
-  if (role === ROLES.MANAGER) return userId === managerId;
-  return false;
+export function canDeleteDeal(
+  role: RoleName,
+  userId: string,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
+): boolean {
+  return canUpdateDeal(role, userId, managerIdOrIds);
 }
 
 export function canCreateComment(role: RoleName): boolean {
@@ -121,7 +145,7 @@ export function canCreateComment(role: RoleName): boolean {
 export function canCommentOnDeal(
   role: RoleName,
   userId: string,
-  deal: { managerId: string | null; clientUserId?: string | null },
+  deal: DealWithManagerAssignments & { clientUserId?: string | null },
 ): boolean {
   if (role === ROLES.CLIENT) {
     return deal.clientUserId === userId;
@@ -135,8 +159,12 @@ export function canModifyComment(role: RoleName, userId: string, authorId: strin
   return userId === authorId;
 }
 
-export function canChangeStage(role: RoleName, userId: string, managerId: string | null): boolean {
-  return canUpdateDeal(role, userId, managerId);
+export function canChangeStage(
+  role: RoleName,
+  userId: string,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
+): boolean {
+  return canUpdateDeal(role, userId, managerIdOrIds);
 }
 
 export function canManageUsers(role: RoleName): boolean {
@@ -154,13 +182,13 @@ export function canViewAllDeals(role: RoleName): boolean {
 export function canUploadDealDocuments(
   role: RoleName,
   userId: string,
-  deal: { managerId: string | null; clientUserId?: string | null },
+  deal: DealWithManagerAssignments & { clientUserId?: string | null },
 ): boolean {
   if (role === ROLES.CLIENT) {
     return deal.clientUserId === userId;
   }
   if (role === ROLES.MANAGER) {
-    return deal.managerId === userId;
+    return isAssignedDealManager(userId, getDealManagerIds(deal));
   }
   return canViewDeal(role, userId, deal);
 }
@@ -168,41 +196,58 @@ export function canUploadDealDocuments(
 export function canDeleteDealDocuments(
   role: RoleName,
   userId: string,
-  managerId: string | null,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
 ): boolean {
-  return canUpdateDeal(role, userId, managerId);
+  return canUpdateDeal(role, userId, managerIdOrIds);
 }
 
-export function canAssignDealManager(role: RoleName): boolean {
-  return role === ROLES.ADMIN;
+export function canAssignDealManager(
+  role: RoleName,
+  userId?: string,
+  deal?: DealWithManagerAssignments | null,
+): boolean {
+  if (role === ROLES.ADMIN) return true;
+  if (role === ROLES.MANAGER) {
+    if (!userId) return true;
+    if (!deal) return true;
+    return isAssignedDealManager(userId, getDealManagerIds(deal));
+  }
+  return false;
 }
 
 export function canManageDealExpenses(
   role: RoleName,
   userId: string,
-  managerId: string | null,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
 ): boolean {
   if (role === ROLES.ADMIN) return true;
-  if (role === ROLES.MANAGER) return managerId !== null && userId === managerId;
+  if (role === ROLES.MANAGER) {
+    const managerIds = resolveManagerIds(managerIdOrIds);
+    return managerIds.length > 0 && isAssignedDealManager(userId, managerIds);
+  }
   return false;
 }
 
 export function canViewDealFinances(
   role: RoleName,
   userId: string,
-  managerId: string | null,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
 ): boolean {
-  return canManageDealExpenses(role, userId, managerId);
+  return canManageDealExpenses(role, userId, managerIdOrIds);
 }
 
 export function canManageDealReminders(
   role: RoleName,
   userId: string,
-  managerId: string | null,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
 ): boolean {
-  return canManageDealExpenses(role, userId, managerId);
+  return canManageDealExpenses(role, userId, managerIdOrIds);
 }
 
-export function canManageClientAccount(role: RoleName, userId: string, managerId: string | null): boolean {
-  return canUpdateDeal(role, userId, managerId);
+export function canManageClientAccount(
+  role: RoleName,
+  userId: string,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
+): boolean {
+  return canUpdateDeal(role, userId, managerIdOrIds);
 }

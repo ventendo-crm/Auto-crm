@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { ManagerSelect } from "@/components/deals/manager-select";
+import { ManagersMultiSelect } from "@/components/deals/managers-multi-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -27,7 +27,7 @@ interface CreateDealDialogProps {
 export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps) {
   const { user } = useAuth();
   const role = getClientRoleName(user);
-  const isAdmin = role ? canAssignDealManager(role) : false;
+  const canAssignManagers = role && user ? canAssignDealManager(role, user.id) : false;
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -38,7 +38,7 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
     destinationCity: "",
     destinationCountry: "Россия",
     prepayment: "",
-    managerId: "",
+    managerIds: [] as string[],
   });
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,7 +49,7 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
         ...form,
         prepayment: form.prepayment ? Number(form.prepayment) : undefined,
         carYear: undefined,
-        managerId: isAdmin && form.managerId ? form.managerId : undefined,
+        managerIds: canAssignManagers && form.managerIds.length > 0 ? form.managerIds : undefined,
       });
       toast.success("Сделка создана");
       setOpen(false);
@@ -61,7 +61,7 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
         destinationCity: "",
         destinationCountry: "Россия",
         prepayment: "",
-        managerId: "",
+        managerIds: [],
       });
       onCreated?.();
     } catch (err) {
@@ -89,13 +89,12 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
                 required
               />
             </div>
-            {isAdmin && (
+            {canAssignManagers && (
               <div className="space-y-2 sm:col-span-2">
-                <Label>Менеджер (необязательно)</Label>
-                <ManagerSelect
-                  allowEmpty
-                  value={form.managerId}
-                  onValueChange={(managerId) => setForm({ ...form, managerId })}
+                <Label>Менеджеры</Label>
+                <ManagersMultiSelect
+                  value={form.managerIds}
+                  onValueChange={(managerIds) => setForm({ ...form, managerIds })}
                 />
               </div>
             )}

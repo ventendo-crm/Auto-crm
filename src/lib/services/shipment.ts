@@ -1,3 +1,4 @@
+import { dealAccessSelect } from "@/lib/deal-managers";
 import { AuthUser, canUpdateDeal, canViewDeal } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
@@ -10,7 +11,7 @@ import {
 async function assertDealShipmentAccess(user: AuthUser, dealId: string, write = false) {
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { managerId: true, clientUserId: true },
+    select: dealAccessSelect,
   });
 
   if (!deal) {
@@ -18,7 +19,7 @@ async function assertDealShipmentAccess(user: AuthUser, dealId: string, write = 
   }
 
   if (write) {
-    if (!canUpdateDeal(user.role, user.id, deal.managerId)) {
+    if (!canUpdateDeal(user.role, user.id, deal)) {
       throw new Error("Forbidden");
     }
   } else {

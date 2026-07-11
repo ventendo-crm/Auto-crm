@@ -9,12 +9,7 @@ import { updateCommentSchema } from "@/lib/validators/comment";
 export const GET = withAuth(async (_request, { user, params }) => {
   const comment = assertFound(await getComment(params.id));
 
-  if (
-    !(await canUserViewDeal(user, {
-      managerId: comment.deal.managerId,
-      clientUserId: comment.deal.clientUserId,
-    }))
-  ) {
+  if (!(await canUserViewDeal(user, comment.deal))) {
     assertAllowed(false);
   }
 

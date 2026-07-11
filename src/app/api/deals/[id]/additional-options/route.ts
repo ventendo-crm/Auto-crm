@@ -24,12 +24,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 export const PATCH = withAuth(async (request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
 
-  assertAllowed(
-    canToggleAdditionalOption(user.role, user.id, {
-      managerId: deal.managerId,
-      clientUserId: deal.clientUserId,
-    }),
-  );
+  assertAllowed(canToggleAdditionalOption(user.role, user.id, deal));
 
   const body = toggleAdditionalOptionSchema.parse(await request.json());
 

@@ -17,6 +17,7 @@ const dealBaseSchema = z.object({
   destinationCity: z.string().min(1).max(100),
   destinationCountry: z.string().min(1).max(100),
   managerId: z.string().cuid().nullish(),
+  managerIds: z.array(z.string().cuid()).optional(),
   currentStage: z.nativeEnum(DealStageType).optional(),
   expectedArrival: z.coerce.date().optional().nullable(),
   actualArrival: z.coerce.date().optional().nullable(),

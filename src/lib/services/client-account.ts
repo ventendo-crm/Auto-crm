@@ -1,3 +1,4 @@
+import { dealManagersInclude, enrichDealWithManagers } from "@/lib/deal-managers";
 import { hashPassword } from "@/lib/auth";
 import { DOCUMENT_LABELS, STAGE_LABELS } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
@@ -26,6 +27,7 @@ export async function getDealByClientUserId(clientUserId: string) {
     where: { clientUserId },
     include: {
       manager: { select: { id: true, name: true, email: true } },
+      ...dealManagersInclude,
       clientUser: { select: clientUserSelect },
       documents: true,
       shipment: true,
@@ -85,6 +87,8 @@ export async function getDealByClientUserId(clientUserId: string) {
 export async function getClientPortalDeal(clientUserId: string) {
   const deal = await getDealByClientUserId(clientUserId);
   if (!deal) return null;
+
+  const enrichedDeal = enrichDealWithManagers(deal);
 
   const searchProcess = await Promise.all(
     deal.searchProcessEntries.map(async (entry) => ({
@@ -148,8 +152,10 @@ export async function getClientPortalDeal(clientUserId: string) {
     stageLabel: STAGE_LABELS[deal.currentStage],
     expectedArrival: deal.expectedArrival,
     actualArrival: deal.actualArrival,
-    managerId: deal.managerId,
-    manager: deal.manager,
+    managerId: enrichedDeal.managerId,
+    manager: enrichedDeal.manager,
+    managers: enrichedDeal.managers,
+    managerIds: enrichedDeal.managerIds,
     documents: deal.documents.map((doc) => ({
       id: doc.id,
       dealId: deal.id,

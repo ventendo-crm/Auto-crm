@@ -1,4 +1,5 @@
 import { MediaType, Prisma } from "@prisma/client";
+import { dealAccessSelect } from "@/lib/deal-managers";
 import { MAX_PROCESS_ENTRY_MEDIA, MAX_TRACKING_POINT_MEDIA } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { AuthUser, canUpdateDeal, canViewDeal } from "@/lib/permissions";
@@ -75,14 +76,14 @@ export async function enrichMediaRecord(media: MediaRecord): Promise<MediaWithUr
 async function assertDealAccess(user: AuthUser, dealId: string, write = false) {
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { managerId: true, clientUserId: true },
+    select: dealAccessSelect,
   });
   if (!deal) {
     throw new Error("Not found");
   }
 
   if (write) {
-    if (!canUpdateDeal(user.role, user.id, deal.managerId)) {
+    if (!canUpdateDeal(user.role, user.id, deal)) {
       throw new Error("Forbidden");
     }
   } else {

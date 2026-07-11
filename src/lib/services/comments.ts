@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { dealAccessSelect } from "@/lib/deal-managers";
 import { createAuditLog } from "@/lib/services/audit";
 
 const commentInclude = {
@@ -25,7 +26,7 @@ export async function getComment(id: string) {
     where: { id },
     include: {
       ...commentInclude,
-      deal: { select: { id: true, managerId: true, clientUserId: true } },
+      deal: { select: dealAccessSelect },
     },
   });
 }

@@ -19,7 +19,7 @@ export const PATCH = withAuth(async (request, { user, params }) => {
   }
 
   const deal = assertFound(await getDeal(params.id));
-  assertAllowed(canUpdateDeal(user.role, user.id, deal.managerId));
+  assertAllowed(canUpdateDeal(user.role, user.id, deal));
 
   const body = updateSchema.parse(await request.json());
   const type = params.type as DocumentType;
@@ -38,7 +38,7 @@ export const DELETE = withAuth(async (_request, { user, params }) => {
   }
 
   const deal = assertFound(await getDeal(params.id));
-  assertAllowed(canUpdateDeal(user.role, user.id, deal.managerId));
+  assertAllowed(canUpdateDeal(user.role, user.id, deal));
 
   const type = params.type as DocumentType;
   const document = await deleteDealDocument(user, params.id, type);

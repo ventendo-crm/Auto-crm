@@ -48,6 +48,7 @@ export interface DealListItem {
   destinationCity: string;
   destinationCountry: string;
   managerId: string | null;
+  managerIds: string[];
   clientUserId?: string | null;
   clientUser?: {
     id: string;
@@ -63,6 +64,7 @@ export interface DealListItem {
   createdAt: string;
   updatedAt: string;
   manager: DealManager | null;
+  managers: DealManager[];
   _count?: {
     comments: number;
     tasks: number;
@@ -332,7 +334,9 @@ export interface ClientPortalDeal {
   expectedArrival?: string | null;
   actualArrival?: string | null;
   managerId: string | null;
+  managerIds?: string[];
   manager: DealManager | null;
+  managers?: DealManager[];
   documents: {
     id: string;
     dealId: string;

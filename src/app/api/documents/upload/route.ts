@@ -35,12 +35,7 @@ export const POST = withAuth(async (request, { user }) => {
   }
 
   const deal = assertFound(await getDeal(dealId));
-  assertAllowed(
-    canUploadDealDocuments(user.role, user.id, {
-      managerId: deal.managerId,
-      clientUserId: deal.clientUserId,
-    }),
-  );
+  assertAllowed(canUploadDealDocuments(user.role, user.id, deal));
 
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);

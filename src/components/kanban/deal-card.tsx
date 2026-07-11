@@ -6,6 +6,7 @@ import { DealStageType } from "@prisma/client";
 import { Calendar, GripVertical, Loader2, User, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
+import { formatDealManagersLabel } from "@/lib/deal-managers";
 import { useIsAndroidWebView } from "@/hooks/use-is-android-webview";
 import { DealListItem } from "@/lib/types";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
@@ -99,7 +100,7 @@ export function DealCard({
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <span className="flex items-center gap-1">
           <User className="h-3 w-3" />
-          {deal.manager?.name.split(" ")[0] ?? "—"}
+          {formatDealManagersLabel(deal).split(",")[0]?.trim() || "—"}
         </span>
         {deal.clientUser && (
           <span

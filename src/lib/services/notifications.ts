@@ -102,11 +102,14 @@ export async function notifyStageChange(params: {
   clientUserId?: string | null;
   fromStage: string;
   toStage: string;
-  manager: { id: string; name: string } | null;
+  managers: Array<{ id: string; name: string }>;
   changedBy: AuthUser;
 }) {
   const title = "Сделка переведена";
-  const managerLabel = params.manager?.name ?? "не назначен";
+  const managerLabel =
+    params.managers.length > 0
+      ? params.managers.map((manager) => manager.name).join(", ")
+      : "не назначен";
   const message = [
     `Клиент: ${params.clientName}`,
     `VIN: ${params.vin}`,
@@ -125,8 +128,8 @@ export async function notifyStageChange(params: {
   });
 
   const recipientIds = new Set<string>();
-  if (params.manager) {
-    recipientIds.add(params.manager.id);
+  for (const manager of params.managers) {
+    recipientIds.add(manager.id);
   }
   recipientIds.add(params.changedBy.id);
 
@@ -219,6 +222,7 @@ export async function notifyCommentAdded(params: {
     clientName: string;
     vin: string;
     managerId: string | null;
+    managerIds?: string[];
     clientUserId: string | null;
   };
   author: AuthUser;
@@ -251,8 +255,17 @@ export async function notifyCommentAdded(params: {
   const recipientIds = new Set<string>();
 
   if (params.author.role === ROLES.CLIENT) {
-    if (params.deal.managerId) {
-      recipientIds.add(params.deal.managerId);
+    const managerIds =
+      params.deal.managerIds && params.deal.managerIds.length > 0
+        ? params.deal.managerIds
+        : params.deal.managerId
+          ? [params.deal.managerId]
+          : [];
+
+    if (managerIds.length > 0) {
+      for (const managerId of managerIds) {
+        recipientIds.add(managerId);
+      }
     } else {
       const admins = await prisma.user.findMany({
         where: { role: { name: ROLES.ADMIN } },

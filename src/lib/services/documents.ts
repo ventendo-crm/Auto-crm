@@ -1,6 +1,7 @@
 import { DocumentStatus, DocumentType } from "@prisma/client";
 import { unlink } from "fs/promises";
 import { AuthUser, canDeleteDealDocuments, canUpdateDeal, canViewDeal } from "@/lib/permissions";
+import { dealAccessSelect } from "@/lib/deal-managers";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { getManagerPeerIdsForUser } from "@/lib/services/deal-access";
@@ -27,14 +28,14 @@ export async function updateDocumentStatus(
 ) {
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { managerId: true, clientUserId: true },
+    select: dealAccessSelect,
   });
 
   if (!deal) {
     throw new Error("Not found");
   }
 
-  if (!canUpdateDeal(user.role, user.id, deal.managerId)) {
+  if (!canUpdateDeal(user.role, user.id, deal)) {
     throw new Error("Forbidden");
   }
 
@@ -70,14 +71,14 @@ export async function updateDocumentStatus(
 export async function deleteDealDocument(user: AuthUser, dealId: string, type: DocumentType) {
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { managerId: true },
+    select: dealAccessSelect,
   });
 
   if (!deal) {
     throw new Error("Not found");
   }
 
-  if (!canDeleteDealDocuments(user.role, user.id, deal.managerId)) {
+  if (!canDeleteDealDocuments(user.role, user.id, deal)) {
     throw new Error("Forbidden");
   }
 
@@ -122,7 +123,7 @@ export async function streamDealDocumentFile(
 ) {
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { managerId: true, clientUserId: true },
+    select: dealAccessSelect,
   });
 
   if (!deal) {

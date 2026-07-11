@@ -42,26 +42,23 @@ export default function DealPage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
 
-  const canManageDeal = deal ? canManageDealClient(user, deal.managerId) : false;
+  const canManageDeal = deal ? canManageDealClient(user, deal) : false;
 
   const role = getClientRoleName(user);
   const canClearHistory =
-    deal && role && user ? canClearDealHistory(role, user.id, deal.managerId) : false;
+    deal && role && user ? canClearDealHistory(role, user.id, deal) : false;
   const canViewExpenses =
-    deal && role && user ? canManageDealExpenses(role, user.id, deal.managerId) : false;
+    deal && role && user ? canManageDealExpenses(role, user.id, deal) : false;
 
   const canViewFinances =
-    deal && role && user ? canViewDealFinances(role, user.id, deal.managerId) : false;
+    deal && role && user ? canViewDealFinances(role, user.id, deal) : false;
 
   const canManageReminders =
-    deal && role && user ? canManageDealReminders(role, user.id, deal.managerId) : false;
+    deal && role && user ? canManageDealReminders(role, user.id, deal) : false;
 
   const canUploadDocuments =
     deal && role && user
-      ? canUploadDealDocuments(role, user.id, {
-          managerId: deal.managerId,
-          clientUserId: deal.clientUserId,
-        })
+      ? canUploadDealDocuments(role, user.id, deal)
       : false;
 
   const canDeleteDeal = canManageDeal;
@@ -158,16 +155,16 @@ export default function DealPage() {
             <DealStageSelector
               dealId={deal.id}
               currentStage={deal.currentStage}
-              managerId={deal.managerId}
+              managerIds={deal.managerIds}
               onChanged={refreshDeal}
             />
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <span className="text-sm text-muted-foreground">Менеджер:</span>
+            <span className="text-sm text-muted-foreground">Менеджеры:</span>
             <DealManagerSelector
               dealId={deal.id}
-              managerId={deal.managerId}
-              managerName={deal.manager?.name}
+              managerIds={deal.managerIds}
+              managers={deal.managers}
               onChanged={refreshDeal}
             />
           </div>
@@ -269,6 +266,7 @@ export default function DealPage() {
               dealId={deal.id}
               documents={deal.documents}
               managerId={deal.managerId}
+              managerIds={deal.managerIds}
               clientUserId={deal.clientUserId}
               onUpdated={refreshDeal}
               canUpload={canUploadDocuments}
@@ -279,6 +277,7 @@ export default function DealPage() {
               dealId={deal.id}
               documents={deal.documents}
               managerId={deal.managerId}
+              managerIds={deal.managerIds}
               clientUserId={deal.clientUserId}
               title="Полученные документы"
               documentTypes={RECEIVED_DEAL_DOCUMENT_TYPES}
@@ -325,6 +324,7 @@ export default function DealPage() {
             <DealComments
               dealId={deal.id}
               managerId={deal.managerId}
+              managerIds={deal.managerIds}
               clientUserId={deal.clientUserId}
               initialComments={deal.comments}
               onUpdate={refreshDeal}

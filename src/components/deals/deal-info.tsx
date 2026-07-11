@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EditDealDialog } from "@/components/deals/edit-deal-dialog";
 import { Input } from "@/components/ui/input";
+import { formatDealManagersLabel } from "@/lib/deal-managers";
 import { api } from "@/lib/api-client";
 import { DealDetail } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
@@ -30,7 +31,7 @@ type DealInfoField =
     };
 
 const dealInfoFields: DealInfoField[] = [
-  { kind: "static", label: "Менеджер", value: (d) => d.manager?.name ?? "Не назначен" },
+  { kind: "static", label: "Менеджеры", value: (d) => formatDealManagersLabel(d) },
   { kind: "static", label: "Клиент", value: (d) => d.clientName },
   { kind: "static", label: "Телефон", value: (d) => d.phone ?? "—" },
   { kind: "static", label: "Email", value: (d) => d.email ?? "—" },

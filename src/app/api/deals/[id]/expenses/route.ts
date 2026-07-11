@@ -8,7 +8,7 @@ import { replaceDealExpensesSchema } from "@/lib/validators/deal-expenses";
 export const GET = withAuth(async (_request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
 
-  if (!canManageDealExpenses(user.role, user.id, deal.managerId)) {
+  if (!canManageDealExpenses(user.role, user.id, deal)) {
     assertAllowed(false);
   }
 
@@ -19,7 +19,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 export const PUT = withAuth(async (request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
 
-  if (!canManageDealExpenses(user.role, user.id, deal.managerId)) {
+  if (!canManageDealExpenses(user.role, user.id, deal)) {
     assertAllowed(false);
   }
 

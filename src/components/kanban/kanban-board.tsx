@@ -158,7 +158,7 @@ export function KanbanBoard() {
     const deal = deals.find((d) => d.id === dealId);
     if (!deal) return;
 
-    if (!canDragDeal(user?.role.name, user?.id, deal.managerId)) {
+    if (!canDragDeal(user?.role.name, user?.id, deal.managerIds)) {
       toast.error("Нет прав для перемещения этой сделки");
       return;
     }
@@ -280,7 +280,7 @@ export function KanbanBoard() {
               isOver={overStage === stage}
               dragEnabled={dragEnabled}
               canDrag={(deal) =>
-                dragEnabled && canDragDeal(user?.role.name, user?.id, deal.managerId)
+                dragEnabled && canDragDeal(user?.role.name, user?.id, deal.managerIds)
               }
               savingDealId={savingDealId}
             />

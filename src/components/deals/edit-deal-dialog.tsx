@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
-import { ManagerSelect } from "@/components/deals/manager-select";
+import { ManagersMultiSelect } from "@/components/deals/managers-multi-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -34,7 +34,7 @@ interface EditDealForm {
   actualArrival: string;
   prepayment: string;
   balance: string;
-  managerId: string | null;
+  managerIds: string[];
 }
 
 interface Props {
@@ -61,7 +61,7 @@ function toForm(deal: DealDetail): EditDealForm {
     actualArrival: toDate(deal.actualArrival),
     prepayment: deal.prepayment != null ? String(deal.prepayment) : "",
     balance: deal.balance != null ? String(deal.balance) : "",
-    managerId: deal.managerId,
+    managerIds: deal.managerIds ?? (deal.managerId ? [deal.managerId] : []),
   };
 }
 
@@ -76,10 +76,10 @@ export function EditDealDialog({
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<EditDealForm>(() => toForm(deal));
 
-  const canEdit = canEditProp ?? canManageDealClient(user, deal.managerId);
+  const canEdit = canEditProp ?? canManageDealClient(user, deal);
   const canAssignManager = (() => {
     const role = getClientRoleName(user);
-    return role ? canAssignDealManager(role) : false;
+    return role && user ? canAssignDealManager(role, user.id, deal) : false;
   })();
 
   useEffect(() => {
@@ -110,7 +110,7 @@ export function EditDealDialog({
         actualArrival: form.actualArrival || null,
         prepayment: form.prepayment ? Number(form.prepayment) : null,
         ...(canViewFinances ? { balance: form.balance ? Number(form.balance) : null } : {}),
-        ...(canAssignManager ? { managerId: form.managerId } : {}),
+        ...(canAssignManager ? { managerIds: form.managerIds } : {}),
       });
 
       toast.success("Данные сделки обновлены");
@@ -155,12 +155,11 @@ export function EditDealDialog({
 
             {canAssignManager && (
               <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="edit-managerId">Менеджер (необязательно)</Label>
-                <ManagerSelect
-                  id="edit-managerId"
-                  allowEmpty
-                  value={form.managerId ?? ""}
-                  onValueChange={(managerId) => setForm({ ...form, managerId: managerId || null })}
+                <Label htmlFor="edit-managerIds">Менеджеры</Label>
+                <ManagersMultiSelect
+                  id="edit-managerIds"
+                  value={form.managerIds}
+                  onValueChange={(managerIds) => setForm({ ...form, managerIds })}
                 />
               </div>
             )}

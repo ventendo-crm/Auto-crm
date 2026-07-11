@@ -37,6 +37,7 @@ model User {
   createdTasks      Task[]         @relation("TaskCreatedBy")
   updatedAdditionalOptions DealAdditionalOption[] @relation("AdditionalOptionUpdatedBy")
   role              Role           @relation(fields: [roleId], references: [id])
+  dealManagerAssignments DealManagerAssignment[] @relation("DealManagerAssignmentUser")
   managerLinksAsA   ManagerLink[]  @relation("ManagerLinkUserA")
   managerLinksAsB   ManagerLink[]  @relation("ManagerLinkUserB")
 
@@ -86,6 +87,7 @@ model Deal {
   searchProcessEntries SearchProcessEntry[]
   importProcessEntries ImportProcessEntry[]
   carCarrierTrackingPoints CarCarrierTrackingPoint[]
+  managerAssignments DealManagerAssignment[]
   additionalOptions    DealAdditionalOption[]
   expenses             DealExpense[]
 
@@ -96,6 +98,20 @@ model Deal {
   @@index([stageEnteredAt])
   @@index([expectedArrival])
   @@map("deals")
+}
+
+model DealManagerAssignment {
+  id        String   @id @default(cuid())
+  dealId    String
+  managerId String
+  createdAt DateTime @default(now())
+  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  manager   User     @relation("DealManagerAssignmentUser", fields: [managerId], references: [id], onDelete: Cascade)
+
+  @@unique([dealId, managerId])
+  @@index([dealId])
+  @@index([managerId])
+  @@map("deal_manager_assignments")
 }
 
 model StageHistory {

@@ -77,6 +77,7 @@ interface DealDocumentsProps {
   dealId: string;
   documents: DocumentItem[];
   managerId: string | null;
+  managerIds?: string[];
   clientUserId?: string | null;
   title?: string;
   documentTypes?: readonly DocumentType[];
@@ -269,6 +270,7 @@ export function DealDocuments({
   dealId,
   documents,
   managerId,
+  managerIds,
   clientUserId = null,
   title = "Документы клиента",
   documentTypes = DEFAULT_DOCUMENT_TYPES,
@@ -289,12 +291,12 @@ export function DealDocuments({
     Boolean(
       user &&
         role &&
-        canUploadDealDocuments(role, user.id, { managerId, clientUserId }),
+        canUploadDealDocuments(role, user.id, { managerId, managerIds, clientUserId }),
     );
   const canVerify = canVerifyProp;
   const canDelete =
     canDeleteProp ??
-    Boolean(user && role && canDeleteDealDocuments(role, user.id, managerId));
+    Boolean(user && role && canDeleteDealDocuments(role, user.id, managerIds ?? (managerId ? [managerId] : [])));
 
   const documentsByType = Object.fromEntries(
     documents.map((doc) => [doc.type, doc]),

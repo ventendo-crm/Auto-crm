@@ -7,7 +7,7 @@ import { changeStageSchema } from "@/lib/validators/deal";
 
 export const PATCH = withAuth(async (request, { user, params }) => {
   const existing = assertFound(await getDeal(params.id));
-  assertAllowed(canChangeStage(user.role, user.id, existing.managerId));
+  assertAllowed(canChangeStage(user.role, user.id, existing));
 
   const body = changeStageSchema.parse(await request.json());
   const result = await changeDealStage(user, params.id, body.toStage);

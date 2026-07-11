@@ -1,4 +1,5 @@
 import { DealStageType, Prisma } from "@prisma/client";
+import { buildDealManagerFilter } from "@/lib/deal-managers";
 import { prisma } from "@/lib/prisma";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
 import { AuthUser, ROLES } from "@/lib/permissions";
@@ -11,7 +12,7 @@ async function buildDealWhere(user: AuthUser, managerId?: string): Promise<Prism
   }
 
   if (managerId) {
-    return { managerId };
+    return buildDealManagerFilter(managerId);
   }
 
   return {};
@@ -31,6 +32,10 @@ type DealRow = {
   carModel: string | null;
   vin: string;
   manager: { id: string; name: string } | null;
+  managerAssignments: Array<{
+    managerId: string;
+    manager: { id: string; name: string };
+  }>;
 };
 
 function computeStats(deals: DealRow[]): DashboardStats {
@@ -158,14 +163,21 @@ function computeManagerStats(deals: DealRow[]): DashboardManagerStat[] {
   const grouped = new Map<string, { managerName: string; deals: DealRow[] }>();
 
   for (const deal of deals) {
-    if (!deal.manager) continue;
+    const assignedManagers =
+      deal.managerAssignments.length > 0
+        ? deal.managerAssignments.map((assignment) => assignment.manager)
+        : deal.manager
+          ? [deal.manager]
+          : [];
 
-    const current = grouped.get(deal.manager.id) ?? {
-      managerName: deal.manager.name,
-      deals: [],
-    };
-    current.deals.push(deal);
-    grouped.set(deal.manager.id, current);
+    for (const manager of assignedManagers) {
+      const current = grouped.get(manager.id) ?? {
+        managerName: manager.name,
+        deals: [],
+      };
+      current.deals.push(deal);
+      grouped.set(manager.id, current);
+    }
   }
 
   return Array.from(grouped.entries())
@@ -203,6 +215,12 @@ export async function getDashboardData(
       carModel: true,
       vin: true,
       manager: { select: { id: true, name: true } },
+      managerAssignments: {
+        select: {
+          managerId: true,
+          manager: { select: { id: true, name: true } },
+        },
+      },
     },
     orderBy: { updatedAt: "desc" },
   });

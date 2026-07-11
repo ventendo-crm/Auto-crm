@@ -17,18 +17,18 @@ import { canManageDealClient } from "@/lib/permissions";
 interface DealStageSelectorProps {
   dealId: string;
   currentStage: DealStageType;
-  managerId: string | null;
+  managerIds: string[];
   onChanged: () => void;
 }
 
 export function DealStageSelector({
   dealId,
   currentStage,
-  managerId,
+  managerIds,
   onChanged,
 }: DealStageSelectorProps) {
   const { user } = useAuth();
-  const canChange = canManageDealClient(user, managerId);
+  const canChange = canManageDealClient(user, managerIds);
 
   if (!canChange) {
     return (

@@ -8,7 +8,7 @@ import { setImportProcessEnabledSchema } from "@/lib/validators/import-process";
 
 export const PATCH = withAuth(async (request, { user, params }) => {
   const existing = assertFound(await getDeal(params.id));
-  assertAllowed(canUpdateDeal(user.role, user.id, existing.managerId));
+  assertAllowed(canUpdateDeal(user.role, user.id, existing));
 
   const body = setImportProcessEnabledSchema.parse(await request.json());
 

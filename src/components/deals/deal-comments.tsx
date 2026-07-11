@@ -21,6 +21,7 @@ import { cn, formatDateTime } from "@/lib/utils";
 interface DealCommentsProps {
   dealId: string;
   managerId: string | null;
+  managerIds?: string[];
   clientUserId?: string | null;
   initialComments: CommentItem[];
   onUpdate: () => void;
@@ -53,6 +54,7 @@ function commentsFingerprint(comments: CommentItem[]): string {
 export function DealComments({
   dealId,
   managerId,
+  managerIds,
   clientUserId,
   initialComments,
   onUpdate,
@@ -136,7 +138,7 @@ export function DealComments({
   const canWrite =
     canWriteProp ??
     (role && user
-      ? canCommentOnDeal(role, user.id, { managerId, clientUserId })
+      ? canCommentOnDeal(role, user.id, { managerId, managerIds, clientUserId })
       : false);
 
   const handleSubmit = async (e: React.FormEvent) => {

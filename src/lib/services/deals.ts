@@ -1,5 +1,14 @@
 import { DealStageType, DocumentStatus, DocumentType, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  dealManagersInclude,
+  enrichDealWithManagers,
+  getDealManagerIds,
+  getDealManagers,
+  resolveCreateManagerIds,
+  resolveUpdateManagerIds,
+  syncDealManagerAssignments,
+} from "@/lib/deal-managers";
 import { AuthUser, ROLES } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
 import { buildManagerDealsWhere } from "@/lib/services/deal-access";
@@ -16,6 +25,7 @@ const dealInclude = {
   manager: {
     select: { id: true, name: true, email: true },
   },
+  ...dealManagersInclude,
   clientUser: {
     select: { id: true, name: true, email: true },
   },
@@ -33,6 +43,7 @@ const dealDetailInclude = {
   manager: {
     select: { id: true, name: true, email: true },
   },
+  ...dealManagersInclude,
   clientUser: {
     select: { id: true, name: true, email: true, createdAt: true },
   },
@@ -67,56 +78,6 @@ function toDecimal(value: string | number | null | undefined): Prisma.Decimal | 
   return new Prisma.Decimal(value);
 }
 
-async function assertValidManagerId(managerId: string) {
-  const manager = await prisma.user.findFirst({
-    where: { id: managerId, role: { name: ROLES.MANAGER } },
-    select: { id: true },
-  });
-
-  if (!manager) {
-    throw new Error("Менеджер не найден");
-  }
-}
-
-function resolveCreateManagerId(user: AuthUser, inputManagerId?: string | null): Promise<string | null> {
-  if (user.role === ROLES.ADMIN) {
-    if (!inputManagerId) {
-      return Promise.resolve(null);
-    }
-    return assertValidManagerId(inputManagerId).then(() => inputManagerId);
-  }
-
-  return Promise.resolve(user.id);
-}
-
-async function resolveUpdateManagerId(
-  user: AuthUser,
-  existingManagerId: string | null,
-  inputManagerId?: string | null,
-): Promise<string | null | undefined> {
-  if (inputManagerId === undefined) {
-    return undefined;
-  }
-
-  if (inputManagerId === null) {
-    if (user.role !== ROLES.ADMIN) {
-      throw new Error("Только администратор может переназначать менеджера");
-    }
-    return null;
-  }
-
-  if (inputManagerId === existingManagerId) {
-    return undefined;
-  }
-
-  if (user.role !== ROLES.ADMIN) {
-    throw new Error("Только администратор может переназначать менеджера");
-  }
-
-  await assertValidManagerId(inputManagerId);
-  return inputManagerId;
-}
-
 async function buildDealWhere(user: AuthUser, filters: ListDealsInput): Promise<Prisma.DealWhereInput> {
   const where: Prisma.DealWhereInput = {};
 
@@ -125,7 +86,7 @@ async function buildDealWhere(user: AuthUser, filters: ListDealsInput): Promise<
   } else if (user.role === ROLES.MANAGER) {
     Object.assign(where, await buildManagerDealsWhere(user, filters.managerId));
   } else if (filters.managerId) {
-    where.managerId = filters.managerId;
+    Object.assign(where, { managerAssignments: { some: { managerId: filters.managerId } } });
   }
 
   if (filters.stage) {
@@ -158,18 +119,25 @@ export async function listDeals(user: AuthUser, filters: ListDealsInput) {
     prisma.deal.count({ where }),
   ]);
 
-  return { items, total, page: filters.page, limit: filters.limit };
+  return {
+    items: items.map((item) => enrichDealWithManagers(item)),
+    total,
+    page: filters.page,
+    limit: filters.limit,
+  };
 }
 
 export async function getDeal(id: string) {
-  return prisma.deal.findUnique({
+  const deal = await prisma.deal.findUnique({
     where: { id },
     include: dealDetailInclude,
   });
+
+  return deal ? enrichDealWithManagers(deal) : null;
 }
 
 export async function createDeal(user: AuthUser, input: CreateDealInput) {
-  const managerId = await resolveCreateManagerId(user, input.managerId);
+  const managerIds = await resolveCreateManagerIds(user, input.managerIds, input.managerId);
   const stage = input.currentStage ?? DealStageType.LEADS;
   const now = new Date();
 
@@ -188,7 +156,7 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
         balance: toDecimal(input.balance) ?? null,
         destinationCity: input.destinationCity,
         destinationCountry: input.destinationCountry,
-        managerId,
+        managerId: managerIds[0] ?? null,
         currentStage: stage,
         stageEnteredAt: now,
         expectedArrival: input.expectedArrival ?? null,
@@ -197,6 +165,10 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
       },
       include: dealInclude,
     });
+
+    if (managerIds.length > 0) {
+      await syncDealManagerAssignments(tx, created.id, managerIds);
+    }
 
     await tx.stageHistory.create({
       data: {
@@ -215,7 +187,12 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
       })),
     });
 
-    return created;
+    const refreshed = await tx.deal.findUniqueOrThrow({
+      where: { id: created.id },
+      include: dealInclude,
+    });
+
+    return enrichDealWithManagers(refreshed);
   });
 
   await createAuditLog({
@@ -223,7 +200,12 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
     entity: "Deal",
     entityId: deal.id,
     action: "CREATE",
-    newValue: { vin: deal.vin, clientName: deal.clientName, currentStage: deal.currentStage },
+    newValue: {
+      vin: deal.vin,
+      clientName: deal.clientName,
+      currentStage: deal.currentStage,
+      managerIds: deal.managerIds,
+    },
   });
 
   return deal;
@@ -235,29 +217,41 @@ export async function updateDeal(user: AuthUser, id: string, input: UpdateDealIn
     throw new Error("Not found");
   }
 
-  const managerId = await resolveUpdateManagerId(user, existing.managerId, input.managerId);
+  const managerIds = await resolveUpdateManagerIds(
+    user,
+    getDealManagerIds(existing),
+    input.managerIds,
+    input.managerId,
+  );
 
-  const deal = await prisma.deal.update({
-    where: { id },
-    data: {
-      clientName: input.clientName,
-      phone: input.phone,
-      email: input.email,
-      ...(input.vin !== undefined ? { vin: input.vin ?? "" } : {}),
-      carBrand: input.carBrand,
-      carModel: input.carModel,
-      carYear: input.carYear,
-      purchasePrice: toDecimal(input.purchasePrice),
-      prepayment: toDecimal(input.prepayment),
-      balance: toDecimal(input.balance),
-      destinationCity: input.destinationCity,
-      destinationCountry: input.destinationCountry,
-      ...(managerId !== undefined ? { managerId } : {}),
-      expectedArrival: input.expectedArrival,
-      actualArrival: input.actualArrival,
-      priority: input.priority,
-    },
-    include: dealInclude,
+  const deal = await prisma.$transaction(async (tx) => {
+    if (managerIds !== undefined) {
+      await syncDealManagerAssignments(tx, id, managerIds);
+    }
+
+    const updated = await tx.deal.update({
+      where: { id },
+      data: {
+        clientName: input.clientName,
+        phone: input.phone,
+        email: input.email,
+        ...(input.vin !== undefined ? { vin: input.vin ?? "" } : {}),
+        carBrand: input.carBrand,
+        carModel: input.carModel,
+        carYear: input.carYear,
+        purchasePrice: toDecimal(input.purchasePrice),
+        prepayment: toDecimal(input.prepayment),
+        balance: toDecimal(input.balance),
+        destinationCity: input.destinationCity,
+        destinationCountry: input.destinationCountry,
+        expectedArrival: input.expectedArrival,
+        actualArrival: input.actualArrival,
+        priority: input.priority,
+      },
+      include: dealInclude,
+    });
+
+    return enrichDealWithManagers(updated);
   });
 
   await createAuditLog({
@@ -268,11 +262,11 @@ export async function updateDeal(user: AuthUser, id: string, input: UpdateDealIn
     oldValue: {
       clientName: existing.clientName,
       vin: existing.vin,
-      managerId: existing.managerId,
+      managerIds: getDealManagerIds(existing),
     },
     newValue: {
       ...input,
-      ...(managerId !== undefined ? { managerId } : {}),
+      ...(managerIds !== undefined ? { managerIds } : {}),
     },
   });
 
@@ -331,7 +325,7 @@ export async function changeDealStage(user: AuthUser, id: string, toStage: DealS
       },
     });
 
-    return [updated, stageRecord] as const;
+    return [enrichDealWithManagers(updated), stageRecord] as const;
   });
 
   try {
@@ -357,12 +351,7 @@ export async function changeDealStage(user: AuthUser, id: string, toStage: DealS
       clientUserId: deal.clientUserId,
       fromStage,
       toStage,
-      manager: deal.manager
-        ? {
-            id: deal.manager.id,
-            name: deal.manager.name,
-          }
-        : null,
+      managers: getDealManagers(deal),
       changedBy: user,
     });
   } catch (error) {

@@ -24,7 +24,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 
 export const PATCH = withAuth(async (request, { user, params }) => {
   const existing = assertFound(await getDeal(params.id));
-  assertAllowed(canUpdateDeal(user.role, user.id, existing.managerId));
+  assertAllowed(canUpdateDeal(user.role, user.id, existing));
 
   const body = updateDealSchema.parse(await request.json());
   const deal = await updateDeal(user, params.id, body);
@@ -34,7 +34,7 @@ export const PATCH = withAuth(async (request, { user, params }) => {
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
   const existing = assertFound(await getDeal(params.id));
-  assertAllowed(canDeleteDeal(user.role, user.id, existing.managerId));
+  assertAllowed(canDeleteDeal(user.role, user.id, existing));
 
   await deleteDeal(user, existing.id);
 

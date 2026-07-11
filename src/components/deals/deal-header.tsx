@@ -6,6 +6,7 @@ import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
 import { SidebarToggle } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { formatDealManagersLabel } from "@/lib/deal-managers";
 import { STAGE_COLORS, STAGE_LABELS } from "@/lib/constants";
 import { DealDetail } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
@@ -55,7 +56,7 @@ export function DealHeader({ deal, canDelete }: DealHeaderProps) {
           <p className="text-xl font-semibold sm:text-2xl">{formatCurrency(deal.prepayment)}</p>
           <p className="text-xs text-muted-foreground">предоплата</p>
           <p className="mt-1 text-sm text-muted-foreground">
-            Менеджер: {deal.manager?.name ?? "Не назначен"}
+            Менеджеры: {formatDealManagersLabel(deal)}
           </p>
         </div>
       </div>
