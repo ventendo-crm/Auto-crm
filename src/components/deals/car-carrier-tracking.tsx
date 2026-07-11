@@ -70,8 +70,19 @@ export function CarCarrierTracking({
     [points],
   );
 
+  const selectPoint = (pointId: string | null) => {
+    setSelectedPointId(pointId);
+    if (!pointId) return;
+
+    requestAnimationFrame(() => {
+      document
+        .getElementById(`point-block-${pointId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  };
+
   const focusPoint = (point: CarCarrierTrackingPoint) => {
-    setSelectedPointId(point.id);
+    selectPoint(point.id);
     setAddMode(false);
     setViewTarget({
       latitude: point.latitude,
@@ -141,7 +152,7 @@ export function CarCarrierTracking({
         title: title || `Точка ${points.length + 1}`,
       });
       setPoints((current) => [...current, point]);
-      setSelectedPointId(point.id);
+      selectPoint(point.id);
       setAddMode(false);
       setSearchPreview(null);
       setSearchResults([]);
@@ -297,6 +308,143 @@ export function CarCarrierTracking({
     }
   };
 
+  const renderPointDetails = (point: CarCarrierTrackingPoint) => (
+    <div className="space-y-4 rounded-xl border bg-muted/10 p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h4 className="font-medium">Детали точки</h4>
+          <p className="text-xs text-muted-foreground">
+            {point.latitude.toFixed(5)}, {point.longitude.toFixed(5)}
+          </p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="text-destructive hover:text-destructive"
+          onClick={() => void deleteSelectedPoint()}
+          disabled={saving}
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor={`tracking-title-${point.id}`}>Название</Label>
+          <Input
+            id={`tracking-title-${point.id}`}
+            value={point.title}
+            onChange={(event) =>
+              setPoints((current) =>
+                current.map((item) =>
+                  item.id === point.id ? { ...item, title: event.target.value } : item,
+                ),
+              )
+            }
+            onBlur={() => void updateSelectedPoint({ title: point.title })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor={`tracking-date-${point.id}`}>Дата</Label>
+          <Input
+            id={`tracking-date-${point.id}`}
+            type="date"
+            value={point.recordedAt.split("T")[0]}
+            onChange={(event) => {
+              const recordedAt = event.target.value
+                ? new Date(event.target.value).toISOString()
+                : point.recordedAt;
+              setPoints((current) =>
+                current.map((item) => (item.id === point.id ? { ...item, recordedAt } : item)),
+              );
+              void updateSelectedPoint({ recordedAt });
+            }}
+          />
+        </div>
+        <div className="space-y-2 sm:col-span-2">
+          <Label htmlFor={`tracking-description-${point.id}`}>Комментарий</Label>
+          <Textarea
+            id={`tracking-description-${point.id}`}
+            rows={2}
+            value={point.description}
+            placeholder="Например: автовоз на границе, стоянка..."
+            onChange={(event) =>
+              setPoints((current) =>
+                current.map((item) =>
+                  item.id === point.id ? { ...item, description: event.target.value } : item,
+                ),
+              )
+            }
+            onBlur={() => void updateSelectedPoint({ description: point.description })}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-medium">Фотографии</p>
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              multiple
+              className="hidden"
+              onChange={(event) => void handleUpload(event.target.files)}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={uploading || point.media.length >= MAX_TRACKING_POINT_MEDIA}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ImagePlus className="h-4 w-4" />
+              )}
+              Добавить фото
+            </Button>
+          </>
+        </div>
+
+        {point.media.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+            {point.media.map((item) => (
+              <a
+                key={item.id}
+                href={item.fileUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="overflow-hidden rounded-lg border bg-muted/30"
+              >
+                {item.type === MediaType.VIDEO ? (
+                  <video
+                    src={item.fileUrl}
+                    className="aspect-square w-full object-cover"
+                    controls
+                    preload="metadata"
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.thumbnailUrl ?? item.fileUrl}
+                    alt={item.fileName}
+                    className="aspect-square w-full object-cover"
+                  />
+                )}
+              </a>
+            ))}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Фото не прикреплены</p>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <Card className="border-0 shadow-card">
       <CardHeader>
@@ -427,7 +575,7 @@ export function CarCarrierTracking({
               autoFitBounds={autoFitBounds}
               showPointPopups={!canEdit}
               onMapClick={(lat, lng) => void handleMapClick(lat, lng)}
-              onPointSelect={setSelectedPointId}
+              onPointSelect={selectPoint}
             />
 
             {sortedPoints.length > 0 && (
@@ -491,19 +639,21 @@ export function CarCarrierTracking({
 
                     if (canEdit) {
                       return (
-                        <button
-                          key={point.id}
-                          type="button"
-                          onClick={() => focusPoint(point)}
-                          className={cn(
-                            "w-full rounded-xl border p-4 text-left transition-colors",
-                            selectedPointId === point.id
-                              ? "border-brand bg-brand-muted/40"
-                              : "bg-muted/10 hover:bg-muted/20",
-                          )}
-                        >
-                          {content}
-                        </button>
+                        <div key={point.id} id={`point-block-${point.id}`} className="space-y-3">
+                          <button
+                            type="button"
+                            onClick={() => focusPoint(point)}
+                            className={cn(
+                              "w-full rounded-xl border p-4 text-left transition-colors",
+                              selectedPointId === point.id
+                                ? "border-brand bg-brand-muted/40"
+                                : "bg-muted/10 hover:bg-muted/20",
+                            )}
+                          >
+                            {content}
+                          </button>
+                          {selectedPointId === point.id && renderPointDetails(point)}
+                        </div>
                       );
                     }
 
@@ -577,162 +727,6 @@ export function CarCarrierTracking({
                   ? "Маршрут пока не отмечен. Добавьте точки маршрута и финальное назначение на карте."
                   : "Маршрут автовоза пока не добавлен."}
               </p>
-            )}
-
-            {canEdit && selectedPoint && (
-              <div className="space-y-4 rounded-xl border bg-muted/10 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h4 className="font-medium">Детали точки</h4>
-                    <p className="text-xs text-muted-foreground">
-                      {selectedPoint.latitude.toFixed(5)}, {selectedPoint.longitude.toFixed(5)}
-                    </p>
-                  </div>
-                  {canEdit && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      className="text-destructive hover:text-destructive"
-                      onClick={() => void deleteSelectedPoint()}
-                      disabled={saving}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-
-                {canEdit ? (
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="tracking-title">Название</Label>
-                      <Input
-                        id="tracking-title"
-                        value={selectedPoint.title}
-                        onChange={(event) =>
-                          setPoints((current) =>
-                            current.map((point) =>
-                              point.id === selectedPoint.id
-                                ? { ...point, title: event.target.value }
-                                : point,
-                            ),
-                          )
-                        }
-                        onBlur={() =>
-                          void updateSelectedPoint({ title: selectedPoint.title })
-                        }
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="tracking-date">Дата</Label>
-                      <Input
-                        id="tracking-date"
-                        type="date"
-                        value={selectedPoint.recordedAt.split("T")[0]}
-                        onChange={(event) => {
-                          const recordedAt = event.target.value
-                            ? new Date(event.target.value).toISOString()
-                            : selectedPoint.recordedAt;
-                          setPoints((current) =>
-                            current.map((point) =>
-                              point.id === selectedPoint.id ? { ...point, recordedAt } : point,
-                            ),
-                          );
-                          void updateSelectedPoint({ recordedAt });
-                        }}
-                      />
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="tracking-description">Комментарий</Label>
-                      <Textarea
-                        id="tracking-description"
-                        rows={2}
-                        value={selectedPoint.description}
-                        placeholder="Например: автовоз на границе, стоянка..."
-                        onChange={(event) =>
-                          setPoints((current) =>
-                            current.map((point) =>
-                              point.id === selectedPoint.id
-                                ? { ...point, description: event.target.value }
-                                : point,
-                            ),
-                          )
-                        }
-                        onBlur={() =>
-                          void updateSelectedPoint({ description: selectedPoint.description })
-                        }
-                      />
-                    </div>
-                  </div>
-                ) : null}
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-medium">Фотографии</p>
-                    {canEdit && (
-                      <>
-                        <input
-                          ref={fileInputRef}
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif"
-                          multiple
-                          className="hidden"
-                          onChange={(event) => void handleUpload(event.target.files)}
-                        />
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={
-                            uploading ||
-                            selectedPoint.media.length >= MAX_TRACKING_POINT_MEDIA
-                          }
-                          onClick={() => fileInputRef.current?.click()}
-                        >
-                          {uploading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <ImagePlus className="h-4 w-4" />
-                          )}
-                          Добавить фото
-                        </Button>
-                      </>
-                    )}
-                  </div>
-
-                  {selectedPoint.media.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
-                      {selectedPoint.media.map((item) => (
-                        <a
-                          key={item.id}
-                          href={item.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="overflow-hidden rounded-lg border bg-muted/30"
-                        >
-                          {item.type === MediaType.VIDEO ? (
-                            <video
-                              src={item.fileUrl}
-                              className="aspect-square w-full object-cover"
-                              controls
-                              preload="metadata"
-                            />
-                          ) : (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={item.thumbnailUrl ?? item.fileUrl}
-                              alt={item.fileName}
-                              className="aspect-square w-full object-cover"
-                            />
-                          )}
-                        </a>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">Фото не прикреплены</p>
-                  )}
-                </div>
-              </div>
             )}
           </>
         )}
