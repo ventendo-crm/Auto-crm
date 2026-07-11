@@ -47,8 +47,6 @@ const collisionDetection: CollisionDetection = (args) => {
 interface KanbanQuery {
   search: string;
   managerId: string;
-  overdue: boolean;
-  withClientPortal: boolean;
 }
 
 export function KanbanBoard() {
@@ -62,8 +60,6 @@ export function KanbanBoard() {
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [selectedManagerId, setSelectedManagerId] = useState(ALL_MANAGERS);
-  const [overdueOnly, setOverdueOnly] = useState(false);
-  const [withClientPortalOnly, setWithClientPortalOnly] = useState(false);
   const [compactView, setCompactView] = useState(false);
   const [activeDeal, setActiveDeal] = useState<DealListItem | null>(null);
   const [overStage, setOverStage] = useState<DealStageType | null>(null);
@@ -106,10 +102,8 @@ export function KanbanBoard() {
     () => ({
       search: appliedSearch,
       managerId: selectedManagerId,
-      overdue: overdueOnly,
-      withClientPortal: withClientPortalOnly,
     }),
-    [appliedSearch, overdueOnly, selectedManagerId, withClientPortalOnly],
+    [appliedSearch, selectedManagerId],
   );
 
   const loadDeals = useCallback(async (query: KanbanQuery) => {
@@ -119,8 +113,6 @@ export function KanbanBoard() {
         limit: 100,
         search: query.search || undefined,
         managerId: query.managerId !== ALL_MANAGERS ? query.managerId : undefined,
-        overdue: query.overdue || undefined,
-        withClientPortal: query.withClientPortal || undefined,
       });
       setDeals(result.items);
     } catch (err) {
@@ -266,10 +258,6 @@ export function KanbanBoard() {
         managers={managers}
         selectedManagerId={selectedManagerId}
         onManagerChange={setSelectedManagerId}
-        overdueOnly={overdueOnly}
-        onOverdueOnlyChange={setOverdueOnly}
-        withClientPortalOnly={withClientPortalOnly}
-        onWithClientPortalOnlyChange={setWithClientPortalOnly}
         compactView={compactView}
         onCompactViewChange={handleCompactViewChange}
         canCreate={canCreate}

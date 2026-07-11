@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, LayoutGrid, LayoutList, Plus, Search, UserCheck } from "lucide-react";
+import { LayoutGrid, LayoutList, Plus, Search } from "lucide-react";
 import { FormEvent, type ReactNode } from "react";
 import { CreateDealDialog } from "@/components/deals/create-deal-dialog";
 import { Button } from "@/components/ui/button";
@@ -25,10 +25,6 @@ interface KanbanFiltersProps {
   managers: User[];
   selectedManagerId: string;
   onManagerChange: (managerId: string) => void;
-  overdueOnly: boolean;
-  onOverdueOnlyChange: (value: boolean) => void;
-  withClientPortalOnly: boolean;
-  onWithClientPortalOnlyChange: (value: boolean) => void;
   compactView: boolean;
   onCompactViewChange: (value: boolean) => void;
   canCreate: boolean;
@@ -71,17 +67,12 @@ export function KanbanFilters({
   managers,
   selectedManagerId,
   onManagerChange,
-  overdueOnly,
-  onOverdueOnlyChange,
-  withClientPortalOnly,
-  onWithClientPortalOnlyChange,
   compactView,
   onCompactViewChange,
   canCreate,
   onDealCreated,
 }: KanbanFiltersProps) {
-  const activeFiltersCount =
-    Number(overdueOnly) + Number(withClientPortalOnly) + Number(selectedManagerId !== ALL_MANAGERS);
+  const hasManagerFilter = isAdmin && selectedManagerId !== ALL_MANAGERS;
 
   return (
     <div className="flex flex-col gap-3 border-b bg-card px-3 py-3 sm:px-6">
@@ -128,19 +119,6 @@ export function KanbanFilters({
         )}
 
         <div className="flex flex-wrap items-center gap-2">
-          <FilterToggle active={overdueOnly} onClick={() => onOverdueOnlyChange(!overdueOnly)}>
-            <AlertTriangle className="h-3.5 w-3.5" />
-            Просроченные
-          </FilterToggle>
-
-          <FilterToggle
-            active={withClientPortalOnly}
-            onClick={() => onWithClientPortalOnlyChange(!withClientPortalOnly)}
-          >
-            <UserCheck className="h-3.5 w-3.5" />
-            Личный кабинет
-          </FilterToggle>
-
           <FilterToggle active={compactView} onClick={() => onCompactViewChange(!compactView)}>
             {compactView ? (
               <LayoutList className="h-3.5 w-3.5" />
@@ -150,17 +128,13 @@ export function KanbanFilters({
             Компактно
           </FilterToggle>
 
-          {activeFiltersCount > 0 && (
+          {hasManagerFilter && (
             <Button
               type="button"
               variant="ghost"
               size="sm"
               className="h-8 px-2 text-xs text-muted-foreground"
-              onClick={() => {
-                onOverdueOnlyChange(false);
-                onWithClientPortalOnlyChange(false);
-                onManagerChange(ALL_MANAGERS);
-              }}
+              onClick={() => onManagerChange(ALL_MANAGERS)}
             >
               Сбросить фильтры
             </Button>
