@@ -26,6 +26,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
+import { useScrollToTabPanel } from "@/hooks/use-scroll-to-tab-panel";
 import { api } from "@/lib/api-client";
 import { STAGE_COLORS } from "@/lib/constants";
 import { getMediaDownloadUrl } from "@/lib/media-urls";
@@ -45,6 +46,8 @@ export function ClientDealView() {
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [activeTab, setActiveTab] = useState("documents");
+
+  useScrollToTabPanel(activeTab);
 
   const refreshDeal = useCallback(async () => {
     try {
@@ -145,6 +148,8 @@ export function ClientDealView() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <ClientPageTabsNav deal={deal} activeTab={activeTab} />
+
+        <div id="tab-panel-content" className="scroll-mt-12" aria-hidden />
 
         <TabsContent value="documents" className="space-y-4">
           <DealDocuments

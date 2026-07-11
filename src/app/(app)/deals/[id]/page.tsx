@@ -28,6 +28,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 import { useAuth } from "@/hooks/use-auth";
+import { useScrollToTabPanel } from "@/hooks/use-scroll-to-tab-panel";
 import { api } from "@/lib/api-client";
 import { canClearDealHistory, canManageDealClient, canManageDealExpenses, canManageDealReminders, canUploadDealDocuments, canViewDealFinances, getClientRoleName } from "@/lib/permissions";
 import { DealActivityItem } from "@/lib/services/deal-activity";
@@ -41,6 +42,8 @@ export default function DealPage() {
   const [activity, setActivity] = useState<DealActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+
+  useScrollToTabPanel(activeTab);
 
   const canManageDeal = deal ? canManageDealClient(user, deal) : false;
 
@@ -176,6 +179,8 @@ export default function DealPage() {
             canViewExpenses={canViewExpenses}
             activeTab={activeTab}
           />
+
+          <div id="tab-panel-content" className="scroll-mt-12" aria-hidden />
 
           <TabsContent value="overview" className="space-y-4">
             <DealOverviewSummary
