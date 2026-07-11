@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
-import { ArrowLeft, ChevronDown } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useState } from "react";
 import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
 import { SidebarToggle } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import { formatDealManagersLabel } from "@/lib/deal-managers";
 import { STAGE_COLORS, STAGE_LABELS } from "@/lib/constants";
 import { DealDetail } from "@/lib/types";
@@ -52,60 +53,50 @@ export function DealHeader({ deal, canDelete }: DealHeaderProps) {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">
-          <button
-            type="button"
-            onClick={() => setDetailsOpen((open) => !open)}
-            aria-expanded={detailsOpen}
-            className="flex w-full min-w-0 items-center gap-1.5 text-left sm:gap-3"
+          <CollapsibleTrigger
+            open={detailsOpen}
+            onToggle={() => setDetailsOpen((open) => !open)}
+            className="gap-1.5 sm:gap-3"
           >
-            <h1 className="min-w-0 flex-1 truncate text-lg font-semibold leading-tight tracking-tight sm:text-2xl">
+            <h1 className="text-page-title min-w-0 flex-1 truncate leading-tight">
               {deal.clientName}
             </h1>
             <Badge
               variant="outline"
               className={cn(
                 STAGE_COLORS[deal.currentStage],
-                "shrink-0 px-1.5 py-0 text-[10px] font-medium sm:px-2.5 sm:py-0.5 sm:text-xs",
+                "shrink-0 px-1.5 py-0 text-micro font-medium sm:px-2.5 sm:py-0.5 sm:text-xs",
               )}
             >
               {STAGE_LABELS[deal.currentStage]}
             </Badge>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                detailsOpen && "rotate-180",
-              )}
-              aria-hidden
-            />
-          </button>
+          </CollapsibleTrigger>
 
-          {detailsOpen && (
-            <>
-              <p className="mt-1 font-mono text-sm text-muted-foreground">{deal.vin}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{carLine}</p>
+          <CollapsiblePanel open={detailsOpen} className="pt-1">
+            <p className="font-mono text-field-value text-muted-foreground">{deal.vin}</p>
+            <p className="mt-1 text-field-value text-muted-foreground">{carLine}</p>
 
-              <div className="mt-1 flex items-center justify-between gap-2 sm:hidden">
-                <p className="min-w-0 truncate text-[11px] text-muted-foreground">
-                  Менеджеры: {managersLabel}
-                </p>
-                <p className="shrink-0 text-sm font-semibold leading-none">
-                  {formatCurrency(deal.prepayment)}
-                </p>
-              </div>
-
-              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
+            <div className="mt-1 flex items-center justify-between gap-2 sm:hidden">
+              <p className="min-w-0 truncate text-micro text-muted-foreground">
                 Менеджеры: {managersLabel}
               </p>
-            </>
-          )}
+              <p className="shrink-0 text-sm font-semibold leading-none">
+                {formatCurrency(deal.prepayment)}
+              </p>
+            </div>
+
+            <p className="mt-0.5 hidden text-field-value text-muted-foreground sm:block">
+              Менеджеры: {managersLabel}
+            </p>
+          </CollapsiblePanel>
         </div>
 
-        {detailsOpen && (
-          <div className="hidden sm:block sm:text-right">
+        <div className="hidden sm:block">
+          <CollapsiblePanel open={detailsOpen} className="text-right">
             <p className="text-2xl font-semibold">{formatCurrency(deal.prepayment)}</p>
-            <p className="text-xs text-muted-foreground">предоплата</p>
-          </div>
-        )}
+            <p className="text-field-label">предоплата</p>
+          </CollapsiblePanel>
+        </div>
       </div>
     </div>
   );

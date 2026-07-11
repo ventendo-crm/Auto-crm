@@ -281,13 +281,13 @@ export interface DashboardArrivalEvent {
   carLabel: string;
   vin: string;
   date: string;
-  kind: "expected" | "actual";
+  kind: "customs";
   currentStage: DealStageType;
 }
 
 export interface DashboardChartData {
   byStage: { stage: DealStageType; name: string; value: number }[];
-  stageBar: { name: string; count: number }[];
+  stageBar: { stage: DealStageType; name: string; count: number }[];
   statusPie: { name: string; value: number }[];
   etaDeals: { dealId: string; name: string; clientName: string; days: number; date: string }[];
   etaTimeline: { week: string; label: string; count: number }[];

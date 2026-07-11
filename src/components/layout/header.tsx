@@ -50,10 +50,8 @@ export function Header({ title, subtitle, search, onSearchChange }: HeaderProps)
       <div className="flex min-w-0 items-center gap-2 sm:gap-3">
         <SidebarToggle />
         <div className="min-w-0">
-          <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg">{title}</h1>
-          {subtitle && (
-            <p className="truncate text-[11px] text-muted-foreground sm:text-xs">{subtitle}</p>
-          )}
+          <h1 className="text-page-title truncate">{title}</h1>
+          {subtitle && <p className="text-page-subtitle truncate">{subtitle}</p>}
         </div>
       </div>
 

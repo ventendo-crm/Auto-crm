@@ -36,6 +36,7 @@ type DealRow = {
     managerId: string;
     manager: { id: string; name: string };
   }>;
+  shipment: { customsCompleted: Date | null } | null;
 };
 
 function computeStats(deals: DealRow[]): DashboardStats {
@@ -105,6 +106,7 @@ function computeCharts(deals: DealRow[]): DashboardChartData {
     }));
 
   const stageBar = byStage.map((item) => ({
+    stage: item.stage,
     name: item.name,
     count: item.value,
   }));
@@ -138,20 +140,16 @@ function computeArrivalEvents(deals: DealRow[]): DashboardArrivalEvent[] {
   const events: DashboardArrivalEvent[] = [];
 
   for (const deal of deals) {
-    const isDelivered = deal.currentStage === DealStageType.DELIVERY;
-    const arrivalDate = isDelivered
-      ? (deal.actualArrival ?? deal.expectedArrival)
-      : deal.expectedArrival;
-
-    if (!arrivalDate) continue;
+    const customsDate = deal.shipment?.customsCompleted;
+    if (!customsDate) continue;
 
     events.push({
       dealId: deal.id,
       clientName: deal.clientName,
       carLabel: formatCarLabel(deal.carBrand, deal.carModel, deal.vin),
       vin: deal.vin,
-      date: arrivalDate.toISOString(),
-      kind: isDelivered && deal.actualArrival ? "actual" : "expected",
+      date: customsDate.toISOString(),
+      kind: "customs",
       currentStage: deal.currentStage,
     });
   }
@@ -220,6 +218,9 @@ export async function getDashboardData(
           managerId: true,
           manager: { select: { id: true, name: true } },
         },
+      },
+      shipment: {
+        select: { customsCompleted: true },
       },
     },
     orderBy: { updatedAt: "desc" },

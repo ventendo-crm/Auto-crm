@@ -14,9 +14,9 @@ import {
 } from "recharts";
 import { ChartContainer } from "@/components/dashboard/chart-container";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { STAGE_CHART_HEX } from "@/lib/constants";
 import { DashboardChartData } from "@/lib/types";
 
-const STAGE_COLORS = ["#60A5FA", "#FB923C", "#C084FC", "#FB7185", "#34D399", "#2DD4BF"];
 const STATUS_COLORS = ["#34D399", "#FB7185", "#FBBF24", "#94A3B8"];
 
 function ChartTooltip({
@@ -46,7 +46,7 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="border-0 shadow-card">
         <CardHeader>
-          <CardTitle className="text-base">Сделки по этапам</CardTitle>
+          <CardTitle>Сделки по этапам</CardTitle>
           <CardDescription>Распределение по воронке</CardDescription>
         </CardHeader>
         <CardContent className="h-72">
@@ -58,8 +58,8 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
                 <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
                 <Tooltip content={<ChartTooltip />} />
                 <Bar dataKey="count" name="Сделок" radius={[6, 6, 0, 0]}>
-                  {charts.stageBar.map((_, i) => (
-                    <Cell key={i} fill={STAGE_COLORS[i % STAGE_COLORS.length]} />
+                  {charts.stageBar.map((item) => (
+                    <Cell key={item.stage} fill={STAGE_CHART_HEX[item.stage]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -72,7 +72,7 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
 
       <Card className="border-0 shadow-card">
         <CardHeader>
-          <CardTitle className="text-base">Статус по прибытиям</CardTitle>
+          <CardTitle>Статус по прибытиям</CardTitle>
           <CardDescription>Завершено · Ожидают · Без даты</CardDescription>
         </CardHeader>
         <CardContent className="h-72">

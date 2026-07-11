@@ -58,7 +58,7 @@ export default function DashboardPage() {
 
   const subtitle =
     selectedManagerId === ALL_MANAGERS
-      ? "Обзор сделок и прибытий"
+      ? "Обзор сделок и таможни"
       : `Статистика менеджера: ${
           managers.find((manager) => manager.id === selectedManagerId)?.name ?? ""
         }`;

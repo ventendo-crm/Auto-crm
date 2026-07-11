@@ -89,6 +89,37 @@ export const STAGE_LEFT_BORDER: Record<DealStageType, string> = {
   [DealStageType.DELIVERY]: "border-l-teal-400",
 };
 
+/** Акцент этапа: точки, кольца прогресса, заливка графиков. */
+export const STAGE_ACCENT_BG: Record<DealStageType, string> = {
+  [DealStageType.LEADS]: "bg-amber-400",
+  [DealStageType.SEARCH]: "bg-blue-400",
+  [DealStageType.INVOICE]: "bg-orange-400",
+  [DealStageType.PREPARATION]: "bg-purple-400",
+  [DealStageType.CUSTOMS]: "bg-rose-400",
+  [DealStageType.TRANSPORT]: "bg-emerald-400",
+  [DealStageType.DELIVERY]: "bg-teal-400",
+};
+
+export const STAGE_ACCENT_BORDER: Record<DealStageType, string> = {
+  [DealStageType.LEADS]: "border-amber-400",
+  [DealStageType.SEARCH]: "border-blue-400",
+  [DealStageType.INVOICE]: "border-orange-400",
+  [DealStageType.PREPARATION]: "border-purple-400",
+  [DealStageType.CUSTOMS]: "border-rose-400",
+  [DealStageType.TRANSPORT]: "border-emerald-400",
+  [DealStageType.DELIVERY]: "border-teal-400",
+};
+
+export const STAGE_CHART_HEX: Record<DealStageType, string> = {
+  [DealStageType.LEADS]: "#FBBF24",
+  [DealStageType.SEARCH]: "#60A5FA",
+  [DealStageType.INVOICE]: "#FB923C",
+  [DealStageType.PREPARATION]: "#C084FC",
+  [DealStageType.CUSTOMS]: "#FB7185",
+  [DealStageType.TRANSPORT]: "#34D399",
+  [DealStageType.DELIVERY]: "#2DD4BF",
+};
+
 export const DOCUMENT_LABELS = {
   SEARCH_AGREEMENT: "Договор на поиск",
   PASSPORT: "Паспорт",

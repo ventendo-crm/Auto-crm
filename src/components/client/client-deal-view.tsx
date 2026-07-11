@@ -3,7 +3,6 @@
 import { MediaType } from "@prisma/client";
 import { useCallback, useEffect, useState } from "react";
 import {
-  ChevronDown,
   Download,
   Play,
   Search,
@@ -23,6 +22,7 @@ import { MediaGallery } from "@/components/media/media-gallery";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
@@ -108,13 +108,11 @@ export function ClientDealView() {
     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <Card className="mb-6 border-0 shadow-card">
         <CardHeader className="pb-3">
-          <button
-            type="button"
-            onClick={() => setDetailsOpen((open) => !open)}
-            aria-expanded={detailsOpen}
-            className="flex w-full items-center gap-2 text-left"
+          <CollapsibleTrigger
+            open={detailsOpen}
+            onToggle={() => setDetailsOpen((open) => !open)}
           >
-            <CardTitle className="min-w-0 flex-1 truncate text-xl sm:text-2xl">
+            <CardTitle className="text-page-title min-w-0 flex-1 truncate">
               {deal.clientName}
             </CardTitle>
             <Badge
@@ -123,42 +121,35 @@ export function ClientDealView() {
             >
               {deal.stageLabel}
             </Badge>
-            <ChevronDown
-              className={cn(
-                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                detailsOpen && "rotate-180",
-              )}
-              aria-hidden
-            />
-          </button>
+          </CollapsibleTrigger>
         </CardHeader>
-        {detailsOpen && (
+        <CollapsiblePanel open={detailsOpen}>
           <CardContent className="grid gap-4 border-t pt-4 sm:grid-cols-2">
             <div>
-              <p className="text-xs text-muted-foreground">VIN</p>
-              <p className="font-mono text-sm">{deal.vin}</p>
+              <p className="text-field-label">VIN</p>
+              <p className="font-mono text-field-value">{deal.vin}</p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Автомобиль</p>
-              <p className="text-sm">
+              <p className="text-field-label">Автомобиль</p>
+              <p className="text-field-value">
                 {deal.carBrand} {deal.carModel} {deal.carYear ? `· ${deal.carYear}` : ""}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Направление</p>
-              <p className="text-sm">
+              <p className="text-field-label">Направление</p>
+              <p className="text-field-value">
                 {deal.destinationCity}, {deal.destinationCountry}
               </p>
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Менеджер</p>
-              <p className="text-sm">{deal.manager?.name ?? "Не назначен"}</p>
+              <p className="text-field-label">Менеджер</p>
+              <p className="text-field-value">{deal.manager?.name ?? "Не назначен"}</p>
               {deal.manager?.email && (
-                <p className="text-xs text-muted-foreground">{deal.manager.email}</p>
+                <p className="text-field-label">{deal.manager.email}</p>
               )}
             </div>
           </CardContent>
-        )}
+        </CollapsiblePanel>
       </Card>
 
       <ClientDealProgress

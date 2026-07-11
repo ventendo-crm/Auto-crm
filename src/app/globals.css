@@ -68,6 +68,50 @@
   .scrollbar-thin {
     scrollbar-width: thin;
   }
+
+  .text-page-title {
+    @apply text-xl font-semibold tracking-tight sm:text-2xl;
+  }
+
+  .text-page-subtitle {
+    @apply text-micro text-muted-foreground;
+  }
+
+  .text-section-title {
+    @apply text-base font-medium;
+  }
+
+  .text-field-label {
+    @apply text-xs text-muted-foreground;
+  }
+
+  .text-field-value {
+    @apply text-sm font-medium;
+  }
+
+  .text-micro {
+    @apply text-[11px] leading-snug;
+  }
+
+  .surface-muted {
+    @apply rounded-xl border bg-muted/20;
+  }
+
+  .collapsible-panel {
+    @apply grid transition-[grid-template-rows,opacity] duration-normal ease-out;
+  }
+
+  .collapsible-panel[data-open="true"] {
+    @apply grid-rows-[1fr] opacity-100;
+  }
+
+  .collapsible-panel[data-open="false"] {
+    @apply grid-rows-[0fr] opacity-0;
+  }
+
+  .tab-panel-enter {
+    @apply animate-in fade-in-0 duration-normal;
+  }
 }
 
 @layer utilities {
@@ -76,7 +120,7 @@
   }
 
   .deal-card {
-    @apply cursor-grab rounded-lg border bg-card p-3 shadow-card transition-shadow active:cursor-grabbing hover:shadow-card-hover;
+    @apply cursor-grab rounded-lg border bg-card p-3 shadow-card transition-all duration-normal active:cursor-grabbing hover:shadow-card-hover;
   }
 
   .deal-card-compact {

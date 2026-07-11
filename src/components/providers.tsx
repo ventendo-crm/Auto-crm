@@ -6,7 +6,7 @@ import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 
 function ThemedToaster() {
   const { theme } = useTheme();
-  return <Toaster richColors position="top-right" theme={theme} />;
+  return <Toaster richColors closeButton position="top-right" theme={theme} duration={4000} />;
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {

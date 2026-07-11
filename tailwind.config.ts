@@ -55,6 +55,7 @@ const config: Config = {
         },
 
         stage: {
+          leads: "#FEF3C7",
           search: "#E8F4FD",
           invoice: "#FFF4E6",
           preparation: "#F3E8FF",
@@ -62,6 +63,12 @@ const config: Config = {
           transport: "#E8F8F0",
           delivery: "#E8FDF5",
         },
+      },
+
+      transitionDuration: {
+        fast: "150ms",
+        normal: "200ms",
+        slow: "300ms",
       },
 
       borderRadius: {
