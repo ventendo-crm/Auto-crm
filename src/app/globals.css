@@ -78,7 +78,7 @@
   }
 
   .text-section-title {
-    @apply text-base font-medium;
+    @apply text-base font-medium leading-tight;
   }
 
   .text-field-label {

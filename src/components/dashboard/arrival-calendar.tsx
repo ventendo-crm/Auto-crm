@@ -15,7 +15,7 @@ import {
   subMonths,
 } from "date-fns";
 import { ru } from "date-fns/locale";
-import { Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Package } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,19 @@ const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
 function toDateKey(date: Date): string {
   return format(date, "yyyy-MM-dd");
+}
+
+function formatMonthEventsLabel(count: number): string {
+  if (count === 0) return "В этом месяце дат таможни нет";
+
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+  let word = "сделок";
+
+  if (mod10 === 1 && mod100 !== 11) word = "сделка";
+  else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) word = "сделки";
+
+  return `${count} ${word} в этом месяце`;
 }
 
 interface ArrivalCalendarProps {
@@ -69,88 +82,87 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
     [events, month],
   );
 
-  return (
-    <Card className="border-0 shadow-card">
-      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <CardTitle className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-brand" />
-            Календарь таможни
-          </CardTitle>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {monthEventsCount > 0
-              ? `${monthEventsCount} сделок в этом месяце`
-              : "В этом месяце дат таможни нет"}
-          </p>
-        </div>
+  const goToToday = () => {
+    const today = new Date();
+    setMonth(startOfMonth(today));
+    setSelectedDay(today);
+  };
 
-        <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={() => setMonth((current) => subMonths(current, 1))}
-            aria-label="Предыдущий месяц"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <span className="min-w-0 flex-1 text-center text-sm font-medium capitalize sm:min-w-[9rem] sm:flex-none">
-            {format(month, "LLLL yyyy", { locale: ru })}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="icon"
-            className="h-8 w-8 shrink-0"
-            onClick={() => setMonth((current) => addMonths(current, 1))}
-            aria-label="Следующий месяц"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-full sm:w-auto"
-            onClick={() => {
-              const today = new Date();
-              setMonth(startOfMonth(today));
-              setSelectedDay(today);
-            }}
-          >
-            Сегодня
-          </Button>
+  return (
+    <Card className="overflow-hidden border-0 shadow-card">
+      <CardHeader className="border-b bg-gradient-to-r from-rose-50/80 via-background to-background pb-4 dark:from-rose-950/20">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <CardTitle className="flex items-center gap-2.5 leading-tight">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950/50 dark:text-rose-300">
+                <CalendarDays className="h-4 w-4" />
+              </span>
+              <span>
+                Календарь таможни
+                <span className="mt-0.5 block text-sm font-normal text-muted-foreground">
+                  {formatMonthEventsLabel(monthEventsCount)}
+                </span>
+              </span>
+            </CardTitle>
+          </div>
+
+          <div className="flex w-full shrink-0 items-center gap-2 lg:w-auto">
+            <div className="flex flex-1 items-center justify-between gap-1 rounded-xl border bg-card/80 p-1 shadow-sm backdrop-blur sm:flex-none">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setMonth((current) => subMonths(current, 1))}
+                aria-label="Предыдущий месяц"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="min-w-[8.5rem] px-1 text-center text-sm font-semibold capitalize">
+                {format(month, "LLLL yyyy", { locale: ru })}
+              </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setMonth((current) => addMonths(current, 1))}
+                aria-label="Следующий месяц"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={goToToday}>
+              Сегодня
+            </Button>
+          </div>
         </div>
       </CardHeader>
 
-      <CardContent className="space-y-4 overflow-hidden">
-        <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
-          <span className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-            Дата таможни из логистики
-          </span>
-        </div>
-
-        <div className="w-full min-w-0">
-          <div className="mb-1 grid grid-cols-7 gap-0.5 sm:mb-2 sm:gap-1">
-            {WEEKDAYS.map((day) => (
+      <CardContent className="space-y-4 p-4 sm:p-6">
+        <div className="rounded-xl border bg-muted/20 p-3 sm:p-4">
+          <div className="mb-2 grid grid-cols-7 gap-1 sm:mb-3 sm:gap-1.5">
+            {WEEKDAYS.map((day, index) => (
               <div
                 key={day}
-                className="min-w-0 truncate py-1 text-center text-micro font-medium text-muted-foreground sm:text-xs"
+                className={cn(
+                  "py-1 text-center text-micro font-semibold uppercase tracking-wide sm:text-xs",
+                  index >= 5 ? "text-rose-500/80" : "text-muted-foreground",
+                )}
               >
                 {day}
               </div>
             ))}
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
+          <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
             {calendarDays.map((day) => {
               const dayKey = toDateKey(day);
               const dayEvents = eventsByDay.get(dayKey) ?? [];
               const inMonth = isSameMonth(day, month);
               const selected = isSameDay(day, selectedDay);
               const today = isToday(day);
+              const hasEvents = dayEvents.length > 0;
 
               return (
                 <button
@@ -158,29 +170,40 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
                   type="button"
                   onClick={() => setSelectedDay(day)}
                   className={cn(
-                    "box-border flex min-h-[3.25rem] min-w-0 flex-col items-center rounded-md border p-0.5 text-center transition-colors duration-normal sm:min-h-[4.5rem] sm:items-start sm:rounded-lg sm:p-1.5 sm:text-left",
-                    inMonth ? "bg-background" : "bg-muted/20 text-muted-foreground",
-                    selected && "border-brand ring-1 ring-inset ring-brand/30",
-                    !selected && "hover:bg-muted/40",
+                    "group relative flex aspect-square min-w-0 flex-col items-center justify-between rounded-xl border p-1 transition-all duration-normal sm:aspect-auto sm:min-h-[4.25rem] sm:p-2",
+                    inMonth ? "bg-card" : "border-transparent bg-transparent text-muted-foreground/50",
+                    hasEvents &&
+                      inMonth &&
+                      !selected &&
+                      "border-rose-200/70 bg-rose-50/70 hover:border-rose-300 hover:bg-rose-50 dark:border-rose-900/50 dark:bg-rose-950/20 dark:hover:bg-rose-950/30",
+                    selected &&
+                      "border-brand bg-brand-muted/40 shadow-sm ring-2 ring-brand/20",
+                    !selected && inMonth && !hasEvents && "border-border/50 hover:border-border hover:bg-muted/40",
                   )}
                 >
                   <span
                     className={cn(
-                      "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-medium sm:mb-1 sm:h-6 sm:w-6 sm:text-xs",
-                      today && "bg-brand text-brand-foreground",
+                      "inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-semibold sm:h-7 sm:w-7",
+                      today && !selected && "bg-brand text-brand-foreground shadow-sm",
+                      today && selected && "bg-brand text-brand-foreground",
+                      !today && selected && "text-foreground",
+                      !today && !selected && inMonth && "text-foreground",
                     )}
                   >
                     {format(day, "d")}
                   </span>
 
-                  {dayEvents.length > 0 && (
-                    <div className="mt-auto flex min-w-0 flex-col items-center gap-0.5 sm:items-start sm:space-y-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-                      <span className="hidden max-w-full truncate text-micro font-medium leading-none text-foreground sm:block">
-                        {dayEvents.length} авто
-                      </span>
-                      <span className="sr-only sm:hidden">{dayEvents.length} авто</span>
-                    </div>
+                  {hasEvents && inMonth && (
+                    <span
+                      className={cn(
+                        "rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
+                        selected
+                          ? "bg-brand text-brand-foreground"
+                          : "bg-rose-500 text-white dark:bg-rose-600",
+                      )}
+                    >
+                      {dayEvents.length} авто
+                    </span>
                   )}
                 </button>
               );
@@ -188,41 +211,58 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
           </div>
         </div>
 
-        <div className="surface-muted p-4">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-section-title">
-              {format(selectedDay, "d MMMM yyyy", { locale: ru })}
-            </h3>
-            <Badge variant="outline">{selectedEvents.length}</Badge>
+        <div className="overflow-hidden rounded-xl border border-rose-200/60 bg-gradient-to-b from-rose-50/50 to-background dark:border-rose-900/40 dark:from-rose-950/20">
+          <div className="flex items-center justify-between gap-3 border-b border-rose-200/50 px-4 py-3 dark:border-rose-900/40">
+            <div>
+              <p className="text-section-title capitalize">
+                {format(selectedDay, "EEEE, d MMMM", { locale: ru })}
+              </p>
+              <p className="text-micro text-muted-foreground">Дата таможни из логистики</p>
+            </div>
+            <Badge
+              variant="outline"
+              className="border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-900 dark:bg-rose-950/50 dark:text-rose-300"
+            >
+              {selectedEvents.length}
+            </Badge>
           </div>
 
-          {selectedEvents.length === 0 ? (
-            <p className="text-sm text-muted-foreground">В этот день таможни нет</p>
-          ) : (
-            <div className="space-y-2">
-              {selectedEvents.map((event) => (
-                <Link
-                  key={`${event.dealId}-${event.kind}`}
-                  href={`/deals/${event.dealId}`}
-                  className="flex items-start justify-between gap-3 rounded-lg border bg-background p-3 transition-colors duration-normal hover:bg-muted/50"
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{event.clientName}</p>
-                    <p className="truncate text-xs text-muted-foreground">{event.carLabel}</p>
-                    <p className="font-mono text-micro text-muted-foreground">{event.vin}</p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge variant="outline" className={STAGE_COLORS[event.currentStage]}>
-                      Таможня
-                    </Badge>
-                    <span className="text-micro text-muted-foreground">
-                      {STAGE_LABELS[event.currentStage]}
-                    </span>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          )}
+          <div className="p-4">
+            {selectedEvents.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-background/60 px-6 py-10 text-center">
+                <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                  <Package className="h-5 w-5 text-muted-foreground" />
+                </div>
+                <p className="text-sm font-medium">В этот день таможни нет</p>
+                <p className="mt-1 max-w-xs text-sm text-muted-foreground">
+                  Укажите дату в разделе «Логистика» карточки сделки
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {selectedEvents.map((event) => (
+                  <Link
+                    key={`${event.dealId}-${event.kind}`}
+                    href={`/deals/${event.dealId}`}
+                    className="group flex items-center gap-3 rounded-xl border border-rose-200/50 bg-card p-3 shadow-sm transition-all duration-normal hover:border-rose-300 hover:shadow-md dark:border-rose-900/40"
+                  >
+                    <span className="h-10 w-1 shrink-0 rounded-full bg-rose-400" aria-hidden />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium group-hover:text-brand">{event.clientName}</p>
+                      <p className="truncate text-xs text-muted-foreground">{event.carLabel}</p>
+                      <p className="truncate font-mono text-micro text-muted-foreground">{event.vin}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Badge variant="outline" className={STAGE_COLORS[event.currentStage]}>
+                        {STAGE_LABELS[event.currentStage]}
+                      </Badge>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </CardContent>
     </Card>
