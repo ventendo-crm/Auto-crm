@@ -2,7 +2,7 @@
 
 import { MediaType } from "@prisma/client";
 import { Flag, ImagePlus, Loader2, MapPin, Search, Trash2, Truck } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   CarCarrierMapMode,
@@ -10,6 +10,7 @@ import {
   MapSearchPreview,
   MapViewTarget,
 } from "@/components/deals/car-carrier-tracking-map";
+import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,7 +18,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_TRACKING_POINT_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
-import { CarCarrierDestination, CarCarrierTrackingPoint, GeocodeResult } from "@/lib/types";
+import {
+  CarCarrierDestination,
+  CarCarrierTrackingPoint,
+  GeocodeResult,
+  MediaItem,
+} from "@/lib/types";
+import { cn, formatDate } from "@/lib/utils";
 
 interface CarCarrierTrackingProps {
   dealId: string;
@@ -48,9 +55,32 @@ export function CarCarrierTracking({
   const [viewTarget, setViewTarget] = useState<MapViewTarget | null>(null);
   const [autoFitBounds, setAutoFitBounds] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<{ items: MediaItem[]; currentId: string } | null>(null);
 
   const selectedPoint = points.find((point) => point.id === selectedPointId) ?? null;
   const hasInitialData = initialPoints !== undefined;
+
+  const sortedPoints = useMemo(
+    () =>
+      [...points].sort((a, b) => {
+        const dateDiff = new Date(a.recordedAt).getTime() - new Date(b.recordedAt).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return a.sortOrder - b.sortOrder;
+      }),
+    [points],
+  );
+
+  const focusPoint = (point: CarCarrierTrackingPoint) => {
+    setSelectedPointId(point.id);
+    setAddMode(false);
+    setViewTarget({
+      latitude: point.latitude,
+      longitude: point.longitude,
+      zoom: 8,
+      key: Date.now(),
+    });
+    setAutoFitBounds(false);
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -400,6 +430,108 @@ export function CarCarrierTracking({
               onPointSelect={setSelectedPointId}
             />
 
+            {sortedPoints.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium">Города по маршруту</h4>
+                <div className="space-y-3">
+                  {sortedPoints.map((point, index) => {
+                    const content = (
+                      <>
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <p className="text-sm font-semibold">
+                            {point.title.trim() || `Точка ${index + 1}`}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDate(point.recordedAt)}
+                          </p>
+                        </div>
+                        {point.description ? (
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+                            {point.description}
+                          </p>
+                        ) : (
+                          <p className="mt-2 text-sm text-muted-foreground">Без описания</p>
+                        )}
+                        {point.media.length > 0 ? (
+                          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                            {point.media.map((item) => (
+                              <button
+                                key={item.id}
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  setPreview({ items: point.media, currentId: item.id });
+                                }}
+                                className="overflow-hidden rounded-lg border bg-muted/30 text-left transition-opacity hover:opacity-90"
+                              >
+                                {item.type === MediaType.VIDEO ? (
+                                  <div className="relative aspect-square w-full bg-muted">
+                                    <video
+                                      src={item.fileUrl}
+                                      className="aspect-square w-full object-cover"
+                                      preload="metadata"
+                                    />
+                                  </div>
+                                ) : (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={item.thumbnailUrl ?? item.fileUrl}
+                                    alt={item.fileName}
+                                    className="aspect-square w-full object-cover"
+                                  />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="mt-2 text-xs text-muted-foreground">Фото не прикреплены</p>
+                        )}
+                      </>
+                    );
+
+                    if (canEdit) {
+                      return (
+                        <button
+                          key={point.id}
+                          type="button"
+                          onClick={() => focusPoint(point)}
+                          className={cn(
+                            "w-full rounded-xl border p-4 text-left transition-colors",
+                            selectedPointId === point.id
+                              ? "border-brand bg-brand-muted/40"
+                              : "bg-muted/10 hover:bg-muted/20",
+                          )}
+                        >
+                          {content}
+                        </button>
+                      );
+                    }
+
+                    return (
+                      <article
+                        key={point.id}
+                        className="rounded-xl border bg-muted/10 p-4"
+                      >
+                        {content}
+                      </article>
+                    );
+                  })}
+
+                  {destination && !canEdit && (
+                    <article className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                      <div className="flex items-center gap-2">
+                        <Flag className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <p className="text-xs font-medium uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                          Точка назначения
+                        </p>
+                      </div>
+                      <p className="mt-2 text-sm font-semibold">{destination.title}</p>
+                    </article>
+                  )}
+                </div>
+              </div>
+            )}
+
             {canEdit && destination && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
                 <div className="flex items-start justify-between gap-3">
@@ -605,6 +737,15 @@ export function CarCarrierTracking({
           </>
         )}
       </CardContent>
+      <MediaPreviewDialog
+        items={preview?.items}
+        currentId={preview?.currentId ?? null}
+        open={preview !== null}
+        onOpenChange={(open) => !open && setPreview(null)}
+        onCurrentChange={(currentId) =>
+          setPreview((current) => (current ? { ...current, currentId } : null))
+        }
+      />
     </Card>
   );
 }
