@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
 import { SidebarToggle } from "@/components/layout/sidebar";
@@ -24,6 +25,7 @@ function formatCarLine(deal: DealDetail): string {
 }
 
 export function DealHeader({ deal, canDelete }: DealHeaderProps) {
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const carLine = formatCarLine(deal);
   const managersLabel = formatDealManagersLabel(deal);
 
@@ -50,42 +52,60 @@ export function DealHeader({ deal, canDelete }: DealHeaderProps) {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
-            <h1 className="text-lg font-semibold leading-tight tracking-tight sm:text-2xl">
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((open) => !open)}
+            aria-expanded={detailsOpen}
+            className="flex w-full min-w-0 items-center gap-1.5 text-left sm:gap-3"
+          >
+            <h1 className="min-w-0 flex-1 truncate text-lg font-semibold leading-tight tracking-tight sm:text-2xl">
               {deal.clientName}
             </h1>
             <Badge
               variant="outline"
               className={cn(
                 STAGE_COLORS[deal.currentStage],
-                "px-1.5 py-0 text-[10px] font-medium sm:px-2.5 sm:py-0.5 sm:text-xs",
+                "shrink-0 px-1.5 py-0 text-[10px] font-medium sm:px-2.5 sm:py-0.5 sm:text-xs",
               )}
             >
               {STAGE_LABELS[deal.currentStage]}
             </Badge>
-          </div>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                detailsOpen && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
 
-          <p className="mt-1 hidden font-mono text-sm text-muted-foreground sm:block">{deal.vin}</p>
+          {detailsOpen && (
+            <>
+              <p className="mt-1 font-mono text-sm text-muted-foreground">{deal.vin}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{carLine}</p>
 
-          <p className="mt-1 hidden text-sm text-muted-foreground sm:block">{carLine}</p>
+              <div className="mt-1 flex items-center justify-between gap-2 sm:hidden">
+                <p className="min-w-0 truncate text-[11px] text-muted-foreground">
+                  Менеджеры: {managersLabel}
+                </p>
+                <p className="shrink-0 text-sm font-semibold leading-none">
+                  {formatCurrency(deal.prepayment)}
+                </p>
+              </div>
 
-          <div className="mt-1 flex items-center justify-between gap-2 sm:hidden">
-            <p className="min-w-0 truncate text-xs text-muted-foreground">{carLine}</p>
-            <p className="shrink-0 text-sm font-semibold leading-none">
-              {formatCurrency(deal.prepayment)}
-            </p>
-          </div>
-
-          <p className="mt-0.5 truncate text-[11px] text-muted-foreground sm:hidden">
-            {managersLabel}
-          </p>
+              <p className="mt-0.5 hidden text-sm text-muted-foreground sm:block">
+                Менеджеры: {managersLabel}
+              </p>
+            </>
+          )}
         </div>
 
-        <div className="hidden sm:block sm:text-right">
-          <p className="text-2xl font-semibold">{formatCurrency(deal.prepayment)}</p>
-          <p className="text-xs text-muted-foreground">предоплата</p>
-          <p className="mt-1 text-sm text-muted-foreground">Менеджеры: {managersLabel}</p>
-        </div>
+        {detailsOpen && (
+          <div className="hidden sm:block sm:text-right">
+            <p className="text-2xl font-semibold">{formatCurrency(deal.prepayment)}</p>
+            <p className="text-xs text-muted-foreground">предоплата</p>
+          </div>
+        )}
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import { MediaType } from "@prisma/client";
 import { useCallback, useEffect, useState } from "react";
 import {
+  ChevronDown,
   Download,
   Play,
   Search,
@@ -32,7 +33,7 @@ import { STAGE_COLORS } from "@/lib/constants";
 import { getMediaDownloadUrl } from "@/lib/media-urls";
 import { ClientPortalDeal, MediaItem } from "@/lib/types";
 import { DealActivityItem } from "@/lib/services/deal-activity";
-import { formatFileSize } from "@/lib/utils";
+import { cn, formatFileSize } from "@/lib/utils";
 
 interface PreviewState {
   items: MediaItem[];
@@ -46,6 +47,7 @@ export function ClientDealView() {
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<PreviewState | null>(null);
   const [activeTab, setActiveTab] = useState("documents");
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   useScrollToTabPanel(activeTab);
 
@@ -105,39 +107,58 @@ export function ClientDealView() {
   return (
     <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <Card className="mb-6 border-0 shadow-card">
-        <CardHeader>
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle className="text-xl sm:text-2xl">{deal.clientName}</CardTitle>
-            <Badge variant="outline" className={STAGE_COLORS[deal.currentStage]}>
+        <CardHeader className="pb-3">
+          <button
+            type="button"
+            onClick={() => setDetailsOpen((open) => !open)}
+            aria-expanded={detailsOpen}
+            className="flex w-full items-center gap-2 text-left"
+          >
+            <CardTitle className="min-w-0 flex-1 truncate text-xl sm:text-2xl">
+              {deal.clientName}
+            </CardTitle>
+            <Badge
+              variant="outline"
+              className={cn("shrink-0", STAGE_COLORS[deal.currentStage])}
+            >
               {deal.stageLabel}
             </Badge>
-          </div>
+            <ChevronDown
+              className={cn(
+                "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                detailsOpen && "rotate-180",
+              )}
+              aria-hidden
+            />
+          </button>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <p className="text-xs text-muted-foreground">VIN</p>
-            <p className="font-mono text-sm">{deal.vin}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Автомобиль</p>
-            <p className="text-sm">
-              {deal.carBrand} {deal.carModel} {deal.carYear ? `· ${deal.carYear}` : ""}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Направление</p>
-            <p className="text-sm">
-              {deal.destinationCity}, {deal.destinationCountry}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Менеджер</p>
-            <p className="text-sm">{deal.manager?.name ?? "Не назначен"}</p>
-            {deal.manager?.email && (
-              <p className="text-xs text-muted-foreground">{deal.manager.email}</p>
-            )}
-          </div>
-        </CardContent>
+        {detailsOpen && (
+          <CardContent className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-muted-foreground">VIN</p>
+              <p className="font-mono text-sm">{deal.vin}</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Автомобиль</p>
+              <p className="text-sm">
+                {deal.carBrand} {deal.carModel} {deal.carYear ? `· ${deal.carYear}` : ""}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Направление</p>
+              <p className="text-sm">
+                {deal.destinationCity}, {deal.destinationCountry}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Менеджер</p>
+              <p className="text-sm">{deal.manager?.name ?? "Не назначен"}</p>
+              {deal.manager?.email && (
+                <p className="text-xs text-muted-foreground">{deal.manager.email}</p>
+              )}
+            </div>
+          </CardContent>
+        )}
       </Card>
 
       <ClientDealProgress
