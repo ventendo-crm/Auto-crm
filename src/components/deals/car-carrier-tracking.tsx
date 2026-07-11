@@ -288,67 +288,69 @@ export function CarCarrierTracking({
           </div>
         ) : (
           <>
-            <form onSubmit={(event) => void handleSearch(event)} className="flex gap-2">
-              <Input
-                type="search"
-                placeholder="Поиск города..."
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="flex-1"
-              />
-              <Button type="submit" variant="outline" size="sm" disabled={searching}>
-                {searching ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Search className="h-4 w-4" />
-                )}
-                <span className="sr-only sm:not-sr-only">Найти</span>
-              </Button>
-            </form>
-
-            {searchResults.length > 1 && (
-              <div className="flex flex-wrap gap-2">
-                {searchResults.map((result) => (
-                  <Button
-                    key={`${result.latitude}-${result.longitude}-${result.shortName}`}
-                    type="button"
-                    size="sm"
-                    variant={
-                      searchPreview?.label === result.shortName &&
-                      searchPreview.latitude === result.latitude
-                        ? "brand"
-                        : "outline"
-                    }
-                    onClick={() => selectSearchResult(result)}
-                  >
-                    {result.shortName}
+            {canEdit && (
+              <>
+                <form onSubmit={(event) => void handleSearch(event)} className="flex gap-2">
+                  <Input
+                    type="search"
+                    placeholder="Поиск города..."
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    className="flex-1"
+                  />
+                  <Button type="submit" variant="outline" size="sm" disabled={searching}>
+                    {searching ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                    <span className="sr-only sm:not-sr-only">Найти</span>
                   </Button>
-                ))}
-              </div>
-            )}
+                </form>
 
-            {searchPreview && (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2">
-                <p className="text-sm">
-                  <span className="text-muted-foreground">Найдено: </span>
-                  {searchPreview.label}
-                </p>
-                {canEdit && (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="brand"
-                    disabled={saving || !addMode}
-                    onClick={() => void placeSearchPreview()}
-                  >
-                    {addMode === "destination"
-                      ? "Установить назначение"
-                      : addMode === "tracking"
-                        ? "Добавить точку здесь"
-                        : "Выберите режим добавления"}
-                  </Button>
+                {searchResults.length > 1 && (
+                  <div className="flex flex-wrap gap-2">
+                    {searchResults.map((result) => (
+                      <Button
+                        key={`${result.latitude}-${result.longitude}-${result.shortName}`}
+                        type="button"
+                        size="sm"
+                        variant={
+                          searchPreview?.label === result.shortName &&
+                          searchPreview.latitude === result.latitude
+                            ? "brand"
+                            : "outline"
+                        }
+                        onClick={() => selectSearchResult(result)}
+                      >
+                        {result.shortName}
+                      </Button>
+                    ))}
+                  </div>
                 )}
-              </div>
+
+                {searchPreview && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/20 px-3 py-2">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Найдено: </span>
+                      {searchPreview.label}
+                    </p>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="brand"
+                      disabled={saving || !addMode}
+                      onClick={() => void placeSearchPreview()}
+                    >
+                      {addMode === "destination"
+                        ? "Установить назначение"
+                        : addMode === "tracking"
+                          ? "Добавить точку здесь"
+                          : "Выберите режим добавления"}
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
 
             {canEdit && (
