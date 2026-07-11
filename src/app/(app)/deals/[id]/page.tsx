@@ -21,11 +21,11 @@ import { DealOverviewSummary } from "@/components/deals/deal-overview-summary";
 import { DealSearchProcess } from "@/components/deals/deal-search-process";
 import { DealLogistics } from "@/components/deals/deal-logistics";
 import { DealManagerSelector } from "@/components/deals/deal-manager-selector";
+import { DealPageTabsNav } from "@/components/deals/deal-page-tabs-nav";
 import { DealStageSelector } from "@/components/deals/deal-stage-selector";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
@@ -171,52 +171,7 @@ export default function DealPage() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <div className="-mx-1 overflow-x-auto pb-1">
-            <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
-            <TabsTrigger value="overview">
-              Обзор
-            </TabsTrigger>
-
-            <TabsTrigger value="documents">
-              Документы
-            </TabsTrigger>
-
-            <TabsTrigger value="search-process">
-              Процесс поиска
-            </TabsTrigger>
-
-            <TabsTrigger value="additional-options">
-              Дополнительные опции
-            </TabsTrigger>
-
-            {canViewExpenses && (
-              <TabsTrigger value="expenses">
-                Расходы
-              </TabsTrigger>
-            )}
-
-            {deal.importProcessEnabled && (
-              <TabsTrigger value="import-process">
-                Процесс импорта авто
-              </TabsTrigger>
-            )}
-
-            <TabsTrigger value="history">
-              История
-            </TabsTrigger>
-
-            <TabsTrigger value="comments">
-              Комментарии и пожелания
-            </TabsTrigger>
-
-            <TabsTrigger value="media">
-              Медиа{" "}
-              {deal.media?.length
-                ? `(${deal.media.length})`
-                : ""}
-            </TabsTrigger>
-          </TabsList>
-          </div>
+          <DealPageTabsNav deal={deal} canViewExpenses={canViewExpenses} />
 
           <TabsContent value="overview" className="space-y-4">
             <DealOverviewSummary

@@ -1,7 +1,7 @@
 "use client";
 
 import { MediaType } from "@prisma/client";
-import { Flag, ImagePlus, Loader2, MapPin, Search, Trash2, Truck } from "lucide-react";
+import { Flag, ImagePlus, Loader2, MapPin, Route, Search, Trash2, Truck } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { EmptyState } from "@/components/ui/empty-state";
 import { MAX_TRACKING_POINT_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
 import {
@@ -722,11 +723,15 @@ export function CarCarrierTracking({
             )}
 
             {points.length === 0 && !destination && (
-              <p className="text-sm text-muted-foreground">
-                {canEdit
-                  ? "Маршрут пока не отмечен. Добавьте точки маршрута и финальное назначение на карте."
-                  : "Маршрут автовоза пока не добавлен."}
-              </p>
+              <EmptyState
+                icon={Route}
+                title={canEdit ? "Маршрут пока не отмечен" : "Маршрут автовоза пока не добавлен"}
+                description={
+                  canEdit
+                    ? "Добавьте точки маршрута и финальное назначение на карте."
+                    : "Когда менеджер отметит путь автовоза, вы увидите карту и города здесь."
+                }
+              />
             )}
           </>
         )}

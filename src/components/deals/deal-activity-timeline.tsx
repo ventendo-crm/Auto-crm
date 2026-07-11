@@ -15,6 +15,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { DealActivityItem } from "@/lib/services/deal-activity";
 import { cn, formatDateTime } from "@/lib/utils";
 
@@ -130,7 +131,11 @@ export function DealActivityTimeline({
           })}
 
           {activity.length === 0 && (
-            <p className="text-sm text-muted-foreground">История пуста</p>
+            <EmptyState
+              icon={ClipboardList}
+              title="История пуста"
+              description="Здесь появятся изменения этапа, загрузки документов и другие действия по сделке."
+            />
           )}
         </div>
       </CardContent>

@@ -23,6 +23,17 @@ export const STAGE_LABELS: Record<DealStageType, string> = {
   [DealStageType.DELIVERY]: "Получение",
 };
 
+/** Короткие подписи этапов для прогресс-бара в личном кабинете клиента. */
+export const CLIENT_STAGE_SHORT_LABELS: Record<DealStageType, string> = {
+  [DealStageType.LEADS]: "Заявка",
+  [DealStageType.SEARCH]: "Поиск",
+  [DealStageType.INVOICE]: "Инвойс",
+  [DealStageType.PREPARATION]: "Подготовка",
+  [DealStageType.CUSTOMS]: "Таможня",
+  [DealStageType.TRANSPORT]: "В пути",
+  [DealStageType.DELIVERY]: "Получение",
+};
+
 /** Сообщения клиенту при переходе сделки на этап (личный кабинет + Telegram). */
 export const CLIENT_STAGE_NOTIFICATIONS: Record<DealStageType, string> = {
   [DealStageType.LEADS]:

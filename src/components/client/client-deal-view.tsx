@@ -9,7 +9,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { DealActivityTimeline } from "@/components/deals/deal-activity-timeline";
+import { ClientDealProgress } from "@/components/client/client-deal-progress";
 import { ClientImportProcessView } from "@/components/client/client-import-process-view";
+import { ClientPageTabsNav } from "@/components/client/client-page-tabs-nav";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
 import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
@@ -20,8 +22,9 @@ import { MediaGallery } from "@/components/media/media-gallery";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
 import { STAGE_COLORS } from "@/lib/constants";
@@ -133,26 +136,14 @@ export function ClientDealView() {
         </CardContent>
       </Card>
 
+      <ClientDealProgress
+        currentStage={deal.currentStage}
+        stageLabel={deal.stageLabel}
+        className="mb-6"
+      />
+
       <Tabs defaultValue="documents" className="space-y-4">
-        <div className="-mx-1 overflow-x-auto pb-1">
-          <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
-            <TabsTrigger value="documents">Документы</TabsTrigger>
-            <TabsTrigger value="search-process">Процесс поиска</TabsTrigger>
-            <TabsTrigger value="additional-options">Дополнительные опции</TabsTrigger>
-            {deal.importProcessEnabled && (
-              <TabsTrigger value="import-process">Процесс импорта авто</TabsTrigger>
-            )}
-            <TabsTrigger value="comments">
-              Комментарии и пожелания
-              {deal.comments.length > 0 ? ` (${deal.comments.length})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="media">
-              Медиа{deal.media.length > 0 ? ` (${deal.media.length})` : ""}
-            </TabsTrigger>
-            <TabsTrigger value="history">История</TabsTrigger>
-            <TabsTrigger value="logistics">Логистика</TabsTrigger>
-          </TabsList>
-        </div>
+        <ClientPageTabsNav deal={deal} />
 
         <TabsContent value="documents" className="space-y-4">
           <DealDocuments
@@ -188,7 +179,11 @@ export function ClientDealView() {
               />
 
               {deal.searchProcess.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Варианты поиска пока не добавлены</p>
+                <EmptyState
+                  icon={Search}
+                  title="Варианты поиска пока не добавлены"
+                  description="Когда менеджер подберёт автомобили, они появятся здесь с фото и описанием."
+                />
               ) : (
                 deal.searchProcess.map((entry) => (
                   <div key={entry.id} className="rounded-xl border bg-muted/10 p-4">

@@ -1,12 +1,13 @@
 "use client";
 
 import { MediaType } from "@prisma/client";
-import { Eye, ImagePlus, Loader2, Play, Plus, Trash2 } from "lucide-react";
+import { Eye, ImagePlus, ListPlus, Loader2, Play, Plus, Trash2 } from "lucide-react";
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
@@ -176,17 +177,21 @@ export function DealProcessEntries({
           {headerExtra}
 
           {entries.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-              {emptyText}
-              {canEdit && (
-                <div className="mt-4">
-                  <Button type="button" variant="brand" onClick={handleAddEntry} disabled={adding}>
-                    {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                    {addButtonText}
-                  </Button>
-                </div>
-              )}
-            </div>
+            <EmptyState
+              icon={ListPlus}
+              title={emptyText}
+              description={
+                canEdit ? "Добавьте первую запись — клиент увидит её в личном кабинете." : undefined
+              }
+              action={
+                canEdit
+                  ? {
+                      label: addButtonText,
+                      onClick: () => void handleAddEntry(),
+                    }
+                  : undefined
+              }
+            />
           ) : (
             entries.map((entry, index) => (
               <ProcessEntryCard

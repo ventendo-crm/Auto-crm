@@ -1,11 +1,12 @@
 "use client";
 
-import { Loader2, Send, Trash2 } from "lucide-react";
+import { Loader2, MessageSquare, Send, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";import { toast } from "sonner";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
@@ -236,7 +237,15 @@ export function DealComments({
             );
           })}
           {comments.length === 0 && (
-            <p className="text-sm text-muted-foreground">Сообщений пока нет</p>
+            <EmptyState
+              icon={MessageSquare}
+              title="Сообщений пока нет"
+              description={
+                canWrite
+                  ? "Напишите комментарий или пожелание менеджеру — он увидит его в карточке сделки."
+                  : "Здесь будут отображаться сообщения между вами и менеджером."
+              }
+            />
           )}
         </div>
 

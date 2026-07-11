@@ -1,13 +1,14 @@
 "use client";
 
 import { MediaType } from "@prisma/client";
-import { Play, Trash2, Download } from "lucide-react";
+import { Play, Trash2, Download, ImageIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { MediaUploadZone } from "@/components/media/media-upload-zone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { api } from "@/lib/api-client";
 import { getMediaDownloadUrl } from "@/lib/media-urls";
@@ -86,9 +87,15 @@ export function MediaGallery({
         </CardHeader>
         <CardContent>
           {filtered.length === 0 ? (
-            <div className="flex h-40 items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
-              {canUpload ? "Загрузите фото или видео" : "Медиафайлов нет"}
-            </div>
+            <EmptyState
+              icon={ImageIcon}
+              title={canUpload ? "Медиафайлов пока нет" : "Медиафайлов нет"}
+              description={
+                canUpload
+                  ? "Загрузите фото или видео автомобиля, документов и других материалов по сделке."
+                  : "Менеджер ещё не добавил фото и видео по вашей сделке."
+              }
+            />
           ) : (
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {filtered.map((item) => (
