@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { MediaType } from "@prisma/client";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { CarCarrierDestination, CarCarrierTrackingPoint } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const ROUTE_COLOR = "#dc2626";
+const DESTINATION_ROUTE_COLOR = "#16a34a";
 
 const defaultIcon = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -47,6 +49,46 @@ const searchPreviewIcon = L.icon({
 
 const DEFAULT_CENTER: L.LatLngExpression = [55.7558, 37.6173];
 const DEFAULT_ZOOM = 4;
+
+function getPointPreviewMedia(point: CarCarrierTrackingPoint) {
+  const photos = point.media.filter((item) => item.type === MediaType.PHOTO);
+  if (photos.length > 0) {
+    return photos[photos.length - 1];
+  }
+  return point.media[point.media.length - 1] ?? null;
+}
+
+function createPointMarkerIcon(point: CarCarrierTrackingPoint, isSelected: boolean) {
+  const previewMedia = getPointPreviewMedia(point);
+  const previewUrl = previewMedia?.thumbnailUrl ?? previewMedia?.fileUrl;
+
+  if (!previewUrl) {
+    return isSelected ? selectedIcon : defaultIcon;
+  }
+
+  const borderColor = isSelected ? "#f97316" : "#ffffff";
+  const countBadge =
+    point.media.length > 1
+      ? `<span style="position:absolute;top:-4px;right:-4px;min-width:16px;height:16px;padding:0 4px;border-radius:9999px;background:#dc2626;color:#fff;font-size:10px;font-weight:600;line-height:16px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,0.3);">${point.media.length}</span>`
+      : "";
+
+  return L.divIcon({
+    className: "car-carrier-photo-marker",
+    html: `
+      <div style="display:flex;flex-direction:column;align-items:center;pointer-events:none;">
+        <div style="position:relative;width:44px;height:44px;border:2px solid ${borderColor};border-radius:10px;overflow:hidden;background:#fff;box-shadow:0 2px 10px rgba(0,0,0,0.28);">
+          <img src="${previewUrl}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;" />
+          ${countBadge}
+        </div>
+        <div style="width:0;height:0;border-left:7px solid transparent;border-right:7px solid transparent;border-top:8px solid ${borderColor};margin-top:-1px;"></div>
+        <div style="width:10px;height:10px;border-radius:9999px;background:#dc2626;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,0.25);"></div>
+      </div>
+    `,
+    iconSize: [52, 66],
+    iconAnchor: [26, 66],
+    tooltipAnchor: [0, -58],
+  });
+}
 
 export type CarCarrierMapMode = "tracking" | "destination" | false;
 
@@ -94,6 +136,7 @@ export function CarCarrierTrackingMap({
   const mapRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
   const routeRef = useRef<L.Polyline | null>(null);
+  const destinationRouteRef = useRef<L.Polyline | null>(null);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -117,6 +160,7 @@ export function CarCarrierTrackingMap({
       mapRef.current = null;
       markersLayerRef.current = null;
       routeRef.current = null;
+      destinationRouteRef.current = null;
     };
   }, []);
 
@@ -130,19 +174,24 @@ export function CarCarrierTrackingMap({
       routeRef.current.remove();
       routeRef.current = null;
     }
+    if (destinationRouteRef.current) {
+      destinationRouteRef.current.remove();
+      destinationRouteRef.current = null;
+    }
 
-    const routeLatLngs: L.LatLngExpression[] = [];
+    const trackingLatLngs: L.LatLngExpression[] = [];
 
     points.forEach((point, index) => {
       const latLng: L.LatLngExpression = [point.latitude, point.longitude];
-      routeLatLngs.push(latLng);
+      trackingLatLngs.push(latLng);
 
       const marker = L.marker(latLng, {
-        icon: point.id === selectedPointId ? selectedIcon : defaultIcon,
+        icon: createPointMarkerIcon(point, point.id === selectedPointId),
       });
 
       const label = point.title.trim() || `Точка ${index + 1}`;
-      marker.bindTooltip(label, { direction: "top", offset: [0, -36] });
+      const tooltipOffset = point.media.length > 0 ? [0, -58] : [0, -36];
+      marker.bindTooltip(label, { direction: "top", offset: tooltipOffset as L.PointExpression });
 
       marker.on("click", () => {
         onPointSelect?.(point.id);
@@ -151,11 +200,10 @@ export function CarCarrierTrackingMap({
       layer.addLayer(marker);
     });
 
-    const boundsPoints: L.LatLngExpression[] = [...routeLatLngs];
+    const boundsPoints: L.LatLngExpression[] = [...trackingLatLngs];
 
     if (destination) {
       const destLatLng: L.LatLngExpression = [destination.latitude, destination.longitude];
-      routeLatLngs.push(destLatLng);
       boundsPoints.push(destLatLng);
 
       const destMarker = L.marker(destLatLng, { icon: destinationIcon });
@@ -179,12 +227,24 @@ export function CarCarrierTrackingMap({
       layer.addLayer(previewMarker);
     }
 
-    if (routeLatLngs.length >= 2) {
-      routeRef.current = L.polyline(routeLatLngs, {
+    if (trackingLatLngs.length >= 2) {
+      routeRef.current = L.polyline(trackingLatLngs, {
         color: ROUTE_COLOR,
         weight: 4,
         opacity: 0.9,
       }).addTo(map);
+    }
+
+    if (destination && trackingLatLngs.length >= 1) {
+      const lastPoint = trackingLatLngs[trackingLatLngs.length - 1];
+      destinationRouteRef.current = L.polyline(
+        [lastPoint, [destination.latitude, destination.longitude]],
+        {
+          color: DESTINATION_ROUTE_COLOR,
+          weight: 4,
+          opacity: 0.9,
+        },
+      ).addTo(map);
     }
 
     if (autoFitBounds) {

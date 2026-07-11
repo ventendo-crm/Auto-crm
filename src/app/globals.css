@@ -85,4 +85,9 @@
     touch-action: pan-x pan-y;
     scroll-snap-type: x mandatory;
   }
+
+  .car-carrier-photo-marker {
+    background: transparent !important;
+    border: none !important;
+  }
 }
