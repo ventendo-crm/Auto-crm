@@ -22,6 +22,9 @@ interface GroupedTabsNavProps {
   className?: string;
 }
 
+const TAB_GRID_CLASS =
+  "grid h-auto w-full grid-cols-3 gap-2 rounded-none border-0 bg-transparent p-0 shadow-none sm:grid-cols-4 md:grid-cols-5";
+
 export function GroupedTabsNav({ groups, className }: GroupedTabsNavProps) {
   return (
     <div className={cn("space-y-4", className)}>
@@ -30,16 +33,7 @@ export function GroupedTabsNav({ groups, className }: GroupedTabsNavProps) {
           <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
             {group.label}
           </p>
-          <TabsList
-            className={cn(
-              "grid h-auto w-full gap-2 rounded-none border-0 bg-transparent p-0 shadow-none",
-              group.items.length <= 3
-                ? "grid-cols-3"
-                : group.items.length === 4
-                  ? "grid-cols-2 sm:grid-cols-4"
-                  : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5",
-            )}
-          >
+          <TabsList className={TAB_GRID_CLASS}>
             {group.items.map((item) => {
               const Icon = item.icon;
 
