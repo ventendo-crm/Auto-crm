@@ -10,7 +10,7 @@ import { api } from "@/lib/api-client";
 import { DealDetail } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
-type EditableDealField = "balance" | "expectedArrival" | "actualArrival";
+type EditableDealField = "balance" | "expectedArrival" | "actualArrival" | "purchasePrice";
 
 type DealInfoField =
   | {
@@ -41,10 +41,13 @@ const dealInfoFields: DealInfoField[] = [
     value: (d) => [d.carBrand, d.carModel].filter(Boolean).join(" ") || "—",
   },
   {
-    kind: "static",
-    label: "Стоимость",
+    kind: "editable",
+    label: "Бюджет",
+    field: "purchasePrice",
+    type: "currency",
     requiresFinances: true,
-    value: (d) => formatCurrency(d.purchasePrice),
+    inputValue: (d) => (d.purchasePrice != null ? String(d.purchasePrice) : ""),
+    displayValue: (d) => formatCurrency(d.purchasePrice),
   },
   {
     kind: "static",
