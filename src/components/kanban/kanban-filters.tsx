@@ -101,45 +101,54 @@ export function KanbanFilters({
         )}
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-        {isAdmin && managers.length > 0 && (
-          <Select value={selectedManagerId} onValueChange={onManagerChange}>
-            <SelectTrigger className="h-8 w-full sm:w-[220px]">
-              <SelectValue placeholder="Менеджер" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_MANAGERS}>Все менеджеры</SelectItem>
-              {managers.map((manager) => (
-                <SelectItem key={manager.id} value={manager.id}>
-                  {manager.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
+      <div className="flex flex-col gap-2">
+        <div
+          className={cn(
+            "flex items-center gap-2",
+            !(isAdmin && managers.length > 0) && "justify-end",
+          )}
+        >
+          {isAdmin && managers.length > 0 && (
+            <Select value={selectedManagerId} onValueChange={onManagerChange}>
+              <SelectTrigger className="h-8 min-w-0 flex-1 sm:w-[220px] sm:flex-none">
+                <SelectValue placeholder="Менеджер" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_MANAGERS}>Все менеджеры</SelectItem>
+                {managers.map((manager) => (
+                  <SelectItem key={manager.id} value={manager.id}>
+                    {manager.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <FilterToggle active={compactView} onClick={() => onCompactViewChange(!compactView)}>
+          <FilterToggle
+            active={compactView}
+            onClick={() => onCompactViewChange(!compactView)}
+            className="shrink-0"
+          >
             {compactView ? (
               <LayoutList className="h-3.5 w-3.5" />
             ) : (
               <LayoutGrid className="h-3.5 w-3.5" />
             )}
-            Компактно
+            <span className="hidden sm:inline">Компактно</span>
           </FilterToggle>
-
-          {hasManagerFilter && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-8 px-2 text-xs text-muted-foreground"
-              onClick={() => onManagerChange(ALL_MANAGERS)}
-            >
-              Сбросить фильтры
-            </Button>
-          )}
         </div>
+
+        {hasManagerFilter && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-8 self-start px-2 text-xs text-muted-foreground"
+            onClick={() => onManagerChange(ALL_MANAGERS)}
+          >
+            Сбросить фильтры
+          </Button>
+        )}
       </div>
     </div>
   );
