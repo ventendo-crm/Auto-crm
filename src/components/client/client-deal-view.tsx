@@ -28,7 +28,7 @@ import { STAGE_COLORS } from "@/lib/constants";
 import { getMediaDownloadUrl } from "@/lib/media-urls";
 import { ClientPortalDeal, MediaItem } from "@/lib/types";
 import { DealActivityItem } from "@/lib/services/deal-activity";
-import { formatDate, formatFileSize } from "@/lib/utils";
+import { formatFileSize } from "@/lib/utils";
 
 interface PreviewState {
   items: MediaItem[];
@@ -129,14 +129,6 @@ export function ClientDealView() {
             {deal.manager?.email && (
               <p className="text-xs text-muted-foreground">{deal.manager.email}</p>
             )}
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Ожидаемое прибытие</p>
-            <p className="text-sm">{formatDate(deal.expectedArrival)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-muted-foreground">Фактическое прибытие</p>
-            <p className="text-sm">{formatDate(deal.actualArrival)}</p>
           </div>
         </CardContent>
       </Card>
