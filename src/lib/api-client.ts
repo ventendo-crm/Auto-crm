@@ -14,6 +14,9 @@ import {
   ReminderItem,
   Role,
   ImportProcessEntry,
+  CarCarrierTrackingPoint,
+  CarCarrierTrackingData,
+  CarCarrierDestination,
   SearchProcessEntry,
   SearchProcessData,
   SearchProcessLinks,
@@ -258,6 +261,109 @@ export const api = {
       }
 
       return json.data as MediaItem | MediaItem[];
+    },
+  },
+
+  carCarrierTracking: {
+    get: (dealId: string) =>
+      request<CarCarrierTrackingData>(`/api/deals/${dealId}/car-carrier-tracking`),
+    list: (dealId: string) =>
+      request<CarCarrierTrackingData>(`/api/deals/${dealId}/car-carrier-tracking`).then(
+        (data) => data.points,
+      ),
+    create: (
+      dealId: string,
+      data: {
+        latitude: number;
+        longitude: number;
+        title?: string;
+        description?: string;
+        recordedAt?: string;
+      },
+    ) =>
+      request<CarCarrierTrackingPoint>(`/api/deals/${dealId}/car-carrier-tracking`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    update: (
+      dealId: string,
+      pointId: string,
+      data: {
+        latitude?: number;
+        longitude?: number;
+        title?: string;
+        description?: string;
+        recordedAt?: string;
+      },
+    ) =>
+      request<CarCarrierTrackingPoint>(
+        `/api/deals/${dealId}/car-carrier-tracking/${pointId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        },
+      ),
+    delete: async (dealId: string, pointId: string) => {
+      const response = await fetch(
+        `/api/deals/${dealId}/car-carrier-tracking/${pointId}`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+      if (!response.ok) {
+        const json = (await response.json()) as ApiResponse<unknown>;
+        throw new Error(json.error ?? "Delete failed");
+      }
+    },
+    uploadMedia: async (dealId: string, pointId: string, files: File[]) => {
+      const formData = new FormData();
+      for (const file of files) {
+        formData.append("files", file);
+      }
+
+      const response = await fetch(
+        `/api/deals/${dealId}/car-carrier-tracking/${pointId}/media`,
+        {
+          method: "POST",
+          credentials: "include",
+          body: formData,
+        },
+      );
+
+      const json = (await response.json()) as ApiResponse<MediaItem | MediaItem[]>;
+
+      if (!response.ok || !json.success) {
+        throw new Error(json.error ?? "Upload failed");
+      }
+
+      return json.data as MediaItem | MediaItem[];
+    },
+    setDestination: (
+      dealId: string,
+      data: { latitude: number; longitude: number; title?: string },
+    ) =>
+      request<CarCarrierDestination>(`/api/deals/${dealId}/car-carrier-tracking/destination`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    updateDestinationTitle: (dealId: string, title: string) =>
+      request<CarCarrierDestination>(`/api/deals/${dealId}/car-carrier-tracking/destination`, {
+        method: "PATCH",
+        body: JSON.stringify({ title }),
+      }),
+    clearDestination: async (dealId: string) => {
+      const response = await fetch(
+        `/api/deals/${dealId}/car-carrier-tracking/destination`,
+        {
+          method: "DELETE",
+          credentials: "include",
+        },
+      );
+      if (!response.ok) {
+        const json = (await response.json()) as ApiResponse<unknown>;
+        throw new Error(json.error ?? "Delete failed");
+      }
     },
   },
 

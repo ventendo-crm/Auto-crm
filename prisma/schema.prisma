@@ -68,6 +68,9 @@ model Deal {
   inspectionLink     String?
   chinaAutotecaLink  String?
   importProcessEnabled Boolean        @default(false)
+  carCarrierDestinationLat Decimal?    @db.Decimal(10, 7)
+  carCarrierDestinationLng Decimal?    @db.Decimal(10, 7)
+  carCarrierDestinationTitle String     @default("")
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
   comments           Comment[]
@@ -82,6 +85,7 @@ model Deal {
   tasks              Task[]
   searchProcessEntries SearchProcessEntry[]
   importProcessEntries ImportProcessEntry[]
+  carCarrierTrackingPoints CarCarrierTrackingPoint[]
   additionalOptions    DealAdditionalOption[]
   expenses             DealExpense[]
 
@@ -138,18 +142,21 @@ model MediaFile {
   dealId               String?
   searchProcessEntryId String?
   importProcessEntryId String?
+  carCarrierTrackingPointId String?
   uploadedById         String
   uploadedAt             DateTime            @default(now())
   deal                 Deal?               @relation(fields: [dealId], references: [id], onDelete: Cascade)
   task                 Task?               @relation(fields: [taskId], references: [id], onDelete: Cascade)
   searchProcessEntry   SearchProcessEntry? @relation(fields: [searchProcessEntryId], references: [id], onDelete: Cascade)
   importProcessEntry   ImportProcessEntry? @relation(fields: [importProcessEntryId], references: [id], onDelete: Cascade)
+  carCarrierTrackingPoint CarCarrierTrackingPoint? @relation(fields: [carCarrierTrackingPointId], references: [id], onDelete: Cascade)
   uploadedBy           User                @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
 
   @@index([dealId])
   @@index([taskId])
   @@index([searchProcessEntryId])
   @@index([importProcessEntryId])
+  @@index([carCarrierTrackingPointId])
   @@index([uploadedById])
   @@map("media_files")
 }
@@ -184,6 +191,25 @@ model ImportProcessEntry {
   @@index([dealId])
   @@index([sortOrder])
   @@map("import_process_entries")
+}
+
+model CarCarrierTrackingPoint {
+  id          String      @id @default(cuid())
+  dealId      String
+  latitude    Decimal     @db.Decimal(10, 7)
+  longitude   Decimal     @db.Decimal(10, 7)
+  title       String      @default("")
+  description String      @default("")
+  recordedAt  DateTime    @default(now())
+  sortOrder   Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  deal        Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  media       MediaFile[]
+
+  @@index([dealId])
+  @@index([sortOrder])
+  @@map("car_carrier_tracking_points")
 }
 
 model DealAdditionalOption {

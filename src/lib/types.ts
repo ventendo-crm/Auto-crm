@@ -107,6 +107,31 @@ export interface ImportProcessEntry {
   media: MediaItem[];
 }
 
+export interface CarCarrierTrackingPoint {
+  id: string;
+  dealId: string;
+  latitude: number;
+  longitude: number;
+  title: string;
+  description: string;
+  recordedAt: string;
+  sortOrder: number;
+  createdAt: string;
+  updatedAt: string;
+  media: MediaItem[];
+}
+
+export interface CarCarrierDestination {
+  latitude: number;
+  longitude: number;
+  title: string;
+}
+
+export interface CarCarrierTrackingData {
+  points: CarCarrierTrackingPoint[];
+  destination: CarCarrierDestination | null;
+}
+
 export interface SearchProcessEntry {
   id: string;
   dealId: string;
@@ -347,5 +372,7 @@ export interface ClientPortalDeal {
     stageNumber: number;
     media: MediaItem[];
   }[];
+  carCarrierTracking: CarCarrierTrackingPoint[];
+  carCarrierDestination: CarCarrierDestination | null;
   media: MediaItem[];
 }

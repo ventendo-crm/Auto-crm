@@ -247,7 +247,10 @@ export function ClientDealView() {
         {deal.importProcessEnabled && (
           <TabsContent value="import-process">
             <ClientImportProcessView
+              dealId={deal.id}
               entries={deal.importProcess}
+              carCarrierTracking={deal.carCarrierTracking}
+              carCarrierDestination={deal.carCarrierDestination}
               onPreview={openPreview}
             />
           </TabsContent>

@@ -53,8 +53,21 @@ export async function getDealByClientUserId(clientUserId: string) {
           },
         },
       },
+      carCarrierTrackingPoints: {
+        orderBy: { sortOrder: "asc" as const },
+        include: {
+          media: {
+            orderBy: { uploadedAt: "asc" as const },
+            include: SEARCH_PROCESS_MEDIA_INCLUDE,
+          },
+        },
+      },
       media: {
-        where: { searchProcessEntryId: null, importProcessEntryId: null },
+        where: {
+          searchProcessEntryId: null,
+          importProcessEntryId: null,
+          carCarrierTrackingPointId: null,
+        },
         orderBy: { uploadedAt: "desc" as const },
         include: galleryMediaInclude,
       },
@@ -94,6 +107,31 @@ export async function getClientPortalDeal(clientUserId: string) {
       media: await Promise.all(entry.media.map(enrichMediaRecord)),
     })),
   );
+
+  const carCarrierTracking = await Promise.all(
+    deal.carCarrierTrackingPoints.map(async (point) => ({
+      id: point.id,
+      dealId: deal.id,
+      latitude: Number(point.latitude),
+      longitude: Number(point.longitude),
+      title: point.title,
+      description: point.description,
+      recordedAt: point.recordedAt.toISOString(),
+      sortOrder: point.sortOrder,
+      createdAt: point.createdAt.toISOString(),
+      updatedAt: point.updatedAt.toISOString(),
+      media: await Promise.all(point.media.map(enrichMediaRecord)),
+    })),
+  );
+
+  const carCarrierDestination =
+    deal.carCarrierDestinationLat != null && deal.carCarrierDestinationLng != null
+      ? {
+          latitude: Number(deal.carCarrierDestinationLat),
+          longitude: Number(deal.carCarrierDestinationLng),
+          title: deal.carCarrierDestinationTitle || "Точка назначения",
+        }
+      : null;
 
   const media = await Promise.all(deal.media.map(enrichMediaRecord));
 
@@ -145,6 +183,8 @@ export async function getClientPortalDeal(clientUserId: string) {
     },
     importProcessEnabled: deal.importProcessEnabled,
     importProcess,
+    carCarrierTracking,
+    carCarrierDestination,
     media,
   });
 }

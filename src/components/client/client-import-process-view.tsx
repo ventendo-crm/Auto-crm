@@ -2,23 +2,41 @@
 
 import { MediaType } from "@prisma/client";
 import { Download, Play, Ship } from "lucide-react";
+import { CarCarrierTracking } from "@/components/deals/car-carrier-tracking";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getMediaDownloadUrl } from "@/lib/media-urls";
-import { MediaItem } from "@/lib/types";
+import { CarCarrierDestination, CarCarrierTrackingPoint, MediaItem } from "@/lib/types";
 
 interface ClientImportProcessViewProps {
+  dealId: string;
   entries: {
     id: string;
     description: string;
     stageNumber: number;
     media: MediaItem[];
   }[];
+  carCarrierTracking?: CarCarrierTrackingPoint[];
+  carCarrierDestination?: CarCarrierDestination | null;
   onPreview: (items: MediaItem[], item: MediaItem) => void;
 }
 
-export function ClientImportProcessView({ entries, onPreview }: ClientImportProcessViewProps) {
+export function ClientImportProcessView({
+  dealId,
+  entries,
+  carCarrierTracking,
+  carCarrierDestination,
+  onPreview,
+}: ClientImportProcessViewProps) {
   return (
-    <Card className="border-0 shadow-card">
+    <div className="space-y-4">
+      <CarCarrierTracking
+        dealId={dealId}
+        canEdit={false}
+        initialPoints={carCarrierTracking}
+        initialDestination={carCarrierDestination}
+      />
+
+      <Card className="border-0 shadow-card">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Ship className="h-4 w-4" />
@@ -97,5 +115,6 @@ export function ClientImportProcessView({ entries, onPreview }: ClientImportProc
         )}
       </CardContent>
     </Card>
+    </div>
   );
 }

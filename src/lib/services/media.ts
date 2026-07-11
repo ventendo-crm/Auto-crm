@@ -1,5 +1,5 @@
 import { MediaType, Prisma } from "@prisma/client";
-import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
+import { MAX_PROCESS_ENTRY_MEDIA, MAX_TRACKING_POINT_MEDIA } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { AuthUser, canUpdateDeal, canViewDeal } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
@@ -103,7 +103,7 @@ export async function listDealMedia(user: AuthUser, dealId: string) {
   await assertDealAccess(user, dealId);
 
   const items = await prisma.mediaFile.findMany({
-    where: { dealId, searchProcessEntryId: null, importProcessEntryId: null },
+    where: { dealId, searchProcessEntryId: null, importProcessEntryId: null, carCarrierTrackingPointId: null },
     orderBy: { uploadedAt: "desc" },
     include: mediaInclude,
   });
@@ -115,12 +115,17 @@ export async function uploadDealMedia(
   user: AuthUser,
   dealId: string,
   file: File,
-  options?: { searchProcessEntryId?: string; importProcessEntryId?: string },
+  options?: {
+    searchProcessEntryId?: string;
+    importProcessEntryId?: string;
+    carCarrierTrackingPointId?: string;
+  },
 ) {
   await assertDealAccess(user, dealId, true);
 
   let searchEntry: { sortOrder: number } | null = null;
   let importEntry: { sortOrder: number } | null = null;
+  let trackingPoint: { sortOrder: number } | null = null;
 
   if (options?.searchProcessEntryId) {
     const entry = await prisma.searchProcessEntry.findFirst({
@@ -153,6 +158,23 @@ export async function uploadDealMedia(
 
     if (entry._count.media >= MAX_PROCESS_ENTRY_MEDIA) {
       throw new Error(`Максимум ${MAX_PROCESS_ENTRY_MEDIA} файлов на этап`);
+    }
+  }
+
+  if (options?.carCarrierTrackingPointId) {
+    const point = await prisma.carCarrierTrackingPoint.findFirst({
+      where: { id: options.carCarrierTrackingPointId, dealId },
+      include: { _count: { select: { media: true } } },
+    });
+
+    if (!point) {
+      throw new Error("Not found");
+    }
+
+    trackingPoint = point;
+
+    if (point._count.media >= MAX_TRACKING_POINT_MEDIA) {
+      throw new Error(`Максимум ${MAX_TRACKING_POINT_MEDIA} фото на точку`);
     }
   }
 
@@ -190,6 +212,7 @@ export async function uploadDealMedia(
       dealId,
       searchProcessEntryId: options?.searchProcessEntryId ?? null,
       importProcessEntryId: options?.importProcessEntryId ?? null,
+      carCarrierTrackingPointId: options?.carCarrierTrackingPointId ?? null,
       uploadedById: user.id,
     },
     include: mediaInclude,
@@ -216,6 +239,12 @@ export async function uploadDealMedia(
             importProcessEntryId: options.importProcessEntryId,
             sortOrder: importEntry?.sortOrder,
             stageNumber: (importEntry?.sortOrder ?? 0) + 1,
+          }
+        : {}),
+      ...(options?.carCarrierTrackingPointId
+        ? {
+            carCarrierTrackingPointId: options.carCarrierTrackingPointId,
+            sortOrder: trackingPoint?.sortOrder,
           }
         : {}),
     },

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { CarCarrierTracking } from "@/components/deals/car-carrier-tracking";
 import { DealProcessEntries } from "@/components/deals/deal-process-entries";
 import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
@@ -26,7 +27,9 @@ export function DealImportProcess({ dealId, canEdit = false, onChanged }: DealIm
   );
 
   return (
-    <DealProcessEntries
+    <div className="space-y-4">
+      <CarCarrierTracking dealId={dealId} canEdit={canEdit} />
+      <DealProcessEntries
       dealId={dealId}
       canEdit={canEdit}
       onChanged={onChanged}
@@ -43,6 +46,7 @@ export function DealImportProcess({ dealId, canEdit = false, onChanged }: DealIm
       mediaPerEntryLabel="файлов на этап"
       descriptionPlaceholder="Кратко опишите этап импорта..."
       entriesApi={entriesApi}
-    />
+      />
+    </div>
   );
 }
