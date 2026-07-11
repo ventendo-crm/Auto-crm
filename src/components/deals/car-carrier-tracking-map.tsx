@@ -5,7 +5,45 @@ import { MediaType } from "@prisma/client";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { CarCarrierDestination, CarCarrierTrackingPoint } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, formatDate } from "@/lib/utils";
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildPointPopup(point: CarCarrierTrackingPoint, index: number) {
+  const title = escapeHtml(point.title.trim() || `Точка ${index + 1}`);
+  const date = escapeHtml(formatDate(point.recordedAt));
+  const description = point.description
+    ? `<p style="margin:8px 0 0;font-size:13px;line-height:1.45;white-space:pre-wrap;">${escapeHtml(point.description)}</p>`
+    : "";
+
+  const photos =
+    point.media.length > 0
+      ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px;">
+          ${point.media
+            .map((item) => {
+              const src = escapeHtml(item.thumbnailUrl ?? item.fileUrl);
+              const href = escapeHtml(item.fileUrl);
+              return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="display:block;overflow:hidden;border-radius:8px;border:1px solid #e5e7eb;">
+                <img src="${src}" alt="" style="display:block;width:100%;aspect-ratio:1;object-fit:cover;" />
+              </a>`;
+            })
+            .join("")}
+        </div>`
+      : "";
+
+  return `<div style="min-width:180px;max-width:280px;">
+    <p style="margin:0;font-size:14px;font-weight:600;">${title}</p>
+    <p style="margin:4px 0 0;font-size:12px;color:#6b7280;">${date}</p>
+    ${description}
+    ${photos}
+  </div>`;
+}
 
 const ROUTE_COLOR = "#dc2626";
 const DESTINATION_ROUTE_COLOR = "#16a34a";
@@ -114,6 +152,7 @@ interface CarCarrierTrackingMapProps {
   viewTarget?: MapViewTarget | null;
   searchPreview?: MapSearchPreview | null;
   autoFitBounds?: boolean;
+  showPointPopups?: boolean;
   onMapClick?: (latitude: number, longitude: number) => void;
   onPointSelect?: (pointId: string) => void;
   className?: string;
@@ -128,6 +167,7 @@ export function CarCarrierTrackingMap({
   viewTarget,
   searchPreview,
   autoFitBounds = true,
+  showPointPopups = false,
   onMapClick,
   onPointSelect,
   className,
@@ -193,9 +233,16 @@ export function CarCarrierTrackingMap({
       const tooltipOffset = point.media.length > 0 ? [0, -58] : [0, -36];
       marker.bindTooltip(label, { direction: "top", offset: tooltipOffset as L.PointExpression });
 
-      marker.on("click", () => {
-        onPointSelect?.(point.id);
-      });
+      if (showPointPopups) {
+        marker.bindPopup(buildPointPopup(point, index), { maxWidth: 300 });
+        marker.on("click", () => {
+          marker.openPopup();
+        });
+      } else {
+        marker.on("click", () => {
+          onPointSelect?.(point.id);
+        });
+      }
 
       layer.addLayer(marker);
     });
@@ -211,6 +258,15 @@ export function CarCarrierTrackingMap({
         direction: "top",
         offset: [0, -36],
       });
+      if (showPointPopups) {
+        destMarker.bindPopup(
+          `<div style="min-width:160px;">
+            <p style="margin:0;font-size:14px;font-weight:600;">${escapeHtml(destination.title || "Точка назначения")}</p>
+            <p style="margin:4px 0 0;font-size:12px;color:#6b7280;">Финальная точка назначения</p>
+          </div>`,
+          { maxWidth: 260 },
+        );
+      }
       layer.addLayer(destMarker);
     }
 
@@ -258,7 +314,7 @@ export function CarCarrierTrackingMap({
         });
       }
     }
-  }, [points, destination, selectedPointId, searchPreview, autoFitBounds, onPointSelect]);
+  }, [points, destination, selectedPointId, searchPreview, autoFitBounds, showPointPopups, onPointSelect]);
 
   useEffect(() => {
     const map = mapRef.current;

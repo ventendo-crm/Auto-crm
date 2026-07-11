@@ -18,7 +18,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { MAX_TRACKING_POINT_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
 import { CarCarrierDestination, CarCarrierTrackingPoint, GeocodeResult } from "@/lib/types";
-import { cn, formatDate } from "@/lib/utils";
 
 interface CarCarrierTrackingProps {
   dealId: string;
@@ -396,11 +395,12 @@ export function CarCarrierTracking({
               viewTarget={viewTarget}
               searchPreview={searchPreview}
               autoFitBounds={autoFitBounds}
+              showPointPopups={!canEdit}
               onMapClick={(lat, lng) => void handleMapClick(lat, lng)}
               onPointSelect={setSelectedPointId}
             />
 
-            {destination && (
+            {canEdit && destination && (
               <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 dark:border-emerald-900 dark:bg-emerald-950/20">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
@@ -447,36 +447,7 @@ export function CarCarrierTracking({
               </p>
             )}
 
-            {points.length > 0 && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {points.map((point, index) => (
-                  <button
-                    key={point.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedPointId(point.id);
-                      setAddMode(false);
-                    }}
-                    className={cn(
-                      "rounded-lg border p-3 text-left transition-colors",
-                      selectedPointId === point.id
-                        ? "border-brand bg-brand-muted/40"
-                        : "bg-muted/20 hover:bg-muted/40",
-                    )}
-                  >
-                    <p className="text-sm font-medium">
-                      {point.title.trim() || `Точка ${index + 1}`}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      {formatDate(point.recordedAt)}
-                      {point.media.length > 0 ? ` · ${point.media.length} фото` : ""}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {selectedPoint && (
+            {canEdit && selectedPoint && (
               <div className="space-y-4 rounded-xl border bg-muted/10 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
@@ -561,17 +532,7 @@ export function CarCarrierTracking({
                       />
                     </div>
                   </div>
-                ) : (
-                  <div className="space-y-2 text-sm">
-                    <p>
-                      <span className="text-muted-foreground">Дата: </span>
-                      {formatDate(selectedPoint.recordedAt)}
-                    </p>
-                    {selectedPoint.description && (
-                      <p className="whitespace-pre-wrap">{selectedPoint.description}</p>
-                    )}
-                  </div>
-                )}
+                ) : null}
 
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-2">

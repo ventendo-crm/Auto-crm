@@ -309,11 +309,7 @@ export default function DealPage() {
 
           {deal.importProcessEnabled && (
             <TabsContent value="import-process">
-              <DealImportProcess
-                dealId={deal.id}
-                canEdit={canManageDeal}
-                onChanged={refreshActivity}
-              />
+              <DealImportProcess dealId={deal.id} canEdit={canManageDeal} />
             </TabsContent>
           )}
 

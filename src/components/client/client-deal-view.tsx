@@ -10,7 +10,6 @@ import {
 import { toast } from "sonner";
 import { DealActivityTimeline } from "@/components/deals/deal-activity-timeline";
 import { ClientImportProcessView } from "@/components/client/client-import-process-view";
-import { DealImportProcess } from "@/components/deals/deal-import-process";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
 import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
@@ -248,10 +247,8 @@ export function ClientDealView() {
           <TabsContent value="import-process">
             <ClientImportProcessView
               dealId={deal.id}
-              entries={deal.importProcess}
               carCarrierTracking={deal.carCarrierTracking}
               carCarrierDestination={deal.carCarrierDestination}
-              onPreview={openPreview}
             />
           </TabsContent>
         )}
