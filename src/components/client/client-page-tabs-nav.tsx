@@ -41,12 +41,12 @@ export function ClientPageTabsNav({ deal }: ClientPageTabsNavProps) {
           icon: MessageSquare,
           badge: deal.comments.length > 0 ? deal.comments.length : undefined,
         },
+        { value: "additional-options", label: "Доп. опции", icon: ListChecks },
       ],
     };
 
     const processItems: GroupedTabGroup["items"] = [
       { value: "search-process", label: "Поиск авто", icon: Search },
-      { value: "additional-options", label: "Доп. опции", icon: ListChecks },
     ];
 
     if (deal.importProcessEnabled) {

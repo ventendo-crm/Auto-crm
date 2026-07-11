@@ -28,36 +28,38 @@ export function DealPageTabsNav({ deal, canViewExpenses }: DealPageTabsNavProps)
       return !doc || doc.status === "MISSING";
     }).length;
 
+    const mainItems: GroupedTabGroup["items"] = [
+      { value: "overview", label: "Обзор", icon: ClipboardList },
+      {
+        value: "documents",
+        label: "Документы",
+        icon: FileText,
+        badge: missingDocuments > 0 ? missingDocuments : undefined,
+      },
+      {
+        value: "comments",
+        label: "Комментарии",
+        icon: MessageSquare,
+        badge: deal.comments.length > 0 ? deal.comments.length : undefined,
+      },
+      { value: "additional-options", label: "Доп. опции", icon: ListChecks },
+    ];
+
+    if (canViewExpenses) {
+      mainItems.push({ value: "expenses", label: "Расходы", icon: Receipt });
+    }
+
     const mainGroup: GroupedTabGroup = {
       label: "Основное",
-      items: [
-        { value: "overview", label: "Обзор", icon: ClipboardList },
-        {
-          value: "documents",
-          label: "Документы",
-          icon: FileText,
-          badge: missingDocuments > 0 ? missingDocuments : undefined,
-        },
-        {
-          value: "comments",
-          label: "Комментарии",
-          icon: MessageSquare,
-          badge: deal.comments.length > 0 ? deal.comments.length : undefined,
-        },
-      ],
+      items: mainItems,
     };
 
     const processItems: GroupedTabGroup["items"] = [
       { value: "search-process", label: "Поиск авто", icon: Search },
-      { value: "additional-options", label: "Доп. опции", icon: ListChecks },
     ];
 
     if (deal.importProcessEnabled) {
       processItems.push({ value: "import-process", label: "Импорт авто", icon: Truck });
-    }
-
-    if (canViewExpenses) {
-      processItems.push({ value: "expenses", label: "Расходы", icon: Receipt });
     }
 
     const processGroup: GroupedTabGroup = {
