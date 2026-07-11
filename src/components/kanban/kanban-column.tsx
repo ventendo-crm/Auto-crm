@@ -13,11 +13,19 @@ interface KanbanColumnProps {
   stage: DealStageType;
   deals: DealListItem[];
   isOver?: boolean;
+  dragEnabled?: boolean;
   canDrag: (deal: DealListItem) => boolean;
   savingDealId?: string | null;
 }
 
-export function KanbanColumn({ stage, deals, isOver, canDrag, savingDealId }: KanbanColumnProps) {
+export function KanbanColumn({
+  stage,
+  deals,
+  isOver,
+  dragEnabled = true,
+  canDrag,
+  savingDealId,
+}: KanbanColumnProps) {
   const { setNodeRef, isOver: isDroppableOver } = useDroppable({
     id: stage,
     data: { type: "column", stage },
@@ -62,7 +70,7 @@ export function KanbanColumn({ stage, deals, isOver, canDrag, savingDealId }: Ka
                   highlighted && "border-brand/40 bg-brand-muted/30 text-brand",
                 )}
               >
-                Перетащите карточку сюда
+                {dragEnabled ? "Перетащите карточку сюда" : "Сделок пока нет"}
               </div>
             )}
           </div>

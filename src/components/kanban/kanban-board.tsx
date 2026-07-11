@@ -26,6 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useIsAndroidWebView } from "@/hooks/use-is-android-webview";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { api } from "@/lib/api-client";
 import { androidBridge } from "@/lib/android-webview";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
@@ -50,6 +51,8 @@ const collisionDetection: CollisionDetection = (args) => {
 export function KanbanBoard() {
   const { user } = useAuth();
   const isAndroidApp = useIsAndroidWebView();
+  const isMobile = useIsMobile();
+  const dragEnabled = !isMobile;
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [managers, setManagers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -275,7 +278,10 @@ export function KanbanBoard() {
               stage={stage}
               deals={dealsByStage[stage]}
               isOver={overStage === stage}
-              canDrag={(deal) => canDragDeal(user?.role.name, user?.id, deal.managerId)}
+              dragEnabled={dragEnabled}
+              canDrag={(deal) =>
+                dragEnabled && canDragDeal(user?.role.name, user?.id, deal.managerId)
+              }
               savingDealId={savingDealId}
             />
           ))}
