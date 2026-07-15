@@ -73,7 +73,7 @@ export function ManagersMultiSelect({
   }
 
   return (
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger
         id={id}
         disabled={disabled}
@@ -95,7 +95,7 @@ export function ManagersMultiSelect({
 
       <DropdownMenuContent
         align="start"
-        className="max-h-64 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
+        className="z-[110] max-h-64 w-[var(--radix-dropdown-menu-trigger-width)] overflow-y-auto"
       >
         {managers.map((manager) => (
           <DropdownMenuCheckboxItem

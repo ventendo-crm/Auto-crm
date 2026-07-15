@@ -38,31 +38,42 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
     destinationCity: "",
     destinationCountry: "Россия",
     prepayment: "",
+    balance: "",
     managerIds: [] as string[],
   });
+
+  const resetForm = () =>
+    setForm({
+      clientName: "",
+      vin: "",
+      carBrand: "",
+      carModel: "",
+      destinationCity: "",
+      destinationCountry: "Россия",
+      prepayment: "",
+      balance: "",
+      managerIds: [],
+    });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     setLoading(true);
     try {
       await api.deals.create({
-        ...form,
+        clientName: form.clientName,
+        vin: form.vin || undefined,
+        carBrand: form.carBrand || undefined,
+        carModel: form.carModel || undefined,
+        destinationCity: form.destinationCity,
+        destinationCountry: form.destinationCountry,
         prepayment: form.prepayment ? Number(form.prepayment) : undefined,
-        carYear: undefined,
+        balance: form.balance ? Number(form.balance) : undefined,
         managerIds: canAssignManagers && form.managerIds.length > 0 ? form.managerIds : undefined,
       });
       toast.success("Сделка создана");
       setOpen(false);
-      setForm({
-        clientName: "",
-        vin: "",
-        carBrand: "",
-        carModel: "",
-        destinationCity: "",
-        destinationCountry: "Россия",
-        prepayment: "",
-        managerIds: [],
-      });
+      resetForm();
       onCreated?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Ошибка создания");
@@ -141,12 +152,24 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
                 required
               />
             </div>
-            <div className="space-y-2 sm:col-span-2">
-              <Label>Предоплата (₽)</Label>
+            <div className="space-y-2">
+              <Label>Предоплата (₽), необязательно</Label>
               <Input
                 type="number"
+                min={0}
+                placeholder="0"
                 value={form.prepayment}
                 onChange={(e) => setForm({ ...form, prepayment: e.target.value })}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Остаток (₽), необязательно</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={form.balance}
+                onChange={(e) => setForm({ ...form, balance: e.target.value })}
               />
             </div>
           </div>
