@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api-client";
-import { DealExpenseItem, sumDealExpenses } from "@/lib/services/deal-expenses";
+import { DealExpenseItem } from "@/lib/services/deal-expenses";
 import { formatCurrency } from "@/lib/utils";
 
 interface ExpenseRow {
@@ -46,27 +46,13 @@ function parseAmount(value: string): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
 }
 
-function mergeRowsAfterSave(current: ExpenseRow[], saved: DealExpenseItem[]): ExpenseRow[] {
-  const savedRows = saved.map((item) => ({
-    key: item.id,
-    description: item.description,
-    amount: item.amount > 0 ? String(item.amount) : "",
-  }));
-
-  const emptyDrafts = current.filter(
-    (row) => !row.description.trim() && parseAmount(row.amount) <= 0,
-  );
-
-  if (savedRows.length === 0 && emptyDrafts.length === 0) {
-    return [createEmptyRow()];
-  }
-
-  return [...savedRows, ...emptyDrafts];
+function isEmptyRow(row: ExpenseRow): boolean {
+  return !row.description.trim() && parseAmount(row.amount) <= 0;
 }
 
 function meaningfulPayload(rows: ExpenseRow[]) {
   return rows
-    .filter((row) => row.description.trim().length > 0 || parseAmount(row.amount) > 0)
+    .filter((row) => !isEmptyRow(row))
     .map((row) => ({
       description: row.description.trim(),
       amount: parseAmount(row.amount),
@@ -77,12 +63,35 @@ function serializePayload(rows: ExpenseRow[]): string {
   return JSON.stringify(meaningfulPayload(rows));
 }
 
+/** Сохраняет локальные key, чтобы инпуты не размонтировались и клавиатура не закрывалась. */
+function mergeRowsAfterSave(current: ExpenseRow[], saved: DealExpenseItem[]): ExpenseRow[] {
+  const meaningfulCurrent = current.filter((row) => !isEmptyRow(row));
+  const emptyDrafts = current.filter(isEmptyRow);
+
+  const savedRows = saved.map((item, index) => ({
+    key: meaningfulCurrent[index]?.key ?? item.id,
+    description: item.description,
+    amount: item.amount > 0 ? String(item.amount) : "",
+  }));
+
+  if (savedRows.length === 0 && emptyDrafts.length === 0) {
+    return [createEmptyRow()];
+  }
+
+  return [...savedRows, ...emptyDrafts];
+}
+
 export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
   const [rows, setRows] = useState<ExpenseRow[]>([createEmptyRow()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const skipSaveRef = useRef(true);
+  const rowsRef = useRef(rows);
   const lastSavedPayloadRef = useRef("");
+  const savingRef = useRef(false);
+
+  useEffect(() => {
+    rowsRef.current = rows;
+  }, [rows]);
 
   const total = useMemo(
     () => rows.reduce((sum, row) => sum + parseAmount(row.amount), 0),
@@ -92,7 +101,6 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
   const load = useCallback(async () => {
     try {
       const data = await api.deals.expenses.list(dealId);
-      skipSaveRef.current = true;
       const nextRows = toRows(data);
       setRows(nextRows);
       lastSavedPayloadRef.current = serializePayload(nextRows);
@@ -107,55 +115,48 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
     void load();
   }, [load]);
 
-  useEffect(() => {
-    if (!canEdit || loading) return;
+  const savePayload = useCallback(
+    async (currentRows: ExpenseRow[]) => {
+      if (!canEdit || savingRef.current) return;
 
-    if (skipSaveRef.current) {
-      skipSaveRef.current = false;
-      return;
-    }
-
-    const timer = window.setTimeout(async () => {
-      const payload = meaningfulPayload(rows);
+      const payload = meaningfulPayload(currentRows);
       const serialized = JSON.stringify(payload);
 
       if (serialized === lastSavedPayloadRef.current) {
         return;
       }
 
+      savingRef.current = true;
       setSaving(true);
       try {
         const saved = await api.deals.expenses.save(dealId, payload);
-        skipSaveRef.current = true;
         lastSavedPayloadRef.current = serialized;
         setRows((current) => mergeRowsAfterSave(current, saved));
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Не удалось сохранить расходы");
       } finally {
+        savingRef.current = false;
         setSaving(false);
       }
-    }, 800);
+    },
+    [canEdit, dealId],
+  );
 
-    return () => window.clearTimeout(timer);
-  }, [canEdit, dealId, loading, rows]);
+  const saveIfChanged = useCallback(async () => {
+    await savePayload(rowsRef.current);
+  }, [savePayload]);
 
   const addRow = () => {
-    skipSaveRef.current = true;
     setRows((current) => [...current, createEmptyRow()]);
   };
 
   const removeRow = (key: string) => {
     setRows((current) => {
-      const target = current.find((row) => row.key === key);
-      const isEmptyDraft =
-        target && !target.description.trim() && parseAmount(target.amount) <= 0;
-
-      if (isEmptyDraft) {
-        skipSaveRef.current = true;
-      }
-
       const next = current.filter((row) => row.key !== key);
-      return next.length > 0 ? next : [createEmptyRow()];
+      const result = next.length > 0 ? next : [createEmptyRow()];
+      rowsRef.current = result;
+      void savePayload(result);
+      return result;
     });
   };
 
@@ -193,6 +194,7 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
               placeholder="Описание расхода"
               value={row.description}
               onChange={(e) => updateRow(row.key, { description: e.target.value })}
+              onBlur={() => void saveIfChanged()}
               disabled={!canEdit}
               className="sm:flex-1"
             />
@@ -205,6 +207,7 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
                 placeholder="0"
                 value={row.amount}
                 onChange={(e) => updateRow(row.key, { amount: e.target.value })}
+                onBlur={() => void saveIfChanged()}
                 disabled={!canEdit}
                 className="w-full sm:w-36"
               />

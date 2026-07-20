@@ -124,6 +124,7 @@ export const DOCUMENT_LABELS = {
   SEARCH_AGREEMENT: "Договор на поиск",
   PASSPORT: "Паспорт",
   PASSPORT_2: "Паспорт (2-й файл)",
+  PASSPORT_NOTARIZED_COPY: "Нотариально заверенная копия паспорта",
   INN: "ИНН",
   SNILS: "СНИЛС",
   PAYMENT: "Оплата",
@@ -141,6 +142,7 @@ export const DOCUMENT_LABELS = {
 export const CLIENT_DOCUMENT_ORDER = [
   "SEARCH_AGREEMENT",
   "PASSPORT",
+  "PASSPORT_NOTARIZED_COPY",
   "INN",
   "SNILS",
   "INVOICE",

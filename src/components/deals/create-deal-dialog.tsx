@@ -153,7 +153,7 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
               />
             </div>
             <div className="space-y-2">
-              <Label>Предоплата (₽), необязательно</Label>
+              <Label>Предоплата (₽)</Label>
               <Input
                 type="number"
                 min={0}
@@ -163,7 +163,7 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
               />
             </div>
             <div className="space-y-2">
-              <Label>Остаток (₽), необязательно</Label>
+              <Label>Остаток (₽)</Label>
               <Input
                 type="number"
                 min={0}
