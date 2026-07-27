@@ -179,6 +179,25 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
     const detail = parseTavilyErrorBody(body);
     console.error("Tavily search failed", response.status, body, describeApiKey(apiKey));
 
+    const looksLikeHtmlBlock =
+      body.includes("<html") ||
+      body.includes("<HTML") ||
+      body.includes("403 Forbidden");
+
+    if (looksLikeHtmlBlock && (response.status === 401 || response.status === 403)) {
+      const hasProxy = Boolean(
+        process.env.HTTPS_PROXY?.trim() ||
+          process.env.HTTP_PROXY?.trim() ||
+          process.env.TELEGRAM_PROXY_URL?.trim(),
+      );
+      throw new TavilySearchError(
+        hasProxy
+          ? "Tavily недоступен через текущий прокси (HTTP 403). Проверьте TELEGRAM_PROXY_URL / HTTPS_PROXY."
+          : "Tavily недоступен с этого сервера (HTTP 403, блок по региону/IP). Добавьте в deploy/.env HTTP-прокси: TELEGRAM_PROXY_URL=http://user:pass@host:port и пересоздайте app.",
+        "TAVILY_NETWORK",
+      );
+    }
+
     if (response.status === 401 || response.status === 403) {
       throw new TavilySearchError(
         [
