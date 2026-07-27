@@ -712,7 +712,7 @@ export function CustomsCalculator() {
             onToggle={() => setAutoOpen((value) => !value)}
           >
             <div className="space-y-2">
-              <Label>Страна происхождения</Label>
+              <Label>Страна экспорта авто</Label>
               <Select
                 value={originCountry}
                 onValueChange={(value) => handleOriginChange(value as OriginCountry)}
