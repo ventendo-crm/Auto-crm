@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -26,6 +27,9 @@ import {
   EngineType,
   ExchangeRates,
   ImporterType,
+  PREFERENTIAL_MAX_HP_EV,
+  PREFERENTIAL_MAX_HP_ICE,
+  PREFERENTIAL_MAX_VOLUME_CC,
 } from "@/lib/customs-calculator";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -204,6 +208,38 @@ function ResultSection({ title, children }: { title?: string; children: ReactNod
   );
 }
 
+function FormSection({
+  title,
+  subtitle,
+  open,
+  onToggle,
+  children,
+}: {
+  title: string;
+  subtitle?: string;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-xl border bg-muted/10">
+      <CollapsibleTrigger open={open} onToggle={onToggle} className="px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{title}</p>
+          {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
+        </div>
+      </CollapsibleTrigger>
+      <CollapsiblePanel open={open}>
+        <div className="space-y-4 px-4 pb-4">{children}</div>
+      </CollapsiblePanel>
+    </div>
+  );
+}
+
+function FieldHint({ children }: { children: ReactNode }) {
+  return <p className="text-xs text-muted-foreground">{children}</p>;
+}
+
 function downloadBlob(filename: string, dataUrl: string) {
   const link = document.createElement("a");
   link.download = filename;
@@ -282,6 +318,10 @@ export function CustomsCalculator() {
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
   const [ratesSource, setRatesSource] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "jpeg" | null>(null);
+  const [autoOpen, setAutoOpen] = useState(true);
+  const [expensesOpen, setExpensesOpen] = useState(true);
+  const [ratesOpen, setRatesOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(true);
   const exportRef = useRef<HTMLDivElement>(null);
   const resultSectionRef = useRef<HTMLDivElement>(null);
 
@@ -422,6 +462,13 @@ export function CustomsCalculator() {
   const handleExport = async (format: "pdf" | "jpeg") => {
     const element = exportRef.current;
     if (!element) return;
+
+    const wasDetailsOpen = detailsOpen;
+    if (!wasDetailsOpen) {
+      setDetailsOpen(true);
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    }
+
     setExporting(format);
     try {
       if (format === "pdf") {
@@ -435,6 +482,7 @@ export function CustomsCalculator() {
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить файл");
     } finally {
       setExporting(null);
+      if (!wasDetailsOpen) setDetailsOpen(false);
     }
   };
 
@@ -449,8 +497,29 @@ export function CustomsCalculator() {
     setRates((current) => ({ ...current, [key]: next }));
   };
 
+  const powerHpNumber = Number(powerHp.replace(",", "."));
+  const volumeCcNumber = Number(volumeCc.replace(",", "."));
+  const isElectric = normalizeEngine(engine) === "electric";
+  const showsCommercialRecyclingHint =
+    importer === "personal" &&
+    Number.isFinite(powerHpNumber) &&
+    ((isElectric && powerHpNumber > PREFERENTIAL_MAX_HP_EV) ||
+      (!isElectric &&
+        (powerHpNumber > PREFERENTIAL_MAX_HP_ICE ||
+          (Number.isFinite(volumeCcNumber) && volumeCcNumber > PREFERENTIAL_MAX_VOLUME_CC))));
+
+  const chinaHint =
+    age === "under3"
+      ? "По умолчанию 5 000 CNY для авто до 3 лет"
+      : "По умолчанию 12 000 CNY для авто от 3 лет";
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)]">
+    <div
+      className={cn(
+        "grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]",
+        result && result.totalWithCar !== 0 && "pb-24 xl:pb-0",
+      )}
+    >
       <Card className="border-0 shadow-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -463,78 +532,21 @@ export function CustomsCalculator() {
             Расчёт по ставкам 2026 года: таможенный сбор, пошлина, акциз, НДС и утильсбор.
           </p>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="space-y-2">
-            <Label>Автомобиль ввозит</Label>
-            <Select value={importer} onValueChange={(value) => setImporter(value as ImporterType)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {IMPORTER_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Возраст автомобиля</Label>
-            <Select value={age} onValueChange={(value) => handleAgeChange(value as CarAge)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {AGE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Тип двигателя</Label>
-            <Select
-              value={normalizeEngine(engine)}
-              onValueChange={(value) => setEngine(value as EngineType)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {ENGINE_OPTIONS.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
+        <CardContent className="space-y-4">
+          <FormSection
+            title="1. Автомобиль"
+            subtitle="Кто ввозит, возраст, двигатель, цена и мощность"
+            open={autoOpen}
+            onToggle={() => setAutoOpen((value) => !value)}
+          >
             <div className="space-y-2">
-              <Label htmlFor="car-price">Стоимость автомобиля</Label>
-              <Input
-                id="car-price"
-                type="number"
-                min={1}
-                step="0.01"
-                value={price}
-                onChange={(event) => setPrice(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Валюта</Label>
-              <Select value={currency} onValueChange={(value) => setCurrency(value as CurrencyCode)}>
+              <Label>Автомобиль ввозит</Label>
+              <Select value={importer} onValueChange={(value) => setImporter(value as ImporterType)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {CURRENCY_OPTIONS.map((option) => (
+                  {IMPORTER_OPTIONS.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -542,53 +554,136 @@ export function CustomsCalculator() {
                 </SelectContent>
               </Select>
             </div>
-          </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="power-hp">
-                {engine === "electric" ? "30-ти минутная мощность" : "Мощность, л.с."}
-              </Label>
-              <Input
-                id="power-hp"
-                type="number"
-                min={1}
-                step="1"
-                value={powerHp}
-                onChange={(event) => setPowerHp(event.target.value)}
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Возраст автомобиля</Label>
+                <Select value={age} onValueChange={(value) => handleAgeChange(value as CarAge)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {AGE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Тип двигателя</Label>
+                <Select
+                  value={normalizeEngine(engine)}
+                  onValueChange={(value) => setEngine(value as EngineType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ENGINE_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="volume-cc">Объём двигателя, см³</Label>
-              <Input
-                id="volume-cc"
-                type="number"
-                min={1}
-                step="1"
-                value={volumeCc}
-                onChange={(event) => setVolumeCc(event.target.value)}
-                disabled={engine === "electric"}
-                placeholder={engine === "electric" ? "Не требуется" : undefined}
-              />
+
+            <div className="grid gap-4 sm:grid-cols-[1fr_140px]">
+              <div className="space-y-2">
+                <Label htmlFor="car-price">Стоимость автомобиля</Label>
+                <Input
+                  id="car-price"
+                  type="number"
+                  min={1}
+                  step="0.01"
+                  value={price}
+                  onChange={(event) => setPrice(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Валюта</Label>
+                <Select value={currency} onValueChange={(value) => setCurrency(value as CurrencyCode)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {CURRENCY_OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="china-expenses">Расходы по Китаю, юани (CNY)</Label>
-            <Input
-              id="china-expenses"
-              type="number"
-              min={0}
-              step="0.01"
-              value={chinaExpensesCny}
-              onChange={(event) => setChinaExpensesCny(event.target.value)}
-            />
-          </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="power-hp">
+                  {isElectric ? "30-ти минутная мощность" : "Мощность, л.с."}
+                </Label>
+                <Input
+                  id="power-hp"
+                  type="number"
+                  min={1}
+                  step="1"
+                  value={powerHp}
+                  onChange={(event) => setPowerHp(event.target.value)}
+                />
+                {showsCommercialRecyclingHint && (
+                  <FieldHint>Будет коммерческий утильсбор (сверх льготного порога)</FieldHint>
+                )}
+                {importer === "personal" &&
+                  !showsCommercialRecyclingHint &&
+                  Number.isFinite(powerHpNumber) &&
+                  powerHpNumber > 0 && (
+                    <FieldHint>
+                      {isElectric
+                        ? `Льготный УС до ${PREFERENTIAL_MAX_HP_EV} л.с.`
+                        : `Льготный УС до ${PREFERENTIAL_MAX_HP_ICE} л.с. и ${PREFERENTIAL_MAX_VOLUME_CC.toLocaleString("ru-RU")} см³`}
+                    </FieldHint>
+                  )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="volume-cc">Объём двигателя, см³</Label>
+                <Input
+                  id="volume-cc"
+                  type="number"
+                  min={1}
+                  step="1"
+                  value={volumeCc}
+                  onChange={(event) => setVolumeCc(event.target.value)}
+                  disabled={isElectric}
+                  placeholder={isElectric ? "Не требуется" : undefined}
+                />
+              </div>
+            </div>
+          </FormSection>
 
-          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
-            <p className="text-sm font-medium">Расходы по России, ₽</p>
+          <FormSection
+            title="2. Расходы"
+            subtitle="Китай, брокер, доставка и сопровождение"
+            open={expensesOpen}
+            onToggle={() => setExpensesOpen((value) => !value)}
+          >
             <div className="space-y-2">
-              <Label htmlFor="broker-fee">Услуги брокера</Label>
+              <Label htmlFor="china-expenses">Расходы по Китаю, юани (CNY)</Label>
+              <Input
+                id="china-expenses"
+                type="number"
+                min={0}
+                step="0.01"
+                value={chinaExpensesCny}
+                onChange={(event) => setChinaExpensesCny(event.target.value)}
+              />
+              <FieldHint>{chinaHint}</FieldHint>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="broker-fee">Услуги брокера, ₽</Label>
               <Input
                 id="broker-fee"
                 type="number"
@@ -598,13 +693,10 @@ export function CustomsCalculator() {
                 onChange={(event) => setBrokerFeeRub(event.target.value)}
               />
             </div>
-          </div>
 
-          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
-            <p className="text-sm font-medium">Доставка по РФ, ₽</p>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="delivery-rub">Доставка</Label>
+                <Label htmlFor="delivery-rub">Доставка по РФ, ₽</Label>
                 <Input
                   id="delivery-rub"
                   type="number"
@@ -615,7 +707,7 @@ export function CustomsCalculator() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="escort-rub">Услуги сопровождения</Label>
+                <Label htmlFor="escort-rub">Услуги сопровождения, ₽</Label>
                 <Input
                   id="escort-rub"
                   type="number"
@@ -626,22 +718,23 @@ export function CustomsCalculator() {
                 />
               </div>
             </div>
-          </div>
+          </FormSection>
 
-          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-medium">Курсы валют к рублю</p>
-                <p className="text-xs text-muted-foreground">
-                  {ratesLoading
-                    ? "Загрузка с Google Finance…"
-                    : ratesUpdatedAt
-                      ? `Обновлено: ${new Date(ratesUpdatedAt).toLocaleString("ru-RU")}${
-                          ratesSource ? ` · ${ratesSource}` : ""
-                        }`
-                      : "Автозагрузка с Google Finance"}
-                </p>
-              </div>
+          <FormSection
+            title="3. Курсы валют"
+            subtitle={
+              ratesLoading
+                ? "Загрузка…"
+                : ratesUpdatedAt
+                  ? `Обновлено ${new Date(ratesUpdatedAt).toLocaleString("ru-RU")}${
+                      ratesSource ? ` · ${ratesSource}` : ""
+                    }`
+                  : "Подставляются автоматически"
+            }
+            open={ratesOpen}
+            onToggle={() => setRatesOpen((value) => !value)}
+          >
+            <div className="flex justify-end">
               <Button
                 type="button"
                 variant="outline"
@@ -654,10 +747,10 @@ export function CustomsCalculator() {
                 ) : (
                   <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
                 )}
-                Обновить
+                Обновить курсы
               </Button>
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-2">
               {(Object.keys(DEFAULT_EXCHANGE_RATES) as Array<keyof ExchangeRates>).map((code) => (
                 <div key={code} className="space-y-1.5">
                   <Label htmlFor={`rate-${code}`} className="text-xs text-muted-foreground">
@@ -674,15 +767,15 @@ export function CustomsCalculator() {
                 </div>
               ))}
             </div>
-          </div>
+          </FormSection>
 
-          <Button type="button" variant="brand" className="w-full sm:w-auto" onClick={handleCalculate}>
+          <Button type="button" variant="brand" className="w-full" onClick={handleCalculate}>
             Рассчитать
           </Button>
         </CardContent>
       </Card>
 
-      <Card ref={resultSectionRef} className="scroll-mt-20 border-0 shadow-card">
+      <Card ref={resultSectionRef} className="scroll-mt-20 border-0 shadow-card xl:sticky xl:top-20 xl:self-start">
         <CardHeader>
           <CardTitle>Результат расчёта</CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -704,78 +797,14 @@ export function CustomsCalculator() {
 
           {result && (
             <div className="space-y-4">
-              <div
-                ref={exportRef}
-                className="space-y-4 rounded-xl bg-background p-1 sm:p-2"
-              >
-                <div className="space-y-1 px-1 pb-2">
-                  <p className="text-base font-semibold">Расчёт растаможки</p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date().toLocaleString("ru-RU")}
-                    {" · "}
-                    {IMPORTER_OPTIONS.find((item) => item.value === importer)?.label}
-                    {" · "}
-                    {AGE_OPTIONS.find((item) => item.value === age)?.label}
-                    {" · "}
-                    {ENGINE_OPTIONS.find((item) => item.value === normalizeEngine(engine))?.label}
-                    {" · "}
-                    {powerHp} л.с.
-                    {engine !== "electric" ? ` · ${volumeCc} см³` : ""}
-                    {" · "}
-                    {price} {currency}
+              {result.totalWithCar !== 0 && (
+                <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-5">
+                  <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
+                  <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
+                    {formatCurrency(result.totalWithCar)}
                   </p>
                 </div>
-
-                <ResultSection>
-                  <ResultRow label="Стоимость авто в рублях" value={result.priceRub} />
-                  <ResultRow
-                    label="Расходы по Китаю"
-                    value={result.chinaExpensesRub}
-                    note={
-                      result.chinaExpensesCny > 0
-                        ? `${result.chinaExpensesCny.toLocaleString("ru-RU")} CNY`
-                        : undefined
-                    }
-                  />
-                  <ResultRow
-                    label="Итог с комиссией ВТБ"
-                    value={result.vtbTotalRub}
-                    note="Авто + расходы по Китаю + 2%"
-                    emphasize
-                  />
-                </ResultSection>
-
-                <ResultSection title="Расходы по России">
-                  <ResultRow label="Услуги брокера" value={result.brokerFeeRub} />
-                  <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
-                  <ResultRow
-                    label="Таможенная пошлина (ТП)"
-                    value={result.customsDuty}
-                    note={result.customsDutyNote}
-                  />
-                  <ResultRow
-                    label="Утилизационный сбор (УС)"
-                    value={result.recyclingFee}
-                    note={result.recyclingNote}
-                  />
-                  <ResultRow label="Акциз (А)" value={result.excise} />
-                  <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
-                </ResultSection>
-
-                <ResultSection title="Доставка по РФ">
-                  <ResultRow label="Доставка" value={result.deliveryRub} />
-                  <ResultRow label="Услуги сопровождения" value={result.escortRub} />
-                </ResultSection>
-
-                {result.totalWithCar !== 0 && (
-                  <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
-                    <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
-                    <p className="mt-1 text-2xl font-semibold tabular-nums">
-                      {formatCurrency(result.totalWithCar)}
-                    </p>
-                  </div>
-                )}
-              </div>
+              )}
 
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
@@ -790,7 +819,7 @@ export function CustomsCalculator() {
                   ) : (
                     <FileDown className="mr-1.5 h-4 w-4" />
                   )}
-                  Сохранить в PDF
+                  PDF
                 </Button>
                 <Button
                   type="button"
@@ -804,13 +833,124 @@ export function CustomsCalculator() {
                   ) : (
                     <ImageDown className="mr-1.5 h-4 w-4" />
                   )}
-                  Сохранить в JPEG
+                  JPEG
                 </Button>
+              </div>
+
+              <div className="rounded-xl border">
+                <CollapsibleTrigger
+                  open={detailsOpen}
+                  onToggle={() => setDetailsOpen((value) => !value)}
+                  className="px-4 py-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Подробный расчёт</p>
+                    <p className="text-xs text-muted-foreground">ВТБ, таможня, доставка</p>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsiblePanel open={detailsOpen}>
+                  <div ref={exportRef} className="space-y-4 bg-background px-4 pb-4">
+                    <div className="space-y-1 border-b border-border/40 pb-3">
+                      <p className="text-base font-semibold">Расчёт растаможки</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date().toLocaleString("ru-RU")}
+                        {" · "}
+                        {IMPORTER_OPTIONS.find((item) => item.value === importer)?.label}
+                        {" · "}
+                        {AGE_OPTIONS.find((item) => item.value === age)?.label}
+                        {" · "}
+                        {ENGINE_OPTIONS.find((item) => item.value === normalizeEngine(engine))?.label}
+                        {" · "}
+                        {powerHp} л.с.
+                        {!isElectric ? ` · ${volumeCc} см³` : ""}
+                        {" · "}
+                        {price} {currency}
+                      </p>
+                    </div>
+
+                    <ResultSection>
+                      <ResultRow label="Стоимость авто в рублях" value={result.priceRub} />
+                      <ResultRow
+                        label="Расходы по Китаю"
+                        value={result.chinaExpensesRub}
+                        note={
+                          result.chinaExpensesCny > 0
+                            ? `${result.chinaExpensesCny.toLocaleString("ru-RU")} CNY`
+                            : undefined
+                        }
+                      />
+                      <ResultRow
+                        label="Итог с комиссией ВТБ"
+                        value={result.vtbTotalRub}
+                        note="Авто + расходы по Китаю + 2%"
+                        emphasize
+                      />
+                    </ResultSection>
+
+                    <ResultSection title="Расходы по России">
+                      <ResultRow label="Услуги брокера" value={result.brokerFeeRub} />
+                      <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
+                      <ResultRow
+                        label="Таможенная пошлина (ТП)"
+                        value={result.customsDuty}
+                        note={result.customsDutyNote}
+                      />
+                      <ResultRow
+                        label="Утилизационный сбор (УС)"
+                        value={result.recyclingFee}
+                        note={result.recyclingNote}
+                      />
+                      <ResultRow label="Акциз (А)" value={result.excise} />
+                      <ResultRow
+                        label="НДС"
+                        value={result.vat}
+                        note="20% от (стоимость + пошлина + акциз)"
+                      />
+                    </ResultSection>
+
+                    <ResultSection title="Доставка по РФ">
+                      <ResultRow label="Доставка" value={result.deliveryRub} />
+                      <ResultRow label="Услуги сопровождения" value={result.escortRub} />
+                    </ResultSection>
+
+                    {result.totalWithCar !== 0 && (
+                      <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
+                        <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
+                        <p className="mt-1 text-2xl font-semibold tabular-nums">
+                          {formatCurrency(result.totalWithCar)}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CollapsiblePanel>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
+
+      {result && result.totalWithCar !== 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 p-3 backdrop-blur xl:hidden">
+          <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">Итого</p>
+              <p className="truncate text-lg font-semibold tabular-nums">
+                {formatCurrency(result.totalWithCar)}
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                resultSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
+            >
+              К расчёту
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
