@@ -358,6 +358,15 @@ function formatAuditLog(log: {
         description: newValue?.optionLabel ? String(newValue.optionLabel) : undefined,
         category: "options",
       };
+    case "DealAdditionalOption:CREATE":
+      return {
+        id: `audit-${log.id}`,
+        createdAt: log.createdAt.toISOString(),
+        user: log.user,
+        title: "Добавлена дополнительная опция",
+        description: newValue?.optionLabel ? String(newValue.optionLabel) : undefined,
+        category: "options",
+      };
     case "DealAdditionalOption:UNCHECK":
       return {
         id: `audit-${log.id}`,

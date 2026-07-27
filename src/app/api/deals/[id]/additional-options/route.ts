@@ -1,14 +1,21 @@
 import { withAuth, assertAllowed, assertFound } from "@/lib/api-handler";
-import { error, ok } from "@/lib/api-response";
-import { canToggleAdditionalOption } from "@/lib/permissions";
+import { created, error, ok } from "@/lib/api-response";
+import {
+  canCreateCustomAdditionalOption,
+  canToggleAdditionalOption,
+} from "@/lib/permissions";
 import { canUserViewDeal } from "@/lib/services/deal-access";
 import {
+  createCustomAdditionalOption,
   listAdditionalOptions,
   toggleAdditionalOption,
 } from "@/lib/services/additional-options";
 import { getDeal } from "@/lib/services/deals";
 import { serialize } from "@/lib/serialize";
-import { toggleAdditionalOptionSchema } from "@/lib/validators/additional-options";
+import {
+  createAdditionalOptionSchema,
+  toggleAdditionalOptionSchema,
+} from "@/lib/validators/additional-options";
 
 export const GET = withAuth(async (_request, { user, params }) => {
   const deal = assertFound(await getDeal(params.id));
@@ -19,6 +26,29 @@ export const GET = withAuth(async (_request, { user, params }) => {
 
   const groups = await listAdditionalOptions(params.id);
   return ok(groups);
+});
+
+export const POST = withAuth(async (request, { user, params }) => {
+  const deal = assertFound(await getDeal(params.id));
+
+  assertAllowed(canCreateCustomAdditionalOption(user.role, user.id, deal));
+
+  const body = createAdditionalOptionSchema.parse(await request.json());
+
+  try {
+    const record = await createCustomAdditionalOption(
+      user,
+      params.id,
+      body.label,
+      body.groupId,
+    );
+    return created(serialize(record));
+  } catch (err) {
+    if (err instanceof Error && err.message === "NOT_FOUND") {
+      return error("Сделка не найдена", 404);
+    }
+    throw err;
+  }
 });
 
 export const PATCH = withAuth(async (request, { user, params }) => {
@@ -39,6 +69,9 @@ export const PATCH = withAuth(async (request, { user, params }) => {
   } catch (err) {
     if (err instanceof Error && err.message === "NOT_FOUND") {
       return error("Сделка не найдена", 404);
+    }
+    if (err instanceof Error && err.message === "UNKNOWN_OPTION") {
+      return error("Неизвестная опция", 400);
     }
     throw err;
   }

@@ -261,7 +261,12 @@ export default function DealPage() {
           </TabsContent>
 
           <TabsContent value="additional-options">
-            <DealAdditionalOptions dealId={deal.id} onChanged={refreshActivity} />
+            <DealAdditionalOptions
+              dealId={deal.id}
+              managerId={deal.managerId}
+              managerIds={deal.managerIds}
+              onChanged={refreshActivity}
+            />
           </TabsContent>
 
           {canViewExpenses && (

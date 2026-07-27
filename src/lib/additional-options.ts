@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto";
+
 export interface AdditionalOptionDefinition {
   key: string;
   label: string;
@@ -95,10 +97,29 @@ const OPTION_LABELS = new Map(
   ),
 );
 
+const GROUP_IDS = new Set(ADDITIONAL_OPTION_GROUPS.map((group) => group.id));
+
 export function isValidAdditionalOptionKey(key: string): boolean {
   return OPTION_KEYS.has(key);
 }
 
-export function getAdditionalOptionLabel(key: string): string {
+export function isCustomAdditionalOptionKey(key: string): boolean {
+  return key.startsWith("custom_");
+}
+
+export function isValidAdditionalOptionGroupId(groupId: string): boolean {
+  return GROUP_IDS.has(groupId);
+}
+
+export function getAdditionalOptionGroupTitle(groupId: string): string | null {
+  return ADDITIONAL_OPTION_GROUPS.find((group) => group.id === groupId)?.title ?? null;
+}
+
+export function getAdditionalOptionLabel(key: string, customLabel?: string | null): string {
+  if (customLabel) return customLabel;
   return OPTION_LABELS.get(key) ?? key;
+}
+
+export function createCustomAdditionalOptionKey(): string {
+  return `custom_${randomUUID().replace(/-/g, "")}`;
 }

@@ -232,6 +232,9 @@ model DealAdditionalOption {
   id          String   @id @default(cuid())
   dealId      String
   optionKey   String
+  label       String?
+  groupId     String?
+  isCustom    Boolean  @default(false)
   checked     Boolean  @default(false)
   updatedById String?
   createdAt   DateTime @default(now())

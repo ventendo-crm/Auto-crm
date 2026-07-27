@@ -166,6 +166,19 @@ export const api = {
     additionalOptions: {
       list: (dealId: string) =>
         request<AdditionalOptionGroupState[]>(`/api/deals/${dealId}/additional-options`),
+      create: (dealId: string, data: { label: string; groupId: string }) =>
+        request<{
+          optionKey: string;
+          label: string | null;
+          groupId: string | null;
+          isCustom: boolean;
+          checked: boolean;
+          updatedAt: string;
+          updatedBy: { id: string; name: string } | null;
+        }>(`/api/deals/${dealId}/additional-options`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
       toggle: (dealId: string, optionKey: string, checked: boolean) =>
         request<{ checked: boolean; updatedAt: string; updatedBy: { id: string; name: string } | null }>(
           `/api/deals/${dealId}/additional-options`,

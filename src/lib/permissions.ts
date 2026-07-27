@@ -100,6 +100,15 @@ export function canToggleAdditionalOption(
   return canUpdateDeal(role, userId, deal);
 }
 
+/** Менеджер/админ могут добавлять свои опции в карточку сделки. Клиент — нет. */
+export function canCreateCustomAdditionalOption(
+  role: RoleName,
+  userId: string,
+  deal: DealWithManagerAssignments,
+): boolean {
+  return canUpdateDeal(role, userId, deal);
+}
+
 export function canClearDealHistory(
   role: RoleName,
   userId: string,
