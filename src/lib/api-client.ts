@@ -196,6 +196,26 @@ export const api = {
           body: JSON.stringify({ expenses }),
         }),
     },
+    customsEstimates: {
+      list: (dealId: string) =>
+        request<import("@/lib/services/deal-customs-estimates").DealCustomsEstimateItem[]>(
+          `/api/deals/${dealId}/customs-estimates`,
+        ),
+      create: (
+        dealId: string,
+        data: {
+          input: import("@/lib/customs-calculator").CustomsCalculatorInput;
+          note?: string | null;
+        },
+      ) =>
+        request<import("@/lib/services/deal-customs-estimates").DealCustomsEstimateItem>(
+          `/api/deals/${dealId}/customs-estimates`,
+          {
+            method: "POST",
+            body: JSON.stringify(data),
+          },
+        ),
+    },
     setImportProcessEnabled: (dealId: string, enabled: boolean) =>
       request<{ importProcessEnabled: boolean }>(`/api/deals/${dealId}/import-process`, {
         method: "PATCH",

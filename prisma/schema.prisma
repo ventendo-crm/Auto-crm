@@ -36,6 +36,7 @@ model User {
   stageChanges      StageHistory[] @relation("StageChangedBy")
   createdTasks      Task[]         @relation("TaskCreatedBy")
   updatedAdditionalOptions DealAdditionalOption[] @relation("AdditionalOptionUpdatedBy")
+  createdCustomsEstimates DealCustomsEstimate[] @relation("CustomsEstimateCreatedBy")
   role              Role           @relation(fields: [roleId], references: [id])
   dealManagerAssignments DealManagerAssignment[] @relation("DealManagerAssignmentUser")
   managerLinksAsA   ManagerLink[]  @relation("ManagerLinkUserA")
@@ -90,6 +91,7 @@ model Deal {
   managerAssignments DealManagerAssignment[]
   additionalOptions    DealAdditionalOption[]
   expenses             DealExpense[]
+  customsEstimates     DealCustomsEstimate[]
 
   @@index([managerId])
   @@index([clientUserId])
@@ -259,6 +261,23 @@ model DealExpense {
 
   @@index([dealId])
   @@map("deal_expenses")
+}
+
+model DealCustomsEstimate {
+  id           String   @id @default(cuid())
+  dealId       String
+  createdById  String
+  input        Json
+  result       Json
+  totalWithCar Decimal  @db.Decimal(14, 2)
+  note         String?
+  createdAt    DateTime @default(now())
+  deal         Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  createdBy    User     @relation("CustomsEstimateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([dealId, createdAt])
+  @@index([createdById])
+  @@map("deal_customs_estimates")
 }
 
 model Document {

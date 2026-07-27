@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 const staffNavItems = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
   { href: "/kanban", label: "Канбан", icon: Kanban },
-  { href: "/calculator", label: "Калькулятор", icon: Calculator, adminOnly: true },
+  { href: "/calculator", label: "Калькулятор", icon: Calculator },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 
@@ -31,7 +31,9 @@ export function Sidebar() {
   const navItems =
     role === ROLES.CLIENT
       ? clientNavItems
-      : staffNavItems.filter((item) => !item.adminOnly || (role ? canAccessCalculator(role) : false));
+      : staffNavItems.filter(
+          (item) => item.href !== "/calculator" || (role ? canAccessCalculator(role) : false),
+        );
 
   if (!isOpen && !isMobile) {
     return null;

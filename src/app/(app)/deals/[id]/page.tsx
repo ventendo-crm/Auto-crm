@@ -17,6 +17,7 @@ import { DealHeader } from "@/components/deals/deal-header";
 import { DealInfo } from "@/components/deals/deal-info";
 import { DealImportProcess } from "@/components/deals/deal-import-process";
 import { DealImportProcessToggle } from "@/components/deals/deal-import-process-toggle";
+import { DealCustomsEstimatesPanel } from "@/components/deals/deal-customs-estimates-panel";
 import { DealOverviewSummary } from "@/components/deals/deal-overview-summary";
 import { DealSearchProcess } from "@/components/deals/deal-search-process";
 import { DealLogistics } from "@/components/deals/deal-logistics";
@@ -189,6 +190,12 @@ export default function DealPage() {
               carModel={deal.carModel}
               carYear={deal.carYear}
               active={activeTab === "overview"}
+            />
+
+            <DealCustomsEstimatesPanel
+              dealId={deal.id}
+              active={activeTab === "overview"}
+              showCalculatorLink={canManageDeal}
             />
 
             <div className="grid gap-4 lg:grid-cols-2">

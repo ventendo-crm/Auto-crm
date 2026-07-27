@@ -14,6 +14,7 @@ import { ClientImportProcessView } from "@/components/client/client-import-proce
 import { ClientPageTabsNav } from "@/components/client/client-page-tabs-nav";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
+import { DealCustomsEstimatesPanel } from "@/components/deals/deal-customs-estimates-panel";
 import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
 import { DealLogistics } from "@/components/deals/deal-logistics";
 import { SearchProcessLinksPanel } from "@/components/deals/search-process-links";
@@ -179,6 +180,14 @@ export function ClientDealView() {
             title="Полученные документы"
             documentTypes={RECEIVED_DEAL_DOCUMENT_TYPES}
             onUpdated={refreshDeal}
+          />
+        </TabsContent>
+
+        <TabsContent value="customs-estimate">
+          <DealCustomsEstimatesPanel
+            dealId={deal.id}
+            active={activeTab === "customs-estimate"}
+            title="Расчёт растаможки"
           />
         </TabsContent>
 

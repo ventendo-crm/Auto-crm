@@ -181,7 +181,15 @@ export function canManageUsers(role: RoleName): boolean {
 }
 
 export function canAccessCalculator(role: RoleName): boolean {
-  return role === ROLES.ADMIN;
+  return role === ROLES.ADMIN || role === ROLES.MANAGER;
+}
+
+export function canCreateCustomsEstimates(
+  role: RoleName,
+  userId: string,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
+): boolean {
+  return canUpdateDeal(role, userId, managerIdOrIds);
 }
 
 export function canManageManagers(role: RoleName): boolean {

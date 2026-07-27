@@ -7,7 +7,7 @@ const PUBLIC_PAGE_PATHS = ["/login"];
 
 const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals", "/calculator"];
 const CLIENT_PAGE_PREFIXES = ["/my-deal"];
-const ADMIN_PAGE_PREFIXES = ["/calculator"];
+const ADMIN_PAGE_PREFIXES: string[] = [];
 
 function getJwtSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;

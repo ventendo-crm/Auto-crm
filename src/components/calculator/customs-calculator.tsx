@@ -32,6 +32,7 @@ import {
   PREFERENTIAL_MAX_VOLUME_CC,
 } from "@/lib/customs-calculator";
 import { cn, formatCurrency } from "@/lib/utils";
+import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-to-deal-button";
 
 const STORAGE_KEY = "autocrm-customs-calculator";
 
@@ -162,44 +163,98 @@ function chinaExpensesForAge(age: CarAge): string {
   return age === "under3" ? "5000" : "12000";
 }
 
+function formatCnyNote(amountCny: number): string | undefined {
+  if (!Number.isFinite(amountCny) || amountCny <= 0) return undefined;
+  return `${amountCny.toLocaleString("ru-RU", {
+    maximumFractionDigits: 2,
+  })} CNY`;
+}
+
+function priceToCny(
+  price: number,
+  currency: CurrencyCode,
+  priceRub: number,
+  rates: ExchangeRates,
+): number {
+  if (currency === "CNY") return price;
+  if (!rates.CNY || rates.CNY <= 0) return 0;
+  return priceRub / rates.CNY;
+}
+
 function ResultRow({
   label,
   value,
   note,
   emphasize,
+  compact,
 }: {
   label: string;
   value: number;
   note?: string;
   emphasize?: boolean;
+  compact?: boolean;
 }) {
   if (value === 0) return null;
 
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-4 border-b border-border/50 py-3 last:border-b-0",
-        emphasize && "border-b-0 pt-4",
+        "flex items-start justify-between gap-3 border-b border-border/50 last:border-b-0",
+        compact ? "py-1.5" : "py-3",
+        emphasize && (compact ? "border-b-0 pt-2" : "border-b-0 pt-4"),
       )}
     >
       <div className="min-w-0">
-        <p className={cn("text-sm", emphasize ? "font-semibold" : "text-muted-foreground")}>
+        <p
+          className={cn(
+            compact ? "text-xs" : "text-sm",
+            emphasize ? "font-semibold" : "text-muted-foreground",
+          )}
+        >
           {label}
         </p>
-        {note && <p className="mt-0.5 text-xs text-muted-foreground">{note}</p>}
+        {note && (
+          <p className={cn("mt-0.5 text-muted-foreground", compact ? "text-[10px] leading-tight" : "text-xs")}>
+            {note}
+          </p>
+        )}
       </div>
-      <p className={cn("shrink-0 text-right tabular-nums", emphasize ? "text-xl font-semibold" : "text-sm font-medium")}>
+      <p
+        className={cn(
+          "shrink-0 text-right tabular-nums",
+          emphasize
+            ? compact
+              ? "text-base font-semibold"
+              : "text-xl font-semibold"
+            : compact
+              ? "text-xs font-medium"
+              : "text-sm font-medium",
+        )}
+      >
         {formatCurrency(value)}
       </p>
     </div>
   );
 }
 
-function ResultSection({ title, children }: { title?: string; children: ReactNode }) {
+function ResultSection({
+  title,
+  children,
+  compact,
+}: {
+  title?: string;
+  children: ReactNode;
+  compact?: boolean;
+}) {
   return (
-    <div className="rounded-xl border bg-muted/10 px-4 py-1">
+    <div className={cn("rounded-lg border bg-muted/10", compact ? "px-2.5 py-0.5" : "rounded-xl px-4 py-1")}>
       {title && (
-        <p className="border-b border-border/40 pb-2 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <p
+          className={cn(
+            "border-b border-border/40 font-semibold uppercase tracking-wide text-muted-foreground",
+            compact ? "pb-1 pt-1.5 text-[10px]" : "pb-2 pt-3 text-xs",
+          )}
+        >
           {title}
         </p>
       )}
@@ -255,7 +310,7 @@ function exportFilename(extension: "pdf" | "jpg") {
 async function captureResultCanvas(element: HTMLElement) {
   const html2canvas = (await import("html2canvas")).default;
   return html2canvas(element, {
-    scale: 2,
+    scale: 1.75,
     useCORS: true,
     backgroundColor: "#ffffff",
     logging: false,
@@ -279,7 +334,7 @@ async function saveResultAsPdf(element: HTMLElement) {
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 10;
+  const margin = 8;
   const usableWidth = pageWidth - margin * 2;
   const imgHeight = (canvas.height * usableWidth) / canvas.width;
 
@@ -512,6 +567,21 @@ export function CustomsCalculator() {
     age === "under3"
       ? "По умолчанию 5 000 CNY для авто до 3 лет"
       : "По умолчанию 12 000 CNY для авто от 3 лет";
+
+  const calculatorInput = {
+    importer,
+    age,
+    engine,
+    powerHp: Number(powerHp.replace(",", ".")),
+    volumeCc: Number(volumeCc.replace(",", ".")),
+    price: Number(price.replace(",", ".")),
+    currency,
+    rates,
+    chinaExpensesCny: Number(chinaExpensesCny.replace(",", ".")),
+    brokerFeeRub: Number(brokerFeeRub.replace(",", ".")),
+    deliveryRub: Number(deliveryRub.replace(",", ".")),
+    escortRub: Number(escortRub.replace(",", ".")),
+  };
 
   return (
     <div
@@ -837,6 +907,12 @@ export function CustomsCalculator() {
                 </Button>
               </div>
 
+              <SaveEstimateToDealButton
+                input={calculatorInput}
+                totalWithCar={result.totalWithCar}
+                disabled={exporting !== null}
+              />
+
               <div className="rounded-xl border">
                 <CollapsibleTrigger
                   open={detailsOpen}
@@ -849,37 +925,31 @@ export function CustomsCalculator() {
                   </div>
                 </CollapsibleTrigger>
                 <CollapsiblePanel open={detailsOpen}>
-                  <div ref={exportRef} className="space-y-4 bg-background px-4 pb-4">
-                    <div className="space-y-1 border-b border-border/40 pb-3">
-                      <p className="text-base font-semibold">Расчёт растаможки</p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date().toLocaleString("ru-RU")}
-                        {" · "}
-                        {IMPORTER_OPTIONS.find((item) => item.value === importer)?.label}
-                        {" · "}
-                        {AGE_OPTIONS.find((item) => item.value === age)?.label}
-                        {" · "}
-                        {ENGINE_OPTIONS.find((item) => item.value === normalizeEngine(engine))?.label}
-                        {" · "}
-                        {powerHp} л.с.
-                        {!isElectric ? ` · ${volumeCc} см³` : ""}
-                        {" · "}
-                        {price} {currency}
+                  <div ref={exportRef} className="space-y-2 bg-background px-3 pb-3">
+                    <div className="border-b border-border/40 pb-1.5">
+                      <p className="text-sm font-semibold">Расчёт растаможки</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        Курс CNY: {rates.CNY.toLocaleString("ru-RU", { maximumFractionDigits: 4 })} ₽
                       </p>
                     </div>
 
-                    <ResultSection>
-                      <ResultRow label="Стоимость авто в рублях" value={result.priceRub} />
+                    <ResultSection compact>
                       <ResultRow
-                        label="Расходы по Китаю"
-                        value={result.chinaExpensesRub}
-                        note={
-                          result.chinaExpensesCny > 0
-                            ? `${result.chinaExpensesCny.toLocaleString("ru-RU")} CNY`
-                            : undefined
-                        }
+                        compact
+                        label="Стоимость авто в рублях"
+                        value={result.priceRub}
+                        note={formatCnyNote(
+                          priceToCny(calculatorInput.price, currency, result.priceRub, rates),
+                        )}
                       />
                       <ResultRow
+                        compact
+                        label="Расходы по Китаю"
+                        value={result.chinaExpensesRub}
+                        note={formatCnyNote(result.chinaExpensesCny)}
+                      />
+                      <ResultRow
+                        compact
                         label="Итог с комиссией ВТБ"
                         value={result.vtbTotalRub}
                         note="Авто + расходы по Китаю + 2%"
@@ -887,36 +957,39 @@ export function CustomsCalculator() {
                       />
                     </ResultSection>
 
-                    <ResultSection title="Расходы по России">
-                      <ResultRow label="Услуги брокера" value={result.brokerFeeRub} />
-                      <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
+                    <ResultSection compact title="Расходы по России">
+                      <ResultRow compact label="Услуги брокера" value={result.brokerFeeRub} />
+                      <ResultRow compact label="Таможенный сбор (ТС)" value={result.customsFee} />
                       <ResultRow
+                        compact
                         label="Таможенная пошлина (ТП)"
                         value={result.customsDuty}
                         note={result.customsDutyNote}
                       />
                       <ResultRow
+                        compact
                         label="Утилизационный сбор (УС)"
                         value={result.recyclingFee}
                         note={result.recyclingNote}
                       />
-                      <ResultRow label="Акциз (А)" value={result.excise} />
+                      <ResultRow compact label="Акциз (А)" value={result.excise} />
                       <ResultRow
+                        compact
                         label="НДС"
                         value={result.vat}
                         note="20% от (стоимость + пошлина + акциз)"
                       />
                     </ResultSection>
 
-                    <ResultSection title="Доставка по РФ">
-                      <ResultRow label="Доставка" value={result.deliveryRub} />
-                      <ResultRow label="Услуги сопровождения" value={result.escortRub} />
+                    <ResultSection compact title="Доставка по РФ">
+                      <ResultRow compact label="Доставка" value={result.deliveryRub} />
+                      <ResultRow compact label="Услуги сопровождения" value={result.escortRub} />
                     </ResultSection>
 
                     {result.totalWithCar !== 0 && (
-                      <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
-                        <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
-                        <p className="mt-1 text-2xl font-semibold tabular-nums">
+                      <div className="rounded-lg border border-brand/20 bg-brand-muted/40 px-3 py-2.5">
+                        <p className="text-[11px] text-muted-foreground">Итого со всеми расходами</p>
+                        <p className="mt-0.5 text-xl font-semibold tabular-nums">
                           {formatCurrency(result.totalWithCar)}
                         </p>
                       </div>

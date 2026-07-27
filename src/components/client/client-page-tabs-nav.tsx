@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Calculator,
   FileText,
   History,
   ImageIcon,
@@ -43,6 +44,7 @@ export function ClientPageTabsNav({ deal, activeTab }: ClientPageTabsNavProps) {
           icon: FileText,
           badge: uploadedDocuments > 0 ? uploadedDocuments : undefined,
         },
+        { value: "customs-estimate", label: "Расчёт", icon: Calculator },
         { value: "additional-options", label: "Доп. опции", icon: ListChecks },
       ],
     };
