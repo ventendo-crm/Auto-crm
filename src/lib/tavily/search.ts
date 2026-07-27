@@ -17,6 +17,27 @@ function firstSentence(text: string): string {
   return `${cleaned.slice(0, 217).trim()}…`;
 }
 
+function sanitizeTavilyApiKey(raw: string | undefined): string | null {
+  if (!raw) return null;
+  let key = raw.trim();
+  // Часто копируют с кавычками или префиксом Bearer
+  if (
+    (key.startsWith('"') && key.endsWith('"')) ||
+    (key.startsWith("'") && key.endsWith("'"))
+  ) {
+    key = key.slice(1, -1).trim();
+  }
+  if (key.toLowerCase().startsWith("bearer ")) {
+    key = key.slice(7).trim();
+  }
+  return key || null;
+}
+
+function describeApiKey(key: string): string {
+  if (key.length <= 12) return `длина ${key.length}`;
+  return `начинается с «${key.slice(0, 8)}…», длина ${key.length}`;
+}
+
 function parseTavilyErrorBody(body: string): string | null {
   if (!body.trim()) return null;
   try {
@@ -87,12 +108,50 @@ export class TavilySearchError extends Error {
   }
 }
 
+async function callTavilySearch(
+  apiKey: string,
+  query: string,
+  mode: "bearer" | "body",
+  signal: AbortSignal,
+): Promise<Response> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const payload: Record<string, unknown> = {
+    query,
+    search_depth: "basic",
+    include_answer: true,
+    max_results: 3,
+    topic: "general",
+  };
+
+  if (mode === "bearer") {
+    headers.Authorization = `Bearer ${apiKey}`;
+  } else {
+    payload.api_key = apiKey;
+  }
+
+  return fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
 export async function searchWithTavily(query: string): Promise<TavilyQuickSearchResult> {
-  const apiKey = process.env.TAVILY_API_KEY?.trim();
+  const apiKey = sanitizeTavilyApiKey(process.env.TAVILY_API_KEY);
   if (!apiKey) {
     throw new TavilySearchError(
-      "Быстрый поиск не настроен: добавьте TAVILY_API_KEY",
+      "Быстрый поиск не настроен: добавьте TAVILY_API_KEY в deploy/.env и пересоздайте контейнер app",
       "TAVILY_NOT_CONFIGURED",
+    );
+  }
+
+  if (!apiKey.startsWith("tvly-") && !apiKey.startsWith("tvly-dev-")) {
+    throw new TavilySearchError(
+      `Похоже, в TAVILY_API_KEY не ключ Tavily (${describeApiKey(apiKey)}). Ожидается значение вида tvly-… из https://app.tavily.com`,
+      "TAVILY_UNAUTHORIZED",
     );
   }
 
@@ -101,21 +160,14 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
 
   let response: Response;
   try {
-    response = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        query,
-        search_depth: "basic",
-        include_answer: true,
-        max_results: 3,
-        topic: "general",
-      }),
-      signal: controller.signal,
-    });
+    response = await callTavilySearch(apiKey, query, "bearer", controller.signal);
+
+    // На части аккаунтов/прокси срабатывает только api_key в теле запроса
+    if (response.status === 401 || response.status === 403) {
+      const bearerBody = await response.text().catch(() => "");
+      console.error("Tavily bearer auth failed, retrying with api_key body", response.status, bearerBody);
+      response = await callTavilySearch(apiKey, query, "body", controller.signal);
+    }
   } catch (error) {
     throw new TavilySearchError(describeNetworkError(error), "TAVILY_NETWORK");
   } finally {
@@ -125,13 +177,19 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
   if (!response.ok) {
     const body = await response.text().catch(() => "");
     const detail = parseTavilyErrorBody(body);
-    console.error("Tavily search failed", response.status, body);
+    console.error("Tavily search failed", response.status, body, describeApiKey(apiKey));
 
     if (response.status === 401 || response.status === 403) {
       throw new TavilySearchError(
-        detail
-          ? `Ключ Tavily отклонён: ${detail}`
-          : "Ключ Tavily неверный или неактивен. Проверьте TAVILY_API_KEY в deploy/.env",
+        [
+          "Ключ Tavily отклонён.",
+          detail ? `Ответ API: ${detail}.` : null,
+          `Проверьте ключ в контейнере (${describeApiKey(apiKey)}).`,
+          "В deploy/.env должна быть строка без кавычек: TAVILY_API_KEY=tvly-…",
+          "После правки: docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --force-recreate app",
+        ]
+          .filter(Boolean)
+          .join(" "),
         "TAVILY_UNAUTHORIZED",
       );
     }
