@@ -6,25 +6,21 @@
 export type ImporterType = "personal" | "resale" | "legal";
 export type CarAge = "under3" | "from3to5" | "from5to7" | "over7";
 export type EngineType = "petrol" | "diesel" | "electric";
-export type CurrencyCode = "RUB" | "USD" | "EUR" | "CNY" | "AED" | "KRW" | "JPY";
+export type CurrencyCode = "RUB" | "USD" | "CNY" | "KRW";
 
 export interface ExchangeRates {
   USD: number;
   EUR: number;
   CNY: number;
-  AED: number;
   KRW: number;
-  JPY: number;
 }
 
-/** Курсы по умолчанию (редактируются в UI). */
+/** Курсы по умолчанию (редактируются в UI). EUR нужен для расчёта пошлин. */
 export const DEFAULT_EXCHANGE_RATES: ExchangeRates = {
   USD: 90,
   EUR: 98,
   CNY: 12.5,
-  AED: 24.5,
   KRW: 0.066,
-  JPY: 0.6,
 };
 
 export const CUSTOMS_FEE_BRACKETS: Array<{ maxRub: number; fee: number }> = [

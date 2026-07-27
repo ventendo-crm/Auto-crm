@@ -1,7 +1,7 @@
 "use client";
 
 import { Calculator as CalculatorIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,12 +17,110 @@ import {
   calculateCustoms,
   CarAge,
   CurrencyCode,
+  DEFAULT_BROKER_FEE_RUB,
+  DEFAULT_DELIVERY_RUB,
+  DEFAULT_ESCORT_RUB,
   DEFAULT_EXCHANGE_RATES,
   EngineType,
   ExchangeRates,
   ImporterType,
 } from "@/lib/customs-calculator";
 import { cn, formatCurrency } from "@/lib/utils";
+
+const STORAGE_KEY = "autocrm-customs-calculator";
+
+type CalculatorPersistedState = {
+  importer: ImporterType;
+  age: CarAge;
+  engine: EngineType;
+  powerHp: string;
+  volumeCc: string;
+  price: string;
+  currency: CurrencyCode;
+  chinaExpensesCny: string;
+  brokerFeeRub: string;
+  deliveryRub: string;
+  escortRub: string;
+  rates: ExchangeRates;
+  submitted: boolean;
+};
+
+const DEFAULT_STATE: CalculatorPersistedState = {
+  importer: "personal",
+  age: "under3",
+  engine: "petrol",
+  powerHp: "150",
+  volumeCc: "2000",
+  price: "25000",
+  currency: "USD",
+  chinaExpensesCny: "12000",
+  brokerFeeRub: String(DEFAULT_BROKER_FEE_RUB),
+  deliveryRub: String(DEFAULT_DELIVERY_RUB),
+  escortRub: String(DEFAULT_ESCORT_RUB),
+  rates: DEFAULT_EXCHANGE_RATES,
+  submitted: false,
+};
+
+function isImporter(value: unknown): value is ImporterType {
+  return value === "personal" || value === "resale" || value === "legal";
+}
+
+function isAge(value: unknown): value is CarAge {
+  return value === "under3" || value === "from3to5" || value === "from5to7" || value === "over7";
+}
+
+function isEngine(value: unknown): value is EngineType {
+  return value === "petrol" || value === "diesel" || value === "electric";
+}
+
+function isCurrency(value: unknown): value is CurrencyCode {
+  return value === "RUB" || value === "USD" || value === "CNY" || value === "KRW";
+}
+
+function loadPersistedState(): CalculatorPersistedState {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_STATE;
+    const parsed = JSON.parse(raw) as Partial<CalculatorPersistedState>;
+    const rates = {
+      ...DEFAULT_EXCHANGE_RATES,
+      USD: typeof parsed.rates?.USD === "number" ? parsed.rates.USD : DEFAULT_EXCHANGE_RATES.USD,
+      EUR: typeof parsed.rates?.EUR === "number" ? parsed.rates.EUR : DEFAULT_EXCHANGE_RATES.EUR,
+      CNY: typeof parsed.rates?.CNY === "number" ? parsed.rates.CNY : DEFAULT_EXCHANGE_RATES.CNY,
+      KRW: typeof parsed.rates?.KRW === "number" ? parsed.rates.KRW : DEFAULT_EXCHANGE_RATES.KRW,
+    };
+    return {
+      importer: isImporter(parsed.importer) ? parsed.importer : DEFAULT_STATE.importer,
+      age: isAge(parsed.age) ? parsed.age : DEFAULT_STATE.age,
+      engine: isEngine(parsed.engine) ? parsed.engine : DEFAULT_STATE.engine,
+      powerHp: typeof parsed.powerHp === "string" ? parsed.powerHp : DEFAULT_STATE.powerHp,
+      volumeCc: typeof parsed.volumeCc === "string" ? parsed.volumeCc : DEFAULT_STATE.volumeCc,
+      price: typeof parsed.price === "string" ? parsed.price : DEFAULT_STATE.price,
+      currency: isCurrency(parsed.currency) ? parsed.currency : DEFAULT_STATE.currency,
+      chinaExpensesCny:
+        typeof parsed.chinaExpensesCny === "string"
+          ? parsed.chinaExpensesCny
+          : DEFAULT_STATE.chinaExpensesCny,
+      brokerFeeRub:
+        typeof parsed.brokerFeeRub === "string" ? parsed.brokerFeeRub : DEFAULT_STATE.brokerFeeRub,
+      deliveryRub:
+        typeof parsed.deliveryRub === "string" ? parsed.deliveryRub : DEFAULT_STATE.deliveryRub,
+      escortRub: typeof parsed.escortRub === "string" ? parsed.escortRub : DEFAULT_STATE.escortRub,
+      rates,
+      submitted: Boolean(parsed.submitted),
+    };
+  } catch {
+    return DEFAULT_STATE;
+  }
+}
+
+function savePersistedState(state: CalculatorPersistedState) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch {
+    // localStorage недоступен
+  }
+}
 
 const IMPORTER_OPTIONS: Array<{ value: ImporterType; label: string }> = [
   { value: "personal", label: "Физ. лицо (для личного использования)" },
@@ -46,11 +144,8 @@ const ENGINE_OPTIONS: Array<{ value: EngineType; label: string }> = [
 const CURRENCY_OPTIONS: Array<{ value: CurrencyCode; label: string }> = [
   { value: "RUB", label: "Рубль" },
   { value: "USD", label: "Доллар США" },
-  { value: "EUR", label: "Евро" },
   { value: "CNY", label: "Юань" },
-  { value: "AED", label: "Дирхам ОАЭ" },
   { value: "KRW", label: "Вона" },
-  { value: "JPY", label: "Иена" },
 ];
 
 function SegmentedControl<T extends string>({
@@ -97,6 +192,8 @@ function ResultRow({
   note?: string;
   emphasize?: boolean;
 }) {
+  if (value === 0) return null;
+
   return (
     <div
       className={cn(
@@ -117,16 +214,86 @@ function ResultRow({
   );
 }
 
+function ResultSection({ title, children }: { title?: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border bg-muted/10 px-4 py-1">
+      {title && (
+        <p className="border-b border-border/40 pb-2 pt-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {title}
+        </p>
+      )}
+      <div>{children}</div>
+    </div>
+  );
+}
+
 export function CustomsCalculator() {
-  const [importer, setImporter] = useState<ImporterType>("personal");
-  const [age, setAge] = useState<CarAge>("under3");
-  const [engine, setEngine] = useState<EngineType>("petrol");
-  const [powerHp, setPowerHp] = useState("150");
-  const [volumeCc, setVolumeCc] = useState("2000");
-  const [price, setPrice] = useState("25000");
-  const [currency, setCurrency] = useState<CurrencyCode>("EUR");
-  const [rates, setRates] = useState<ExchangeRates>(DEFAULT_EXCHANGE_RATES);
-  const [submitted, setSubmitted] = useState(false);
+  const [importer, setImporter] = useState<ImporterType>(DEFAULT_STATE.importer);
+  const [age, setAge] = useState<CarAge>(DEFAULT_STATE.age);
+  const [engine, setEngine] = useState<EngineType>(DEFAULT_STATE.engine);
+  const [powerHp, setPowerHp] = useState(DEFAULT_STATE.powerHp);
+  const [volumeCc, setVolumeCc] = useState(DEFAULT_STATE.volumeCc);
+  const [price, setPrice] = useState(DEFAULT_STATE.price);
+  const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_STATE.currency);
+  const [chinaExpensesCny, setChinaExpensesCny] = useState(DEFAULT_STATE.chinaExpensesCny);
+  const [brokerFeeRub, setBrokerFeeRub] = useState(DEFAULT_STATE.brokerFeeRub);
+  const [deliveryRub, setDeliveryRub] = useState(DEFAULT_STATE.deliveryRub);
+  const [escortRub, setEscortRub] = useState(DEFAULT_STATE.escortRub);
+  const [rates, setRates] = useState<ExchangeRates>(DEFAULT_STATE.rates);
+  const [submitted, setSubmitted] = useState(DEFAULT_STATE.submitted);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    const stored = loadPersistedState();
+    setImporter(stored.importer);
+    setAge(stored.age);
+    setEngine(stored.engine);
+    setPowerHp(stored.powerHp);
+    setVolumeCc(stored.volumeCc);
+    setPrice(stored.price);
+    setCurrency(stored.currency);
+    setChinaExpensesCny(stored.chinaExpensesCny);
+    setBrokerFeeRub(stored.brokerFeeRub);
+    setDeliveryRub(stored.deliveryRub);
+    setEscortRub(stored.escortRub);
+    setRates(stored.rates);
+    setSubmitted(stored.submitted);
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    savePersistedState({
+      importer,
+      age,
+      engine,
+      powerHp,
+      volumeCc,
+      price,
+      currency,
+      chinaExpensesCny,
+      brokerFeeRub,
+      deliveryRub,
+      escortRub,
+      rates,
+      submitted,
+    });
+  }, [
+    hydrated,
+    importer,
+    age,
+    engine,
+    powerHp,
+    volumeCc,
+    price,
+    currency,
+    chinaExpensesCny,
+    brokerFeeRub,
+    deliveryRub,
+    escortRub,
+    rates,
+    submitted,
+  ]);
 
   const result = useMemo(() => {
     if (!submitted) return null;
@@ -139,8 +306,26 @@ export function CustomsCalculator() {
       price: Number(price.replace(",", ".")),
       currency,
       rates,
+      chinaExpensesCny: Number(chinaExpensesCny.replace(",", ".")),
+      brokerFeeRub: Number(brokerFeeRub.replace(",", ".")),
+      deliveryRub: Number(deliveryRub.replace(",", ".")),
+      escortRub: Number(escortRub.replace(",", ".")),
     });
-  }, [submitted, importer, age, engine, powerHp, volumeCc, price, currency, rates]);
+  }, [
+    submitted,
+    importer,
+    age,
+    engine,
+    powerHp,
+    volumeCc,
+    price,
+    currency,
+    rates,
+    chinaExpensesCny,
+    brokerFeeRub,
+    deliveryRub,
+    escortRub,
+  ]);
 
   const handleCalculate = () => {
     setSubmitted(true);
@@ -238,6 +423,61 @@ export function CustomsCalculator() {
             </div>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="china-expenses">Расходы по Китаю, юани (CNY)</Label>
+            <Input
+              id="china-expenses"
+              type="number"
+              min={0}
+              step="0.01"
+              value={chinaExpensesCny}
+              onChange={(event) => setChinaExpensesCny(event.target.value)}
+            />
+          </div>
+
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <p className="text-sm font-medium">Расходы по России, ₽</p>
+            <div className="space-y-2">
+              <Label htmlFor="broker-fee">Услуги брокера</Label>
+              <Input
+                id="broker-fee"
+                type="number"
+                min={0}
+                step="1"
+                value={brokerFeeRub}
+                onChange={(event) => setBrokerFeeRub(event.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
+            <p className="text-sm font-medium">Доставка по РФ, ₽</p>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="delivery-rub">Доставка</Label>
+                <Input
+                  id="delivery-rub"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={deliveryRub}
+                  onChange={(event) => setDeliveryRub(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="escort-rub">Услуги сопровождения</Label>
+                <Input
+                  id="escort-rub"
+                  type="number"
+                  min={0}
+                  step="1"
+                  value={escortRub}
+                  onChange={(event) => setEscortRub(event.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
           <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
             <p className="text-sm font-medium">Курсы валют к рублю</p>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -269,7 +509,7 @@ export function CustomsCalculator() {
         <CardHeader>
           <CardTitle>Результат расчёта</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Итоговые суммы в рублях. Для электромобилей НДС и акциз считаются и для физлиц.
+            Все суммы в рублях. Итог с комиссией ВТБ = (авто + расходы по Китаю) + 2%.
           </p>
         </CardHeader>
         <CardContent>
@@ -286,28 +526,56 @@ export function CustomsCalculator() {
           )}
 
           {result && (
-            <div>
-              <ResultRow label="Стоимость авто в рублях" value={result.priceRub} />
-              <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
-              <ResultRow
-                label="Таможенная пошлина (ТП)"
-                value={result.customsDuty}
-                note={result.customsDutyNote}
-              />
-              <ResultRow label="Акциз (А)" value={result.excise} />
-              <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
-              <ResultRow
-                label="Утилизационный сбор (УС)"
-                value={result.recyclingFee}
-                note={result.recyclingNote}
-              />
-              <ResultRow label="Итого растаможка" value={result.totalCustoms} emphasize />
-              <div className="mt-2 rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
-                <p className="text-sm text-muted-foreground">Стоимость автомобиля + растаможка</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">
-                  {formatCurrency(result.totalWithCar)}
-                </p>
-              </div>
+            <div className="space-y-4">
+              <ResultSection>
+                <ResultRow label="Стоимость авто в рублях" value={result.priceRub} />
+                <ResultRow
+                  label="Расходы по Китаю"
+                  value={result.chinaExpensesRub}
+                  note={
+                    result.chinaExpensesCny > 0
+                      ? `${result.chinaExpensesCny.toLocaleString("ru-RU")} CNY`
+                      : undefined
+                  }
+                />
+                <ResultRow
+                  label="Итог с комиссией ВТБ"
+                  value={result.vtbTotalRub}
+                  note="Авто + расходы по Китаю + 2%"
+                  emphasize
+                />
+              </ResultSection>
+
+              <ResultSection title="Расходы по России">
+                <ResultRow label="Услуги брокера" value={result.brokerFeeRub} />
+                <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
+                <ResultRow
+                  label="Таможенная пошлина (ТП)"
+                  value={result.customsDuty}
+                  note={result.customsDutyNote}
+                />
+                <ResultRow
+                  label="Утилизационный сбор (УС)"
+                  value={result.recyclingFee}
+                  note={result.recyclingNote}
+                />
+                <ResultRow label="Акциз (А)" value={result.excise} />
+                <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
+              </ResultSection>
+
+              <ResultSection title="Доставка по РФ">
+                <ResultRow label="Доставка" value={result.deliveryRub} />
+                <ResultRow label="Услуги сопровождения" value={result.escortRub} />
+              </ResultSection>
+
+              {result.totalWithCar !== 0 && (
+                <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
+                  <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
+                  <p className="mt-1 text-2xl font-semibold tabular-nums">
+                    {formatCurrency(result.totalWithCar)}
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

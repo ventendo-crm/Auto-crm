@@ -22,21 +22,42 @@ export interface CustomsCalculatorInput {
   price: number;
   currency: CurrencyCode;
   rates: ExchangeRates;
+  /** Расходы по Китаю в юанях (CNY) */
+  chinaExpensesCny?: number;
+  /** Услуги брокера, ₽ */
+  brokerFeeRub?: number;
+  /** Доставка по РФ, ₽ */
+  deliveryRub?: number;
+  /** Услуги сопровождения, ₽ */
+  escortRub?: number;
 }
 
 export interface CustomsCalculatorResult {
   priceRub: number;
   priceEur: number;
+  chinaExpensesCny: number;
+  chinaExpensesRub: number;
+  /** (стоимость авто + расходы по Китаю) × 1.02 */
+  vtbTotalRub: number;
+  brokerFeeRub: number;
   customsFee: number;
   customsDuty: number;
   customsDutyNote: string;
-  excise: number;
-  vat: number;
   recyclingFee: number;
   recyclingNote: string;
+  excise: number;
+  vat: number;
+  deliveryRub: number;
+  escortRub: number;
   totalCustoms: number;
+  /** Полный итог со всеми расходами */
   totalWithCar: number;
 }
+
+export const VTB_COMMISSION_RATE = 0.02;
+export const DEFAULT_BROKER_FEE_RUB = 55_000;
+export const DEFAULT_DELIVERY_RUB = 200_000;
+export const DEFAULT_ESCORT_RUB = 200_000;
 
 function roundMoney(value: number): number {
   return Math.round(value * 100) / 100;
@@ -449,18 +470,43 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   });
 
   const totalCustoms = customsFee + customsDuty + excise + vat + recyclingFee;
+  const chinaExpensesCny =
+    Number.isFinite(input.chinaExpensesCny) && (input.chinaExpensesCny ?? 0) > 0
+      ? (input.chinaExpensesCny as number)
+      : 0;
+  const chinaExpensesRub = toRub(chinaExpensesCny, "CNY", input.rates);
+  const vtbTotalRub = (priceRub + chinaExpensesRub) * (1 + VTB_COMMISSION_RATE);
+
+  const brokerFeeRub = normalizeOptionalRub(input.brokerFeeRub, DEFAULT_BROKER_FEE_RUB);
+  const deliveryRub = normalizeOptionalRub(input.deliveryRub, DEFAULT_DELIVERY_RUB);
+  const escortRub = normalizeOptionalRub(input.escortRub, DEFAULT_ESCORT_RUB);
+
+  const totalWithCar =
+    vtbTotalRub + brokerFeeRub + totalCustoms + deliveryRub + escortRub;
 
   return {
     priceRub: roundMoney(priceRub),
     priceEur: roundMoney(priceEur),
+    chinaExpensesCny: roundMoney(chinaExpensesCny),
+    chinaExpensesRub: roundMoney(chinaExpensesRub),
+    vtbTotalRub: roundMoney(vtbTotalRub),
+    brokerFeeRub: roundMoney(brokerFeeRub),
     customsFee: roundMoney(customsFee),
     customsDuty: roundMoney(customsDuty),
     customsDutyNote,
-    excise: roundMoney(excise),
-    vat: roundMoney(vat),
     recyclingFee: roundMoney(recyclingFee),
     recyclingNote,
+    excise: roundMoney(excise),
+    vat: roundMoney(vat),
+    deliveryRub: roundMoney(deliveryRub),
+    escortRub: roundMoney(escortRub),
     totalCustoms: roundMoney(totalCustoms),
-    totalWithCar: roundMoney(priceRub + totalCustoms),
+    totalWithCar: roundMoney(totalWithCar),
   };
+}
+
+function normalizeOptionalRub(value: number | undefined, fallback: number): number {
+  if (value === undefined) return fallback;
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return value;
 }
