@@ -1,7 +1,8 @@
 "use client";
 
-import { Calculator as CalculatorIcon } from "lucide-react";
+import { Calculator as CalculatorIcon, Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { api } from "@/lib/api-client";
 import {
   calculateCustoms,
   CarAge,
@@ -53,7 +55,7 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   volumeCc: "2000",
   price: "25000",
   currency: "USD",
-  chinaExpensesCny: "12000",
+  chinaExpensesCny: "5000",
   brokerFeeRub: String(DEFAULT_BROKER_FEE_RUB),
   deliveryRub: String(DEFAULT_DELIVERY_RUB),
   escortRub: String(DEFAULT_ESCORT_RUB),
@@ -71,6 +73,11 @@ function isAge(value: unknown): value is CarAge {
 
 function isEngine(value: unknown): value is EngineType {
   return value === "petrol" || value === "diesel" || value === "electric";
+}
+
+function normalizeEngine(value: EngineType): EngineType {
+  // Бензин и дизель объединены в одну кнопку UI
+  return value === "diesel" ? "petrol" : value;
 }
 
 function isCurrency(value: unknown): value is CurrencyCode {
@@ -92,7 +99,7 @@ function loadPersistedState(): CalculatorPersistedState {
     return {
       importer: isImporter(parsed.importer) ? parsed.importer : DEFAULT_STATE.importer,
       age: isAge(parsed.age) ? parsed.age : DEFAULT_STATE.age,
-      engine: isEngine(parsed.engine) ? parsed.engine : DEFAULT_STATE.engine,
+      engine: isEngine(parsed.engine) ? normalizeEngine(parsed.engine) : DEFAULT_STATE.engine,
       powerHp: typeof parsed.powerHp === "string" ? parsed.powerHp : DEFAULT_STATE.powerHp,
       volumeCc: typeof parsed.volumeCc === "string" ? parsed.volumeCc : DEFAULT_STATE.volumeCc,
       price: typeof parsed.price === "string" ? parsed.price : DEFAULT_STATE.price,
@@ -136,8 +143,7 @@ const AGE_OPTIONS: Array<{ value: CarAge; label: string }> = [
 ];
 
 const ENGINE_OPTIONS: Array<{ value: EngineType; label: string }> = [
-  { value: "petrol", label: "Бензин" },
-  { value: "diesel", label: "Дизель" },
+  { value: "petrol", label: "Бензин / Дизель" },
   { value: "electric", label: "Электро и последовательный гибрид" },
 ];
 
@@ -147,6 +153,10 @@ const CURRENCY_OPTIONS: Array<{ value: CurrencyCode; label: string }> = [
   { value: "CNY", label: "Юань" },
   { value: "KRW", label: "Вона" },
 ];
+
+function chinaExpensesForAge(age: CarAge): string {
+  return age === "under3" ? "5000" : "12000";
+}
 
 function SegmentedControl<T extends string>({
   value,
@@ -242,6 +252,9 @@ export function CustomsCalculator() {
   const [rates, setRates] = useState<ExchangeRates>(DEFAULT_STATE.rates);
   const [submitted, setSubmitted] = useState(DEFAULT_STATE.submitted);
   const [hydrated, setHydrated] = useState(false);
+  const [ratesLoading, setRatesLoading] = useState(false);
+  const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
+  const [ratesSource, setRatesSource] = useState<string | null>(null);
 
   useEffect(() => {
     const stored = loadPersistedState();
@@ -260,6 +273,41 @@ export function CustomsCalculator() {
     setSubmitted(stored.submitted);
     setHydrated(true);
   }, []);
+
+  const loadExchangeRates = async (force = false) => {
+    setRatesLoading(true);
+    try {
+      const data = await api.exchangeRates.get(force);
+      setRates(data.rates);
+      setRatesUpdatedAt(data.fetchedAt);
+      setRatesSource(
+        data.source === "google-finance"
+          ? "Google Finance"
+          : data.source === "google-search"
+            ? "Google"
+            : "Yahoo (Google Finance недоступен в регионе)",
+      );
+      if (force) {
+        toast.success(
+          data.source === "yahoo"
+            ? "Курсы обновлены (запасной источник — Yahoo)"
+            : "Курсы обновлены с Google Finance",
+        );
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Не удалось загрузить курсы с Google Finance";
+      toast.error(message);
+    } finally {
+      setRatesLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!hydrated) return;
+    void loadExchangeRates(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- только после гидрации
+  }, [hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -331,6 +379,11 @@ export function CustomsCalculator() {
     setSubmitted(true);
   };
 
+  const handleAgeChange = (next: CarAge) => {
+    setAge(next);
+    setChinaExpensesCny(chinaExpensesForAge(next));
+  };
+
   const updateRate = (key: keyof ExchangeRates, value: string) => {
     const next = Number(value.replace(",", "."));
     if (!Number.isFinite(next) || next <= 0) return;
@@ -359,39 +412,16 @@ export function CustomsCalculator() {
 
           <div className="space-y-2">
             <Label>Возраст автомобиля</Label>
-            <SegmentedControl value={age} options={AGE_OPTIONS} onChange={setAge} />
+            <SegmentedControl value={age} options={AGE_OPTIONS} onChange={handleAgeChange} />
           </div>
 
           <div className="space-y-2">
             <Label>Тип двигателя</Label>
-            <SegmentedControl value={engine} options={ENGINE_OPTIONS} onChange={setEngine} />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="power-hp">Мощность, л.с.</Label>
-              <Input
-                id="power-hp"
-                type="number"
-                min={1}
-                step="1"
-                value={powerHp}
-                onChange={(event) => setPowerHp(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="volume-cc">Объём двигателя, см³</Label>
-              <Input
-                id="volume-cc"
-                type="number"
-                min={1}
-                step="1"
-                value={volumeCc}
-                onChange={(event) => setVolumeCc(event.target.value)}
-                disabled={engine === "electric"}
-                placeholder={engine === "electric" ? "Не требуется" : undefined}
-              />
-            </div>
+            <SegmentedControl
+              value={normalizeEngine(engine)}
+              options={ENGINE_OPTIONS}
+              onChange={setEngine}
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
@@ -420,6 +450,35 @@ export function CustomsCalculator() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="power-hp">
+                {engine === "electric" ? "30-ти минутная мощность" : "Мощность, л.с."}
+              </Label>
+              <Input
+                id="power-hp"
+                type="number"
+                min={1}
+                step="1"
+                value={powerHp}
+                onChange={(event) => setPowerHp(event.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="volume-cc">Объём двигателя, см³</Label>
+              <Input
+                id="volume-cc"
+                type="number"
+                min={1}
+                step="1"
+                value={volumeCc}
+                onChange={(event) => setVolumeCc(event.target.value)}
+                disabled={engine === "electric"}
+                placeholder={engine === "electric" ? "Не требуется" : undefined}
+              />
             </div>
           </div>
 
@@ -479,7 +538,34 @@ export function CustomsCalculator() {
           </div>
 
           <div className="space-y-3 rounded-xl border bg-muted/20 p-4">
-            <p className="text-sm font-medium">Курсы валют к рублю</p>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">Курсы валют к рублю</p>
+                <p className="text-xs text-muted-foreground">
+                  {ratesLoading
+                    ? "Загрузка с Google Finance…"
+                    : ratesUpdatedAt
+                      ? `Обновлено: ${new Date(ratesUpdatedAt).toLocaleString("ru-RU")}${
+                          ratesSource ? ` · ${ratesSource}` : ""
+                        }`
+                      : "Автозагрузка с Google Finance"}
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={ratesLoading}
+                onClick={() => void loadExchangeRates(true)}
+              >
+                {ratesLoading ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Обновить
+              </Button>
+            </div>
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {(Object.keys(DEFAULT_EXCHANGE_RATES) as Array<keyof ExchangeRates>).map((code) => (
                 <div key={code} className="space-y-1.5">

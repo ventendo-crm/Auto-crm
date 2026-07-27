@@ -388,6 +388,18 @@ export const api = {
     },
   },
 
+  exchangeRates: {
+    get: (force = false) => {
+      const params = force ? "?force=1" : "";
+      return request<{
+        rates: { USD: number; EUR: number; CNY: number; KRW: number };
+        fetchedAt: string;
+        source: "google-finance" | "google-search" | "yahoo";
+        cached: boolean;
+      }>(`/api/exchange-rates${params}`);
+    },
+  },
+
   myDeal: {
     get: () => request<ClientPortalDeal>("/api/my-deal"),
   },
