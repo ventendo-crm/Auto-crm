@@ -83,3 +83,16 @@ export async function createDealCustomsEstimate(
 
   return serializeEstimate(created);
 }
+
+export async function deleteDealCustomsEstimate(
+  dealId: string,
+  estimateId: string,
+): Promise<void> {
+  const result = await prisma.dealCustomsEstimate.deleteMany({
+    where: { id: estimateId, dealId },
+  });
+
+  if (result.count === 0) {
+    throw new Error("NOT_FOUND");
+  }
+}

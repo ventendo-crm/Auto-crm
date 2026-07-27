@@ -192,6 +192,14 @@ export function canCreateCustomsEstimates(
   return canUpdateDeal(role, userId, managerIdOrIds);
 }
 
+export function canDeleteCustomsEstimates(
+  role: RoleName,
+  userId: string,
+  managerIdOrIds: string | null | string[] | DealWithManagerAssignments,
+): boolean {
+  return canCreateCustomsEstimates(role, userId, managerIdOrIds);
+}
+
 export function canManageManagers(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }

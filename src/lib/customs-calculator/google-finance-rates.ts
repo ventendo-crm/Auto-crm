@@ -1,4 +1,8 @@
-import { DEFAULT_EXCHANGE_RATES, ExchangeRates } from "@/lib/customs-calculator/rates";
+import {
+  DEFAULT_EXCHANGE_RATES,
+  ExchangeRates,
+  roundExchangeRate,
+} from "@/lib/customs-calculator/rates";
 
 const PAIRS = ["USD", "EUR", "CNY", "KRW"] as const;
 type RateCode = (typeof PAIRS)[number];
@@ -21,11 +25,6 @@ export type GoogleFinanceRatesResult = {
   source: "google-finance" | "google-search" | "yahoo";
   cached: boolean;
 };
-
-function roundRate(value: number): number {
-  if (value >= 1) return Math.round(value * 10_000) / 10_000;
-  return Math.round(value * 1_000_000) / 1_000_000;
-}
 
 function parseRateCandidate(raw: string | undefined | null): number | null {
   if (!raw) return null;
@@ -124,7 +123,7 @@ async function fetchAllPairs(
 
   const result: Partial<Record<RateCode, number>> = {};
   for (const [code, rate] of entries) {
-    if (rate != null) result[code] = roundRate(rate);
+    if (rate != null) result[code] = roundExchangeRate(rate);
   }
   return result;
 }
@@ -266,10 +265,10 @@ async function fetchRatesFromYahoo(): Promise<ExchangeRates | null> {
   const krw = usd / usdKrw;
 
   return {
-    USD: roundRate(usd),
-    EUR: roundRate(eur),
-    CNY: roundRate(cny),
-    KRW: roundRate(krw),
+    USD: roundExchangeRate(usd),
+    EUR: roundExchangeRate(eur),
+    CNY: roundExchangeRate(cny),
+    KRW: roundExchangeRate(krw),
   };
 }
 
@@ -286,7 +285,7 @@ async function fetchFromConfiguredUrl(): Promise<ExchangeRates | null> {
     for (const code of PAIRS) {
       const value = raw[code];
       if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-        partial[code] = roundRate(value);
+        partial[code] = roundExchangeRate(value);
       }
     }
     return toExchangeRates(partial);

@@ -196,6 +196,7 @@ export default function DealPage() {
               dealId={deal.id}
               active={activeTab === "overview"}
               showCalculatorLink={canManageDeal}
+              canDelete={canManageDeal}
             />
 
             <div className="grid gap-4 lg:grid-cols-2">

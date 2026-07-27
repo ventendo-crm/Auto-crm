@@ -215,6 +215,19 @@ export const api = {
             body: JSON.stringify(data),
           },
         ),
+      delete: async (dealId: string, estimateId: string) => {
+        const response = await fetch(
+          `/api/deals/${dealId}/customs-estimates/${estimateId}`,
+          {
+            method: "DELETE",
+            credentials: "include",
+          },
+        );
+        if (!response.ok) {
+          const json = (await response.json()) as ApiResponse<unknown>;
+          throw new Error(json.error ?? "Не удалось удалить расчёт");
+        }
+      },
     },
     setImportProcessEnabled: (dealId: string, enabled: boolean) =>
       request<{ importProcessEnabled: boolean }>(`/api/deals/${dealId}/import-process`, {

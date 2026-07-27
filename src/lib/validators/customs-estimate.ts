@@ -18,7 +18,9 @@ export const customsEstimateInputSchema = z.object({
   rates: exchangeRatesSchema,
   chinaExpensesCny: z.number().nonnegative().optional(),
   brokerFeeRub: z.number().nonnegative().optional(),
+  deliveryRoute: z.enum(["ussuriysk", "kazakhstan"]).optional(),
   deliveryRub: z.number().nonnegative().optional(),
+  deliveryUsd: z.number().nonnegative().optional(),
   escortRub: z.number().nonnegative().optional(),
 });
 

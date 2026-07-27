@@ -7,6 +7,7 @@ export type ImporterType = "personal" | "resale" | "legal";
 export type CarAge = "under3" | "from3to5" | "from5to7" | "over7";
 export type EngineType = "petrol" | "diesel" | "electric";
 export type CurrencyCode = "RUB" | "USD" | "CNY" | "KRW";
+export type DeliveryRoute = "ussuriysk" | "kazakhstan";
 
 export interface ExchangeRates {
   USD: number;
@@ -15,12 +16,26 @@ export interface ExchangeRates {
   KRW: number;
 }
 
+/** Округление курса до 2 знаков после запятой. */
+export function roundExchangeRate(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+export function roundExchangeRates(rates: ExchangeRates): ExchangeRates {
+  return {
+    USD: roundExchangeRate(rates.USD),
+    EUR: roundExchangeRate(rates.EUR),
+    CNY: roundExchangeRate(rates.CNY),
+    KRW: roundExchangeRate(rates.KRW),
+  };
+}
+
 /** Курсы по умолчанию (редактируются в UI). EUR нужен для расчёта пошлин. */
 export const DEFAULT_EXCHANGE_RATES: ExchangeRates = {
   USD: 90,
   EUR: 98,
   CNY: 12.5,
-  KRW: 0.066,
+  KRW: 0.07,
 };
 
 export const CUSTOMS_FEE_BRACKETS: Array<{ maxRub: number; fee: number }> = [
@@ -73,3 +88,6 @@ export function hpToKw(hp: number): number {
 export function isYoungerThan3(age: CarAge): boolean {
   return age === "under3";
 }
+
+/** Фиксированная стоимость доставки через Казахстан. */
+export const KAZAKHSTAN_DELIVERY_USD = 1500;

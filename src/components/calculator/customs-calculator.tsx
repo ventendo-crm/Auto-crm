@@ -24,12 +24,16 @@ import {
   DEFAULT_DELIVERY_RUB,
   DEFAULT_ESCORT_RUB,
   DEFAULT_EXCHANGE_RATES,
+  DeliveryRoute,
   EngineType,
   ExchangeRates,
   ImporterType,
+  KAZAKHSTAN_DELIVERY_USD,
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
+  roundExchangeRate,
+  roundExchangeRates,
 } from "@/lib/customs-calculator";
 import { cn, formatCurrency } from "@/lib/utils";
 import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-to-deal-button";
@@ -46,7 +50,9 @@ type CalculatorPersistedState = {
   currency: CurrencyCode;
   chinaExpensesCny: string;
   brokerFeeRub: string;
+  deliveryRoute: DeliveryRoute;
   deliveryRub: string;
+  deliveryUsd: string;
   escortRub: string;
   rates: ExchangeRates;
   submitted: boolean;
@@ -62,7 +68,9 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   currency: "USD",
   chinaExpensesCny: "5000",
   brokerFeeRub: String(DEFAULT_BROKER_FEE_RUB),
+  deliveryRoute: "ussuriysk",
   deliveryRub: String(DEFAULT_DELIVERY_RUB),
+  deliveryUsd: String(KAZAKHSTAN_DELIVERY_USD),
   escortRub: String(DEFAULT_ESCORT_RUB),
   rates: DEFAULT_EXCHANGE_RATES,
   submitted: false,
@@ -89,18 +97,22 @@ function isCurrency(value: unknown): value is CurrencyCode {
   return value === "RUB" || value === "USD" || value === "CNY" || value === "KRW";
 }
 
+function isDeliveryRoute(value: unknown): value is DeliveryRoute {
+  return value === "ussuriysk" || value === "kazakhstan";
+}
+
 function loadPersistedState(): CalculatorPersistedState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_STATE;
     const parsed = JSON.parse(raw) as Partial<CalculatorPersistedState>;
-    const rates = {
+    const rates = roundExchangeRates({
       ...DEFAULT_EXCHANGE_RATES,
       USD: typeof parsed.rates?.USD === "number" ? parsed.rates.USD : DEFAULT_EXCHANGE_RATES.USD,
       EUR: typeof parsed.rates?.EUR === "number" ? parsed.rates.EUR : DEFAULT_EXCHANGE_RATES.EUR,
       CNY: typeof parsed.rates?.CNY === "number" ? parsed.rates.CNY : DEFAULT_EXCHANGE_RATES.CNY,
       KRW: typeof parsed.rates?.KRW === "number" ? parsed.rates.KRW : DEFAULT_EXCHANGE_RATES.KRW,
-    };
+    });
     return {
       importer: isImporter(parsed.importer) ? parsed.importer : DEFAULT_STATE.importer,
       age: isAge(parsed.age) ? parsed.age : DEFAULT_STATE.age,
@@ -115,8 +127,13 @@ function loadPersistedState(): CalculatorPersistedState {
           : DEFAULT_STATE.chinaExpensesCny,
       brokerFeeRub:
         typeof parsed.brokerFeeRub === "string" ? parsed.brokerFeeRub : DEFAULT_STATE.brokerFeeRub,
+      deliveryRoute: isDeliveryRoute(parsed.deliveryRoute)
+        ? parsed.deliveryRoute
+        : DEFAULT_STATE.deliveryRoute,
       deliveryRub:
         typeof parsed.deliveryRub === "string" ? parsed.deliveryRub : DEFAULT_STATE.deliveryRub,
+      deliveryUsd:
+        typeof parsed.deliveryUsd === "string" ? parsed.deliveryUsd : DEFAULT_STATE.deliveryUsd,
       escortRub: typeof parsed.escortRub === "string" ? parsed.escortRub : DEFAULT_STATE.escortRub,
       rates,
       submitted: Boolean(parsed.submitted),
@@ -157,6 +174,11 @@ const CURRENCY_OPTIONS: Array<{ value: CurrencyCode; label: string }> = [
   { value: "USD", label: "Доллар США" },
   { value: "CNY", label: "Юань" },
   { value: "KRW", label: "Вона" },
+];
+
+const DELIVERY_ROUTE_OPTIONS: Array<{ value: DeliveryRoute; label: string }> = [
+  { value: "ussuriysk", label: "Через Уссурийск" },
+  { value: "kazakhstan", label: "Через Казахстан" },
 ];
 
 function chinaExpensesForAge(age: CarAge): string {
@@ -307,10 +329,10 @@ function exportFilename(extension: "pdf" | "jpg") {
   return `rastamozhka-${stamp}.${extension}`;
 }
 
-async function captureResultCanvas(element: HTMLElement) {
+async function captureResultCanvas(element: HTMLElement, scale = 2) {
   const html2canvas = (await import("html2canvas")).default;
   return html2canvas(element, {
-    scale: 1.75,
+    scale,
     useCORS: true,
     backgroundColor: "#ffffff",
     logging: false,
@@ -323,12 +345,12 @@ async function captureResultCanvas(element: HTMLElement) {
 }
 
 async function saveResultAsJpeg(element: HTMLElement) {
-  const canvas = await captureResultCanvas(element);
-  downloadBlob(exportFilename("jpg"), canvas.toDataURL("image/jpeg", 0.92));
+  const canvas = await captureResultCanvas(element, 3);
+  downloadBlob(exportFilename("jpg"), canvas.toDataURL("image/jpeg", 0.98));
 }
 
 async function saveResultAsPdf(element: HTMLElement) {
-  const canvas = await captureResultCanvas(element);
+  const canvas = await captureResultCanvas(element, 2.5);
   const { jsPDF } = await import("jspdf");
   const imgData = canvas.toDataURL("image/jpeg", 0.95);
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
@@ -364,7 +386,9 @@ export function CustomsCalculator() {
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_STATE.currency);
   const [chinaExpensesCny, setChinaExpensesCny] = useState(DEFAULT_STATE.chinaExpensesCny);
   const [brokerFeeRub, setBrokerFeeRub] = useState(DEFAULT_STATE.brokerFeeRub);
+  const [deliveryRoute, setDeliveryRoute] = useState<DeliveryRoute>(DEFAULT_STATE.deliveryRoute);
   const [deliveryRub, setDeliveryRub] = useState(DEFAULT_STATE.deliveryRub);
+  const [deliveryUsd, setDeliveryUsd] = useState(DEFAULT_STATE.deliveryUsd);
   const [escortRub, setEscortRub] = useState(DEFAULT_STATE.escortRub);
   const [rates, setRates] = useState<ExchangeRates>(DEFAULT_STATE.rates);
   const [submitted, setSubmitted] = useState(DEFAULT_STATE.submitted);
@@ -390,7 +414,9 @@ export function CustomsCalculator() {
     setCurrency(stored.currency);
     setChinaExpensesCny(stored.chinaExpensesCny);
     setBrokerFeeRub(stored.brokerFeeRub);
+    setDeliveryRoute(stored.deliveryRoute);
     setDeliveryRub(stored.deliveryRub);
+    setDeliveryUsd(stored.deliveryUsd);
     setEscortRub(stored.escortRub);
     setRates(stored.rates);
     setSubmitted(stored.submitted);
@@ -401,7 +427,7 @@ export function CustomsCalculator() {
     setRatesLoading(true);
     try {
       const data = await api.exchangeRates.get(force);
-      setRates(data.rates);
+      setRates(roundExchangeRates(data.rates));
       setRatesUpdatedAt(data.fetchedAt);
       if (force) {
         toast.success("Курсы обновлены");
@@ -433,7 +459,9 @@ export function CustomsCalculator() {
       currency,
       chinaExpensesCny,
       brokerFeeRub,
+      deliveryRoute,
       deliveryRub,
+      deliveryUsd,
       escortRub,
       rates,
       submitted,
@@ -449,7 +477,9 @@ export function CustomsCalculator() {
     currency,
     chinaExpensesCny,
     brokerFeeRub,
+    deliveryRoute,
     deliveryRub,
+    deliveryUsd,
     escortRub,
     rates,
     submitted,
@@ -468,7 +498,9 @@ export function CustomsCalculator() {
       rates,
       chinaExpensesCny: Number(chinaExpensesCny.replace(",", ".")),
       brokerFeeRub: Number(brokerFeeRub.replace(",", ".")),
+      deliveryRoute,
       deliveryRub: Number(deliveryRub.replace(",", ".")),
+      deliveryUsd: Number(deliveryUsd.replace(",", ".")),
       escortRub: Number(escortRub.replace(",", ".")),
     });
   }, [
@@ -483,7 +515,9 @@ export function CustomsCalculator() {
     rates,
     chinaExpensesCny,
     brokerFeeRub,
+    deliveryRoute,
     deliveryRub,
+    deliveryUsd,
     escortRub,
   ]);
 
@@ -537,7 +571,7 @@ export function CustomsCalculator() {
   const updateRate = (key: keyof ExchangeRates, value: string) => {
     const next = Number(value.replace(",", "."));
     if (!Number.isFinite(next) || next <= 0) return;
-    setRates((current) => ({ ...current, [key]: next }));
+    setRates((current) => ({ ...current, [key]: roundExchangeRate(next) }));
   };
 
   const powerHpNumber = Number(powerHp.replace(",", "."));
@@ -556,6 +590,9 @@ export function CustomsCalculator() {
       ? "По умолчанию 5 000 CNY для авто до 3 лет"
       : "По умолчанию 12 000 CNY для авто от 3 лет";
 
+  const kazakhstanDeliveryRub =
+    Math.round(Number(deliveryUsd.replace(",", ".")) * rates.USD * 100) / 100;
+
   const calculatorInput = {
     importer,
     age,
@@ -567,7 +604,9 @@ export function CustomsCalculator() {
     rates,
     chinaExpensesCny: Number(chinaExpensesCny.replace(",", ".")),
     brokerFeeRub: Number(brokerFeeRub.replace(",", ".")),
+    deliveryRoute,
     deliveryRub: Number(deliveryRub.replace(",", ".")),
+    deliveryUsd: Number(deliveryUsd.replace(",", ".")),
     escortRub: Number(escortRub.replace(",", ".")),
   };
 
@@ -752,17 +791,66 @@ export function CustomsCalculator() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label>Доставка по РФ</Label>
+              <Select
+                value={deliveryRoute}
+                onValueChange={(value) => {
+                  const next = value as DeliveryRoute;
+                  setDeliveryRoute(next);
+                  if (next === "kazakhstan" && !deliveryUsd.trim()) {
+                    setDeliveryUsd(String(KAZAKHSTAN_DELIVERY_USD));
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Маршрут доставки" />
+                </SelectTrigger>
+                <SelectContent>
+                  {DELIVERY_ROUTE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="delivery-rub">Доставка по РФ, ₽</Label>
-                <Input
-                  id="delivery-rub"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={deliveryRub}
-                  onChange={(event) => setDeliveryRub(event.target.value)}
-                />
+                {deliveryRoute === "kazakhstan" ? (
+                  <>
+                    <Label htmlFor="delivery-usd">Стоимость доставки, USD</Label>
+                    <Input
+                      id="delivery-usd"
+                      type="number"
+                      min={0}
+                      step="0.01"
+                      value={deliveryUsd}
+                      onChange={(event) => setDeliveryUsd(event.target.value)}
+                    />
+                    <FieldHint>
+                      По умолчанию {KAZAKHSTAN_DELIVERY_USD.toLocaleString("ru-RU")} USD
+                      {Number.isFinite(kazakhstanDeliveryRub)
+                        ? ` ≈ ${kazakhstanDeliveryRub.toLocaleString("ru-RU", {
+                            maximumFractionDigits: 0,
+                          })} ₽`
+                        : ""}
+                    </FieldHint>
+                  </>
+                ) : (
+                  <>
+                    <Label htmlFor="delivery-rub">Стоимость доставки, ₽</Label>
+                    <Input
+                      id="delivery-rub"
+                      type="number"
+                      min={0}
+                      step="1"
+                      value={deliveryRub}
+                      onChange={(event) => setDeliveryRub(event.target.value)}
+                    />
+                  </>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="escort-rub">Услуги сопровождения, ₽</Label>
@@ -815,8 +903,8 @@ export function CustomsCalculator() {
                   <Input
                     id={`rate-${code}`}
                     type="number"
-                    min={0.0001}
-                    step="0.0001"
+                    min={0.01}
+                    step="0.01"
                     value={rates[code]}
                     onChange={(event) => updateRate(code, event.target.value)}
                   />
@@ -915,7 +1003,7 @@ export function CustomsCalculator() {
                     <div className="border-b border-border/40 pb-1.5">
                       <p className="text-sm font-semibold">Расчёт растаможки</p>
                       <p className="text-[11px] text-muted-foreground">
-                        Курс CNY: {rates.CNY.toLocaleString("ru-RU", { maximumFractionDigits: 4 })} ₽
+                        Курс CNY: {rates.CNY.toLocaleString("ru-RU", { maximumFractionDigits: 2, minimumFractionDigits: 2 })} ₽
                       </p>
                     </div>
 
@@ -968,7 +1056,12 @@ export function CustomsCalculator() {
                     </ResultSection>
 
                     <ResultSection compact title="Доставка по РФ">
-                      <ResultRow compact label="Доставка" value={result.deliveryRub} />
+                      <ResultRow
+                        compact
+                        label="Доставка"
+                        value={result.deliveryRub}
+                        note={result.deliveryNote}
+                      />
                       <ResultRow compact label="Услуги сопровождения" value={result.escortRub} />
                     </ResultSection>
 

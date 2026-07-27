@@ -91,7 +91,7 @@ export function CustomsEstimateSnapshot({
           {[
             createdAt ? new Date(createdAt).toLocaleString("ru-RU") : null,
             createdByName,
-            `Курс CNY: ${input.rates.CNY.toLocaleString("ru-RU", { maximumFractionDigits: 4 })} ₽`,
+            `Курс CNY: ${input.rates.CNY.toLocaleString("ru-RU", { maximumFractionDigits: 2, minimumFractionDigits: 2 })} ₽`,
           ]
             .filter(Boolean)
             .join(" · ")}
@@ -145,7 +145,20 @@ export function CustomsEstimateSnapshot({
       </ResultSection>
 
       <ResultSection title="Доставка по РФ">
-        <ResultRow label="Доставка" value={result.deliveryRub} />
+        <ResultRow
+          label="Доставка"
+          value={result.deliveryRub}
+          note={
+            result.deliveryNote ??
+            (input.deliveryRoute === "kazakhstan"
+              ? `через Казахстан · ${(input.deliveryUsd ?? 1500).toLocaleString("ru-RU", {
+                  maximumFractionDigits: 2,
+                })} USD`
+              : input.deliveryRoute === "ussuriysk"
+                ? "через Уссурийск"
+                : undefined)
+          }
+        />
         <ResultRow label="Услуги сопровождения" value={result.escortRub} />
       </ResultSection>
     </div>

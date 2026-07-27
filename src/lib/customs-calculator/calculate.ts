@@ -2,12 +2,14 @@ import {
   CarAge,
   CurrencyCode,
   CUSTOMS_FEE_BRACKETS,
+  DeliveryRoute,
   EngineType,
   EXCISE_BRACKETS,
   ExchangeRates,
   hpToKw,
   ImporterType,
   isYoungerThan3,
+  KAZAKHSTAN_DELIVERY_USD,
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
@@ -28,8 +30,12 @@ export interface CustomsCalculatorInput {
   chinaExpensesCny?: number;
   /** Услуги брокера, ₽ */
   brokerFeeRub?: number;
-  /** Доставка по РФ, ₽ */
+  /** Маршрут доставки по РФ */
+  deliveryRoute?: DeliveryRoute;
+  /** Доставка по РФ через Уссурийск, ₽ */
   deliveryRub?: number;
+  /** Доставка через Казахстан, USD (по умолчанию 1500) */
+  deliveryUsd?: number;
   /** Услуги сопровождения, ₽ */
   escortRub?: number;
 }
@@ -49,7 +55,9 @@ export interface CustomsCalculatorResult {
   recyclingNote: string;
   excise: number;
   vat: number;
+  deliveryRoute: DeliveryRoute;
   deliveryRub: number;
+  deliveryNote: string;
   escortRub: number;
   totalCustoms: number;
   /** Полный итог со всеми расходами */
@@ -484,7 +492,14 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const vtbTotalRub = (priceRub + chinaExpensesRub) * (1 + VTB_COMMISSION_RATE);
 
   const brokerFeeRub = normalizeOptionalRub(input.brokerFeeRub, DEFAULT_BROKER_FEE_RUB);
-  const deliveryRub = normalizeOptionalRub(input.deliveryRub, DEFAULT_DELIVERY_RUB);
+  const deliveryRoute: DeliveryRoute =
+    input.deliveryRoute === "kazakhstan" ? "kazakhstan" : "ussuriysk";
+  const { amount: deliveryRub, note: deliveryNote } = resolveDelivery(
+    deliveryRoute,
+    input.deliveryRub,
+    input.deliveryUsd,
+    input.rates,
+  );
   const escortRub = normalizeOptionalRub(input.escortRub, DEFAULT_ESCORT_RUB);
 
   const totalWithCar =
@@ -504,10 +519,37 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
     recyclingNote,
     excise: roundMoney(excise),
     vat: roundMoney(vat),
+    deliveryRoute,
     deliveryRub: roundMoney(deliveryRub),
+    deliveryNote,
     escortRub: roundMoney(escortRub),
     totalCustoms: roundMoney(totalCustoms),
     totalWithCar: roundMoney(totalWithCar),
+  };
+}
+
+function resolveDelivery(
+  route: DeliveryRoute,
+  deliveryRub: number | undefined,
+  deliveryUsd: number | undefined,
+  rates: ExchangeRates,
+): { amount: number; note: string } {
+  if (route === "kazakhstan") {
+    const usd =
+      Number.isFinite(deliveryUsd) && (deliveryUsd as number) >= 0
+        ? (deliveryUsd as number)
+        : KAZAKHSTAN_DELIVERY_USD;
+    return {
+      amount: usd * rates.USD,
+      note: `через Казахстан · ${usd.toLocaleString("ru-RU", {
+        maximumFractionDigits: 2,
+      })} USD`,
+    };
+  }
+
+  return {
+    amount: normalizeOptionalRub(deliveryRub, DEFAULT_DELIVERY_RUB),
+    note: "через Уссурийск",
   };
 }
 
