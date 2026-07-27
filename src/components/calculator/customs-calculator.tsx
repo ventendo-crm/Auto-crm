@@ -371,7 +371,6 @@ export function CustomsCalculator() {
   const [hydrated, setHydrated] = useState(false);
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
-  const [ratesSource, setRatesSource] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "jpeg" | null>(null);
   const [autoOpen, setAutoOpen] = useState(true);
   const [expensesOpen, setExpensesOpen] = useState(true);
@@ -404,19 +403,8 @@ export function CustomsCalculator() {
       const data = await api.exchangeRates.get(force);
       setRates(data.rates);
       setRatesUpdatedAt(data.fetchedAt);
-      setRatesSource(
-        data.source === "google-finance"
-          ? "Google Finance"
-          : data.source === "google-search"
-            ? "Google"
-            : "Yahoo (Google Finance недоступен в регионе)",
-      );
       if (force) {
-        toast.success(
-          data.source === "yahoo"
-            ? "Курсы обновлены (запасной источник — Yahoo)"
-            : "Курсы обновлены с Google Finance",
-        );
+        toast.success("Курсы обновлены");
       }
     } catch (error) {
       const message =
@@ -796,9 +784,7 @@ export function CustomsCalculator() {
               ratesLoading
                 ? "Загрузка…"
                 : ratesUpdatedAt
-                  ? `Обновлено ${new Date(ratesUpdatedAt).toLocaleString("ru-RU")}${
-                      ratesSource ? ` · ${ratesSource}` : ""
-                    }`
+                  ? `Обновлено ${new Date(ratesUpdatedAt).toLocaleString("ru-RU")}`
                   : "Подставляются автоматически"
             }
             open={ratesOpen}
