@@ -9,7 +9,7 @@ export interface DealActivityItem {
   user: { id: string; name: string; email: string };
   title: string;
   description?: string;
-  category: "stage" | "deal" | "document" | "media" | "search" | "comment" | "options";
+  category: "stage" | "deal" | "document" | "media" | "search" | "comment" | "options" | "calculator";
 }
 
 type JsonRecord = Record<string, unknown>;
@@ -380,6 +380,43 @@ function formatAuditLog(log: {
             : undefined,
         category: "options",
       };
+    case "DealCustomsEstimate:CREATE": {
+      const total =
+        typeof newValue?.totalWithCar === "number"
+          ? new Intl.NumberFormat("ru-RU", {
+              style: "currency",
+              currency: "RUB",
+              maximumFractionDigits: 0,
+            }).format(newValue.totalWithCar)
+          : undefined;
+      const note = newValue?.note ? truncate(String(newValue.note)) : undefined;
+      return {
+        id: `audit-${log.id}`,
+        createdAt: log.createdAt.toISOString(),
+        user: log.user,
+        title: "Добавлен расчёт по авто",
+        description: [total, note].filter(Boolean).join(" · ") || undefined,
+        category: "calculator",
+      };
+    }
+    case "DealCustomsEstimate:DELETE": {
+      const total =
+        typeof oldValue?.totalWithCar === "number"
+          ? new Intl.NumberFormat("ru-RU", {
+              style: "currency",
+              currency: "RUB",
+              maximumFractionDigits: 0,
+            }).format(oldValue.totalWithCar)
+          : undefined;
+      return {
+        id: `audit-${log.id}`,
+        createdAt: log.createdAt.toISOString(),
+        user: log.user,
+        title: "Удалён расчёт по авто",
+        description: total,
+        category: "calculator",
+      };
+    }
     default:
       return null;
   }

@@ -6,6 +6,7 @@ import {
 } from "@/lib/customs-calculator";
 import { AuthUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { createAuditLog } from "@/lib/services/audit";
 import { createCustomsEstimateSchema } from "@/lib/validators/customs-estimate";
 import { z } from "zod";
 
@@ -81,18 +82,46 @@ export async function createDealCustomsEstimate(
     include: { createdBy: { select: { name: true } } },
   });
 
+  await createAuditLog({
+    userId: user.id,
+    entity: "DealCustomsEstimate",
+    entityId: created.id,
+    action: "CREATE",
+    newValue: {
+      dealId,
+      totalWithCar: Number(created.totalWithCar),
+      note: created.note,
+    },
+  });
+
   return serializeEstimate(created);
 }
 
 export async function deleteDealCustomsEstimate(
+  user: AuthUser,
   dealId: string,
   estimateId: string,
 ): Promise<void> {
-  const result = await prisma.dealCustomsEstimate.deleteMany({
+  const existing = await prisma.dealCustomsEstimate.findFirst({
     where: { id: estimateId, dealId },
+    select: { id: true, note: true, totalWithCar: true },
   });
 
-  if (result.count === 0) {
+  if (!existing) {
     throw new Error("NOT_FOUND");
   }
+
+  await prisma.dealCustomsEstimate.delete({ where: { id: existing.id } });
+
+  await createAuditLog({
+    userId: user.id,
+    entity: "DealCustomsEstimate",
+    entityId: existing.id,
+    action: "DELETE",
+    oldValue: {
+      dealId,
+      totalWithCar: Number(existing.totalWithCar),
+      note: existing.note,
+    },
+  });
 }

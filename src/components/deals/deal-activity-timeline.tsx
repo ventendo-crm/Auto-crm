@@ -2,6 +2,7 @@
 
 import {
   ArrowRightLeft,
+  Calculator,
   ClipboardList,
   FileText,
   ImageIcon,
@@ -27,6 +28,7 @@ const categoryIcons = {
   search: Search,
   comment: MessageSquare,
   options: ClipboardList,
+  calculator: Calculator,
 } as const;
 
 const categoryColors = {
@@ -37,6 +39,7 @@ const categoryColors = {
   search: "border-emerald-500 text-emerald-500",
   comment: "border-slate-500 text-slate-500",
   options: "border-orange-500 text-orange-500",
+  calculator: "border-cyan-500 text-cyan-500",
 } as const;
 
 interface DealActivityTimelineProps {

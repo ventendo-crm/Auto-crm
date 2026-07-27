@@ -2,6 +2,10 @@ import {
   CarAge,
   CurrencyCode,
   CUSTOMS_FEE_BRACKETS,
+  DEFAULT_KOREA_BROKER_FEE_RUB,
+  DEFAULT_KOREA_DELIVERY_RUB,
+  DEFAULT_KOREA_DOCS_DELIVERY_KRW,
+  DEFAULT_KOREA_PARKING_FEE_KRW,
   DeliveryRoute,
   EngineType,
   EXCISE_BRACKETS,
@@ -10,6 +14,7 @@ import {
   ImporterType,
   isYoungerThan3,
   KAZAKHSTAN_DELIVERY_USD,
+  OriginCountry,
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
@@ -18,6 +23,7 @@ import {
 } from "@/lib/customs-calculator/rates";
 
 export interface CustomsCalculatorInput {
+  originCountry?: OriginCountry;
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
@@ -28,11 +34,15 @@ export interface CustomsCalculatorInput {
   rates: ExchangeRates;
   /** Расходы по Китаю в юанях (CNY) */
   chinaExpensesCny?: number;
+  /** Документы и доставка до РФ (Корея), KRW */
+  koreaDocsDeliveryKrw?: number;
+  /** Комиссия стоянки (Корея), KRW */
+  parkingFeeKrw?: number;
   /** Услуги брокера, ₽ */
   brokerFeeRub?: number;
   /** Маршрут доставки по РФ */
   deliveryRoute?: DeliveryRoute;
-  /** Доставка по РФ через Уссурийск, ₽ */
+  /** Доставка по РФ через Уссурийск / Владивосток, ₽ */
   deliveryRub?: number;
   /** Доставка через Казахстан, USD (по умолчанию 1500) */
   deliveryUsd?: number;
@@ -41,12 +51,22 @@ export interface CustomsCalculatorInput {
 }
 
 export interface CustomsCalculatorResult {
+  originCountry: OriginCountry;
   priceRub: number;
   priceEur: number;
   chinaExpensesCny: number;
   chinaExpensesRub: number;
-  /** (стоимость авто + расходы по Китаю) × 1.02 */
+  koreaDocsDeliveryKrw: number;
+  koreaDocsDeliveryRub: number;
+  parkingFeeKrw: number;
+  parkingFeeRub: number;
+  /**
+   * Китай: (авто + расходы по Китаю) × 1.02
+   * Корея: авто + комиссия стоянки + документы/доставка до РФ
+   */
   vtbTotalRub: number;
+  firstPaymentLabel: string;
+  firstPaymentNote: string;
   brokerFeeRub: number;
   customsFee: number;
   customsDuty: number;
@@ -484,33 +504,84 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   });
 
   const totalCustoms = customsFee + customsDuty + excise + vat + recyclingFee;
+  const originCountry: OriginCountry =
+    input.originCountry === "korea" ? "korea" : "china";
+
   const chinaExpensesCny =
-    Number.isFinite(input.chinaExpensesCny) && (input.chinaExpensesCny ?? 0) > 0
+    originCountry === "china" &&
+    Number.isFinite(input.chinaExpensesCny) &&
+    (input.chinaExpensesCny ?? 0) > 0
       ? (input.chinaExpensesCny as number)
       : 0;
   const chinaExpensesRub = toRub(chinaExpensesCny, "CNY", input.rates);
-  const vtbTotalRub = (priceRub + chinaExpensesRub) * (1 + VTB_COMMISSION_RATE);
 
-  const brokerFeeRub = normalizeOptionalRub(input.brokerFeeRub, DEFAULT_BROKER_FEE_RUB);
-  const deliveryRoute: DeliveryRoute =
-    input.deliveryRoute === "kazakhstan" ? "kazakhstan" : "ussuriysk";
-  const { amount: deliveryRub, note: deliveryNote } = resolveDelivery(
-    deliveryRoute,
-    input.deliveryRub,
-    input.deliveryUsd,
-    input.rates,
+  const koreaDocsDeliveryKrw =
+    originCountry === "korea"
+      ? normalizeOptionalRub(input.koreaDocsDeliveryKrw, DEFAULT_KOREA_DOCS_DELIVERY_KRW)
+      : 0;
+  const koreaDocsDeliveryRub = toRub(koreaDocsDeliveryKrw, "KRW", input.rates);
+
+  const parkingFeeKrw =
+    originCountry === "korea"
+      ? normalizeOptionalRub(input.parkingFeeKrw, DEFAULT_KOREA_PARKING_FEE_KRW)
+      : 0;
+  const parkingFeeRub = toRub(parkingFeeKrw, "KRW", input.rates);
+
+  let vtbTotalRub: number;
+  let firstPaymentLabel: string;
+  let firstPaymentNote: string;
+  if (originCountry === "korea") {
+    vtbTotalRub = priceRub + parkingFeeRub + koreaDocsDeliveryRub;
+    firstPaymentLabel = "Первый платёж по инвойсу";
+    firstPaymentNote = "Авто + комиссия стоянки + документы и доставка до РФ";
+  } else {
+    vtbTotalRub = (priceRub + chinaExpensesRub) * (1 + VTB_COMMISSION_RATE);
+    firstPaymentLabel = "Итог с комиссией ВТБ";
+    firstPaymentNote = "Авто + расходы по Китаю + 2%";
+  }
+
+  const brokerFeeRub = normalizeOptionalRub(
+    input.brokerFeeRub,
+    originCountry === "korea" ? DEFAULT_KOREA_BROKER_FEE_RUB : DEFAULT_BROKER_FEE_RUB,
   );
+
+  let deliveryRoute: DeliveryRoute;
+  let deliveryRub: number;
+  let deliveryNote: string;
+  if (originCountry === "korea") {
+    deliveryRoute = "vladivostok";
+    deliveryRub = normalizeOptionalRub(input.deliveryRub, DEFAULT_KOREA_DELIVERY_RUB);
+    deliveryNote = "из Владивостока";
+  } else {
+    deliveryRoute = input.deliveryRoute === "kazakhstan" ? "kazakhstan" : "ussuriysk";
+    const resolved = resolveDelivery(
+      deliveryRoute,
+      input.deliveryRub,
+      input.deliveryUsd,
+      input.rates,
+    );
+    deliveryRub = resolved.amount;
+    deliveryNote = resolved.note;
+  }
+
   const escortRub = normalizeOptionalRub(input.escortRub, DEFAULT_ESCORT_RUB);
 
   const totalWithCar =
     vtbTotalRub + brokerFeeRub + totalCustoms + deliveryRub + escortRub;
 
   return {
+    originCountry,
     priceRub: roundMoney(priceRub),
     priceEur: roundMoney(priceEur),
     chinaExpensesCny: roundMoney(chinaExpensesCny),
     chinaExpensesRub: roundMoney(chinaExpensesRub),
+    koreaDocsDeliveryKrw: roundMoney(koreaDocsDeliveryKrw),
+    koreaDocsDeliveryRub: roundMoney(koreaDocsDeliveryRub),
+    parkingFeeKrw: roundMoney(parkingFeeKrw),
+    parkingFeeRub: roundMoney(parkingFeeRub),
     vtbTotalRub: roundMoney(vtbTotalRub),
+    firstPaymentLabel,
+    firstPaymentNote,
     brokerFeeRub: roundMoney(brokerFeeRub),
     customsFee: roundMoney(customsFee),
     customsDuty: roundMoney(customsDuty),

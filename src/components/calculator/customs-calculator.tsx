@@ -24,11 +24,16 @@ import {
   DEFAULT_DELIVERY_RUB,
   DEFAULT_ESCORT_RUB,
   DEFAULT_EXCHANGE_RATES,
+  DEFAULT_KOREA_BROKER_FEE_RUB,
+  DEFAULT_KOREA_DELIVERY_RUB,
+  DEFAULT_KOREA_DOCS_DELIVERY_KRW,
+  DEFAULT_KOREA_PARKING_FEE_KRW,
   DeliveryRoute,
   EngineType,
   ExchangeRates,
   ImporterType,
   KAZAKHSTAN_DELIVERY_USD,
+  OriginCountry,
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
@@ -41,6 +46,7 @@ import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-
 const STORAGE_KEY = "autocrm-customs-calculator";
 
 type CalculatorPersistedState = {
+  originCountry: OriginCountry;
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
@@ -49,16 +55,20 @@ type CalculatorPersistedState = {
   price: string;
   currency: CurrencyCode;
   chinaExpensesCny: string;
+  koreaDocsDeliveryKrw: string;
+  parkingFeeKrw: string;
   brokerFeeRub: string;
   deliveryRoute: DeliveryRoute;
   deliveryRub: string;
   deliveryUsd: string;
   escortRub: string;
   rates: ExchangeRates;
+  ratesUpdatedAt: string | null;
   submitted: boolean;
 };
 
 const DEFAULT_STATE: CalculatorPersistedState = {
+  originCountry: "china",
   importer: "personal",
   age: "under3",
   engine: "petrol",
@@ -67,12 +77,15 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   price: "25000",
   currency: "USD",
   chinaExpensesCny: "5000",
+  koreaDocsDeliveryKrw: String(DEFAULT_KOREA_DOCS_DELIVERY_KRW),
+  parkingFeeKrw: String(DEFAULT_KOREA_PARKING_FEE_KRW),
   brokerFeeRub: String(DEFAULT_BROKER_FEE_RUB),
   deliveryRoute: "ussuriysk",
   deliveryRub: String(DEFAULT_DELIVERY_RUB),
   deliveryUsd: String(KAZAKHSTAN_DELIVERY_USD),
   escortRub: String(DEFAULT_ESCORT_RUB),
   rates: DEFAULT_EXCHANGE_RATES,
+  ratesUpdatedAt: null,
   submitted: false,
 };
 
@@ -98,7 +111,11 @@ function isCurrency(value: unknown): value is CurrencyCode {
 }
 
 function isDeliveryRoute(value: unknown): value is DeliveryRoute {
-  return value === "ussuriysk" || value === "kazakhstan";
+  return value === "ussuriysk" || value === "kazakhstan" || value === "vladivostok";
+}
+
+function isOriginCountry(value: unknown): value is OriginCountry {
+  return value === "china" || value === "korea";
 }
 
 function loadPersistedState(): CalculatorPersistedState {
@@ -114,6 +131,9 @@ function loadPersistedState(): CalculatorPersistedState {
       KRW: typeof parsed.rates?.KRW === "number" ? parsed.rates.KRW : DEFAULT_EXCHANGE_RATES.KRW,
     });
     return {
+      originCountry: isOriginCountry(parsed.originCountry)
+        ? parsed.originCountry
+        : DEFAULT_STATE.originCountry,
       importer: isImporter(parsed.importer) ? parsed.importer : DEFAULT_STATE.importer,
       age: isAge(parsed.age) ? parsed.age : DEFAULT_STATE.age,
       engine: isEngine(parsed.engine) ? normalizeEngine(parsed.engine) : DEFAULT_STATE.engine,
@@ -125,6 +145,14 @@ function loadPersistedState(): CalculatorPersistedState {
         typeof parsed.chinaExpensesCny === "string"
           ? parsed.chinaExpensesCny
           : DEFAULT_STATE.chinaExpensesCny,
+      koreaDocsDeliveryKrw:
+        typeof parsed.koreaDocsDeliveryKrw === "string"
+          ? parsed.koreaDocsDeliveryKrw
+          : DEFAULT_STATE.koreaDocsDeliveryKrw,
+      parkingFeeKrw:
+        typeof parsed.parkingFeeKrw === "string"
+          ? parsed.parkingFeeKrw
+          : DEFAULT_STATE.parkingFeeKrw,
       brokerFeeRub:
         typeof parsed.brokerFeeRub === "string" ? parsed.brokerFeeRub : DEFAULT_STATE.brokerFeeRub,
       deliveryRoute: isDeliveryRoute(parsed.deliveryRoute)
@@ -136,6 +164,8 @@ function loadPersistedState(): CalculatorPersistedState {
         typeof parsed.deliveryUsd === "string" ? parsed.deliveryUsd : DEFAULT_STATE.deliveryUsd,
       escortRub: typeof parsed.escortRub === "string" ? parsed.escortRub : DEFAULT_STATE.escortRub,
       rates,
+      ratesUpdatedAt:
+        typeof parsed.ratesUpdatedAt === "string" ? parsed.ratesUpdatedAt : DEFAULT_STATE.ratesUpdatedAt,
       submitted: Boolean(parsed.submitted),
     };
   } catch {
@@ -169,6 +199,11 @@ const ENGINE_OPTIONS: Array<{ value: EngineType; label: string }> = [
   { value: "electric", label: "Электро и последовательный гибрид" },
 ];
 
+const ORIGIN_OPTIONS: Array<{ value: OriginCountry; label: string }> = [
+  { value: "china", label: "Китай" },
+  { value: "korea", label: "Корея" },
+];
+
 const CURRENCY_OPTIONS: Array<{ value: CurrencyCode; label: string }> = [
   { value: "RUB", label: "Рубль" },
   { value: "USD", label: "Доллар США" },
@@ -185,22 +220,24 @@ function chinaExpensesForAge(age: CarAge): string {
   return age === "under3" ? "5000" : "12000";
 }
 
-function formatCnyNote(amountCny: number): string | undefined {
-  if (!Number.isFinite(amountCny) || amountCny <= 0) return undefined;
-  return `${amountCny.toLocaleString("ru-RU", {
+function formatForeignNote(amount: number, code: "CNY" | "KRW"): string | undefined {
+  if (!Number.isFinite(amount) || amount <= 0) return undefined;
+  return `${amount.toLocaleString("ru-RU", {
     maximumFractionDigits: 2,
-  })} CNY`;
+  })} ${code}`;
 }
 
-function priceToCny(
+function priceToForeign(
   price: number,
   currency: CurrencyCode,
   priceRub: number,
   rates: ExchangeRates,
+  code: "CNY" | "KRW",
 ): number {
-  if (currency === "CNY") return price;
-  if (!rates.CNY || rates.CNY <= 0) return 0;
-  return priceRub / rates.CNY;
+  if (currency === code) return price;
+  const rate = rates[code];
+  if (!rate || rate <= 0) return 0;
+  return priceRub / rate;
 }
 
 function ResultRow({
@@ -358,25 +395,25 @@ async function saveResultAsPdf(element: HTMLElement) {
   const pageHeight = pdf.internal.pageSize.getHeight();
   const margin = 8;
   const usableWidth = pageWidth - margin * 2;
-  const imgHeight = (canvas.height * usableWidth) / canvas.width;
+  const usableHeight = pageHeight - margin * 2;
 
-  let heightLeft = imgHeight;
-  let position = margin;
-
-  pdf.addImage(imgData, "JPEG", margin, position, usableWidth, imgHeight);
-  heightLeft -= pageHeight - margin * 2;
-
-  while (heightLeft > 0) {
-    position = margin - (imgHeight - heightLeft);
-    pdf.addPage();
-    pdf.addImage(imgData, "JPEG", margin, position, usableWidth, imgHeight);
-    heightLeft -= pageHeight - margin * 2;
+  // Вписываем расчёт на одну страницу A4 без разбиения
+  let imgWidth = usableWidth;
+  let imgHeight = (canvas.height * imgWidth) / canvas.width;
+  if (imgHeight > usableHeight) {
+    const scale = usableHeight / imgHeight;
+    imgWidth *= scale;
+    imgHeight = usableHeight;
   }
 
+  const x = margin + (usableWidth - imgWidth) / 2;
+  const y = margin + (usableHeight - imgHeight) / 2;
+  pdf.addImage(imgData, "JPEG", x, y, imgWidth, imgHeight);
   pdf.save(exportFilename("pdf"));
 }
 
 export function CustomsCalculator() {
+  const [originCountry, setOriginCountry] = useState<OriginCountry>(DEFAULT_STATE.originCountry);
   const [importer, setImporter] = useState<ImporterType>(DEFAULT_STATE.importer);
   const [age, setAge] = useState<CarAge>(DEFAULT_STATE.age);
   const [engine, setEngine] = useState<EngineType>(DEFAULT_STATE.engine);
@@ -385,6 +422,10 @@ export function CustomsCalculator() {
   const [price, setPrice] = useState(DEFAULT_STATE.price);
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_STATE.currency);
   const [chinaExpensesCny, setChinaExpensesCny] = useState(DEFAULT_STATE.chinaExpensesCny);
+  const [koreaDocsDeliveryKrw, setKoreaDocsDeliveryKrw] = useState(
+    DEFAULT_STATE.koreaDocsDeliveryKrw,
+  );
+  const [parkingFeeKrw, setParkingFeeKrw] = useState(DEFAULT_STATE.parkingFeeKrw);
   const [brokerFeeRub, setBrokerFeeRub] = useState(DEFAULT_STATE.brokerFeeRub);
   const [deliveryRoute, setDeliveryRoute] = useState<DeliveryRoute>(DEFAULT_STATE.deliveryRoute);
   const [deliveryRub, setDeliveryRub] = useState(DEFAULT_STATE.deliveryRub);
@@ -405,6 +446,7 @@ export function CustomsCalculator() {
 
   useEffect(() => {
     const stored = loadPersistedState();
+    setOriginCountry(stored.originCountry);
     setImporter(stored.importer);
     setAge(stored.age);
     setEngine(stored.engine);
@@ -413,28 +455,29 @@ export function CustomsCalculator() {
     setPrice(stored.price);
     setCurrency(stored.currency);
     setChinaExpensesCny(stored.chinaExpensesCny);
+    setKoreaDocsDeliveryKrw(stored.koreaDocsDeliveryKrw);
+    setParkingFeeKrw(stored.parkingFeeKrw);
     setBrokerFeeRub(stored.brokerFeeRub);
     setDeliveryRoute(stored.deliveryRoute);
     setDeliveryRub(stored.deliveryRub);
     setDeliveryUsd(stored.deliveryUsd);
     setEscortRub(stored.escortRub);
     setRates(stored.rates);
+    setRatesUpdatedAt(stored.ratesUpdatedAt);
     setSubmitted(stored.submitted);
     setHydrated(true);
   }, []);
 
-  const loadExchangeRates = async (force = false) => {
+  const loadExchangeRates = async () => {
     setRatesLoading(true);
     try {
-      const data = await api.exchangeRates.get(force);
+      const data = await api.exchangeRates.get(true);
       setRates(roundExchangeRates(data.rates));
       setRatesUpdatedAt(data.fetchedAt);
-      if (force) {
-        toast.success("Курсы обновлены");
-      }
+      toast.success("Курсы обновлены");
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Не удалось загрузить курсы с Google Finance";
+        error instanceof Error ? error.message : "Не удалось загрузить курсы";
       toast.error(message);
     } finally {
       setRatesLoading(false);
@@ -443,13 +486,8 @@ export function CustomsCalculator() {
 
   useEffect(() => {
     if (!hydrated) return;
-    void loadExchangeRates(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- только после гидрации
-  }, [hydrated]);
-
-  useEffect(() => {
-    if (!hydrated) return;
     savePersistedState({
+      originCountry,
       importer,
       age,
       engine,
@@ -458,16 +496,20 @@ export function CustomsCalculator() {
       price,
       currency,
       chinaExpensesCny,
+      koreaDocsDeliveryKrw,
+      parkingFeeKrw,
       brokerFeeRub,
       deliveryRoute,
       deliveryRub,
       deliveryUsd,
       escortRub,
       rates,
+      ratesUpdatedAt,
       submitted,
     });
   }, [
     hydrated,
+    originCountry,
     importer,
     age,
     engine,
@@ -476,18 +518,22 @@ export function CustomsCalculator() {
     price,
     currency,
     chinaExpensesCny,
+    koreaDocsDeliveryKrw,
+    parkingFeeKrw,
     brokerFeeRub,
     deliveryRoute,
     deliveryRub,
     deliveryUsd,
     escortRub,
     rates,
+    ratesUpdatedAt,
     submitted,
   ]);
 
   const result = useMemo(() => {
     if (!submitted) return null;
     return calculateCustoms({
+      originCountry,
       importer,
       age,
       engine,
@@ -497,6 +543,8 @@ export function CustomsCalculator() {
       currency,
       rates,
       chinaExpensesCny: Number(chinaExpensesCny.replace(",", ".")),
+      koreaDocsDeliveryKrw: Number(koreaDocsDeliveryKrw.replace(",", ".")),
+      parkingFeeKrw: Number(parkingFeeKrw.replace(",", ".")),
       brokerFeeRub: Number(brokerFeeRub.replace(",", ".")),
       deliveryRoute,
       deliveryRub: Number(deliveryRub.replace(",", ".")),
@@ -505,6 +553,7 @@ export function CustomsCalculator() {
     });
   }, [
     submitted,
+    originCountry,
     importer,
     age,
     engine,
@@ -514,6 +563,8 @@ export function CustomsCalculator() {
     currency,
     rates,
     chinaExpensesCny,
+    koreaDocsDeliveryKrw,
+    parkingFeeKrw,
     brokerFeeRub,
     deliveryRoute,
     deliveryRub,
@@ -565,7 +616,27 @@ export function CustomsCalculator() {
 
   const handleAgeChange = (next: CarAge) => {
     setAge(next);
-    setChinaExpensesCny(chinaExpensesForAge(next));
+    if (originCountry === "china") {
+      setChinaExpensesCny(chinaExpensesForAge(next));
+    }
+  };
+
+  const handleOriginChange = (next: OriginCountry) => {
+    setOriginCountry(next);
+    if (next === "korea") {
+      setCurrency("KRW");
+      setBrokerFeeRub(String(DEFAULT_KOREA_BROKER_FEE_RUB));
+      setDeliveryRoute("vladivostok");
+      setDeliveryRub(String(DEFAULT_KOREA_DELIVERY_RUB));
+      setParkingFeeKrw(String(DEFAULT_KOREA_PARKING_FEE_KRW));
+      setKoreaDocsDeliveryKrw(String(DEFAULT_KOREA_DOCS_DELIVERY_KRW));
+    } else {
+      setCurrency("USD");
+      setBrokerFeeRub(String(DEFAULT_BROKER_FEE_RUB));
+      setDeliveryRoute("ussuriysk");
+      setDeliveryRub(String(DEFAULT_DELIVERY_RUB));
+      setChinaExpensesCny(chinaExpensesForAge(age));
+    }
   };
 
   const updateRate = (key: keyof ExchangeRates, value: string) => {
@@ -577,6 +648,7 @@ export function CustomsCalculator() {
   const powerHpNumber = Number(powerHp.replace(",", "."));
   const volumeCcNumber = Number(volumeCc.replace(",", "."));
   const isElectric = normalizeEngine(engine) === "electric";
+  const isKorea = originCountry === "korea";
   const showsCommercialRecyclingHint =
     importer === "personal" &&
     Number.isFinite(powerHpNumber) &&
@@ -594,6 +666,7 @@ export function CustomsCalculator() {
     Math.round(Number(deliveryUsd.replace(",", ".")) * rates.USD * 100) / 100;
 
   const calculatorInput = {
+    originCountry,
     importer,
     age,
     engine,
@@ -603,6 +676,8 @@ export function CustomsCalculator() {
     currency,
     rates,
     chinaExpensesCny: Number(chinaExpensesCny.replace(",", ".")),
+    koreaDocsDeliveryKrw: Number(koreaDocsDeliveryKrw.replace(",", ".")),
+    parkingFeeKrw: Number(parkingFeeKrw.replace(",", ".")),
     brokerFeeRub: Number(brokerFeeRub.replace(",", ".")),
     deliveryRoute,
     deliveryRub: Number(deliveryRub.replace(",", ".")),
@@ -632,10 +707,29 @@ export function CustomsCalculator() {
         <CardContent className="space-y-4">
           <FormSection
             title="1. Автомобиль"
-            subtitle="Кто ввозит, возраст, двигатель, цена и мощность"
+            subtitle="Страна, кто ввозит, возраст, двигатель, цена и мощность"
             open={autoOpen}
             onToggle={() => setAutoOpen((value) => !value)}
           >
+            <div className="space-y-2">
+              <Label>Страна происхождения</Label>
+              <Select
+                value={originCountry}
+                onValueChange={(value) => handleOriginChange(value as OriginCountry)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ORIGIN_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-2">
               <Label>Автомобиль ввозит</Label>
               <Select value={importer} onValueChange={(value) => setImporter(value as ImporterType)}>
@@ -702,18 +796,25 @@ export function CustomsCalculator() {
               </div>
               <div className="space-y-2">
                 <Label>Валюта</Label>
-                <Select value={currency} onValueChange={(value) => setCurrency(value as CurrencyCode)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CURRENCY_OPTIONS.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                {isKorea ? (
+                  <>
+                    <Input value="KRW — вона" readOnly disabled />
+                    <FieldHint>Для Кореи расчёт в корейских вонах</FieldHint>
+                  </>
+                ) : (
+                  <Select value={currency} onValueChange={(value) => setCurrency(value as CurrencyCode)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CURRENCY_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
 
@@ -762,22 +863,59 @@ export function CustomsCalculator() {
 
           <FormSection
             title="2. Расходы"
-            subtitle="Китай, брокер, доставка и сопровождение"
+            subtitle={
+              isKorea
+                ? "Стоянка, документы, брокер, доставка и сопровождение"
+                : "Китай, брокер, доставка и сопровождение"
+            }
             open={expensesOpen}
             onToggle={() => setExpensesOpen((value) => !value)}
           >
-            <div className="space-y-2">
-              <Label htmlFor="china-expenses">Расходы по Китаю, юани (CNY)</Label>
-              <Input
-                id="china-expenses"
-                type="number"
-                min={0}
-                step="0.01"
-                value={chinaExpensesCny}
-                onChange={(event) => setChinaExpensesCny(event.target.value)}
-              />
-              <FieldHint>{chinaHint}</FieldHint>
-            </div>
+            {isKorea ? (
+              <>
+                <div className="space-y-2">
+                  <Label htmlFor="parking-fee">Комиссия стоянки, воны (KRW)</Label>
+                  <Input
+                    id="parking-fee"
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={parkingFeeKrw}
+                    onChange={(event) => setParkingFeeKrw(event.target.value)}
+                  />
+                  <FieldHint>
+                    По умолчанию {DEFAULT_KOREA_PARKING_FEE_KRW.toLocaleString("ru-RU")} KRW
+                  </FieldHint>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="korea-docs">Документы и доставка до РФ, воны (KRW)</Label>
+                  <Input
+                    id="korea-docs"
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={koreaDocsDeliveryKrw}
+                    onChange={(event) => setKoreaDocsDeliveryKrw(event.target.value)}
+                  />
+                  <FieldHint>
+                    По умолчанию {DEFAULT_KOREA_DOCS_DELIVERY_KRW.toLocaleString("ru-RU")} KRW
+                  </FieldHint>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="china-expenses">Расходы по Китаю, юани (CNY)</Label>
+                <Input
+                  id="china-expenses"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={chinaExpensesCny}
+                  onChange={(event) => setChinaExpensesCny(event.target.value)}
+                />
+                <FieldHint>{chinaHint}</FieldHint>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="broker-fee">Услуги брокера, ₽</Label>
@@ -789,81 +927,118 @@ export function CustomsCalculator() {
                 value={brokerFeeRub}
                 onChange={(event) => setBrokerFeeRub(event.target.value)}
               />
+              {isKorea && (
+                <FieldHint>
+                  По умолчанию {DEFAULT_KOREA_BROKER_FEE_RUB.toLocaleString("ru-RU")} ₽ для Кореи
+                </FieldHint>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <Label>Доставка по РФ</Label>
-              <Select
-                value={deliveryRoute}
-                onValueChange={(value) => {
-                  const next = value as DeliveryRoute;
-                  setDeliveryRoute(next);
-                  if (next === "kazakhstan" && !deliveryUsd.trim()) {
-                    setDeliveryUsd(String(KAZAKHSTAN_DELIVERY_USD));
-                  }
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Маршрут доставки" />
-                </SelectTrigger>
-                <SelectContent>
-                  {DELIVERY_ROUTE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isKorea ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="delivery-rub">Доставка из Владивостока, ₽</Label>
+                  <Input
+                    id="delivery-rub"
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={deliveryRub}
+                    onChange={(event) => setDeliveryRub(event.target.value)}
+                  />
+                  <FieldHint>
+                    По умолчанию {DEFAULT_KOREA_DELIVERY_RUB.toLocaleString("ru-RU")} ₽
+                  </FieldHint>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="escort-rub">Услуги сопровождения, ₽</Label>
+                  <Input
+                    id="escort-rub"
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={escortRub}
+                    onChange={(event) => setEscortRub(event.target.value)}
+                  />
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <Label>Доставка</Label>
+                  <Select
+                    value={deliveryRoute}
+                    onValueChange={(value) => {
+                      const next = value as DeliveryRoute;
+                      setDeliveryRoute(next);
+                      if (next === "kazakhstan" && !deliveryUsd.trim()) {
+                        setDeliveryUsd(String(KAZAKHSTAN_DELIVERY_USD));
+                      }
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Маршрут доставки" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {DELIVERY_ROUTE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                {deliveryRoute === "kazakhstan" ? (
-                  <>
-                    <Label htmlFor="delivery-usd">Стоимость доставки, USD</Label>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    {deliveryRoute === "kazakhstan" ? (
+                      <>
+                        <Label htmlFor="delivery-usd">Стоимость доставки, USD</Label>
+                        <Input
+                          id="delivery-usd"
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={deliveryUsd}
+                          onChange={(event) => setDeliveryUsd(event.target.value)}
+                        />
+                        <FieldHint>
+                          По умолчанию {KAZAKHSTAN_DELIVERY_USD.toLocaleString("ru-RU")} USD
+                          {Number.isFinite(kazakhstanDeliveryRub)
+                            ? ` ≈ ${kazakhstanDeliveryRub.toLocaleString("ru-RU", {
+                                maximumFractionDigits: 0,
+                              })} ₽`
+                            : ""}
+                        </FieldHint>
+                      </>
+                    ) : (
+                      <>
+                        <Label htmlFor="delivery-rub">Стоимость доставки, ₽</Label>
+                        <Input
+                          id="delivery-rub"
+                          type="number"
+                          min={0}
+                          step="1"
+                          value={deliveryRub}
+                          onChange={(event) => setDeliveryRub(event.target.value)}
+                        />
+                      </>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="escort-rub">Услуги сопровождения, ₽</Label>
                     <Input
-                      id="delivery-usd"
-                      type="number"
-                      min={0}
-                      step="0.01"
-                      value={deliveryUsd}
-                      onChange={(event) => setDeliveryUsd(event.target.value)}
-                    />
-                    <FieldHint>
-                      По умолчанию {KAZAKHSTAN_DELIVERY_USD.toLocaleString("ru-RU")} USD
-                      {Number.isFinite(kazakhstanDeliveryRub)
-                        ? ` ≈ ${kazakhstanDeliveryRub.toLocaleString("ru-RU", {
-                            maximumFractionDigits: 0,
-                          })} ₽`
-                        : ""}
-                    </FieldHint>
-                  </>
-                ) : (
-                  <>
-                    <Label htmlFor="delivery-rub">Стоимость доставки, ₽</Label>
-                    <Input
-                      id="delivery-rub"
+                      id="escort-rub"
                       type="number"
                       min={0}
                       step="1"
-                      value={deliveryRub}
-                      onChange={(event) => setDeliveryRub(event.target.value)}
+                      value={escortRub}
+                      onChange={(event) => setEscortRub(event.target.value)}
                     />
-                  </>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="escort-rub">Услуги сопровождения, ₽</Label>
-                <Input
-                  id="escort-rub"
-                  type="number"
-                  min={0}
-                  step="1"
-                  value={escortRub}
-                  onChange={(event) => setEscortRub(event.target.value)}
-                />
-              </div>
-            </div>
+                  </div>
+                </div>
+              </>
+            )}
           </FormSection>
 
           <FormSection
@@ -873,7 +1048,7 @@ export function CustomsCalculator() {
                 ? "Загрузка…"
                 : ratesUpdatedAt
                   ? `Обновлено ${new Date(ratesUpdatedAt).toLocaleString("ru-RU")}`
-                  : "Подставляются автоматически"
+                  : "Обновите курсы вручную"
             }
             open={ratesOpen}
             onToggle={() => setRatesOpen((value) => !value)}
@@ -884,7 +1059,7 @@ export function CustomsCalculator() {
                 variant="outline"
                 size="sm"
                 disabled={ratesLoading}
-                onClick={() => void loadExchangeRates(true)}
+                onClick={() => void loadExchangeRates()}
               >
                 {ratesLoading ? (
                   <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
@@ -923,7 +1098,9 @@ export function CustomsCalculator() {
         <CardHeader>
           <CardTitle>Результат расчёта</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Все суммы в рублях. Итог с комиссией ВТБ = (авто + расходы по Китаю) + 2%.
+            {isKorea
+              ? "Все суммы в рублях. Первый платёж по инвойсу = авто + стоянка + документы/доставка до РФ."
+              : "Все суммы в рублях. Итог с комиссией ВТБ = (авто + расходы по Китаю) + 2%."}
           </p>
         </CardHeader>
         <CardContent>
@@ -995,15 +1172,24 @@ export function CustomsCalculator() {
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">Подробный расчёт</p>
-                    <p className="text-xs text-muted-foreground">ВТБ, таможня, доставка</p>
+                    <p className="text-xs text-muted-foreground">
+                      {isKorea ? "Инвойс, таможня, доставка" : "ВТБ, таможня, доставка"}
+                    </p>
                   </div>
                 </CollapsibleTrigger>
                 <CollapsiblePanel open={detailsOpen}>
                   <div ref={exportRef} className="space-y-2 bg-background px-3 pb-3">
                     <div className="border-b border-border/40 pb-1.5">
-                      <p className="text-sm font-semibold">Расчёт растаможки</p>
+                      <p className="text-sm font-semibold">
+                        Расчёт растаможки · {isKorea ? "Корея" : "Китай"}
+                      </p>
                       <p className="text-[11px] text-muted-foreground">
-                        Курс CNY: {rates.CNY.toLocaleString("ru-RU", { maximumFractionDigits: 2, minimumFractionDigits: 2 })} ₽
+                        Курс {isKorea ? "KRW" : "CNY"}:{" "}
+                        {(isKorea ? rates.KRW : rates.CNY).toLocaleString("ru-RU", {
+                          maximumFractionDigits: 2,
+                          minimumFractionDigits: 2,
+                        })}{" "}
+                        ₽
                       </p>
                     </div>
 
@@ -1012,23 +1198,56 @@ export function CustomsCalculator() {
                         compact
                         label="Стоимость авто в рублях"
                         value={result.priceRub}
-                        note={formatCnyNote(
-                          priceToCny(calculatorInput.price, currency, result.priceRub, rates),
+                        note={formatForeignNote(
+                          priceToForeign(
+                            calculatorInput.price,
+                            currency,
+                            result.priceRub,
+                            rates,
+                            isKorea ? "KRW" : "CNY",
+                          ),
+                          isKorea ? "KRW" : "CNY",
                         )}
                       />
-                      <ResultRow
-                        compact
-                        label="Расходы по Китаю"
-                        value={result.chinaExpensesRub}
-                        note={formatCnyNote(result.chinaExpensesCny)}
-                      />
-                      <ResultRow
-                        compact
-                        label="Итог с комиссией ВТБ"
-                        value={result.vtbTotalRub}
-                        note="Авто + расходы по Китаю + 2%"
-                        emphasize
-                      />
+                      {isKorea ? (
+                        <>
+                          <ResultRow
+                            compact
+                            label="Комиссия стоянки"
+                            value={result.parkingFeeRub}
+                            note={formatForeignNote(result.parkingFeeKrw, "KRW")}
+                          />
+                          <ResultRow
+                            compact
+                            label="Документы и доставка до РФ"
+                            value={result.koreaDocsDeliveryRub}
+                            note={formatForeignNote(result.koreaDocsDeliveryKrw, "KRW")}
+                          />
+                          <ResultRow
+                            compact
+                            label={result.firstPaymentLabel}
+                            value={result.vtbTotalRub}
+                            note={result.firstPaymentNote}
+                            emphasize
+                          />
+                        </>
+                      ) : (
+                        <>
+                          <ResultRow
+                            compact
+                            label="Расходы по Китаю"
+                            value={result.chinaExpensesRub}
+                            note={formatForeignNote(result.chinaExpensesCny, "CNY")}
+                          />
+                          <ResultRow
+                            compact
+                            label={result.firstPaymentLabel}
+                            value={result.vtbTotalRub}
+                            note={result.firstPaymentNote}
+                            emphasize
+                          />
+                        </>
+                      )}
                     </ResultSection>
 
                     <ResultSection compact title="Расходы по России">
@@ -1055,7 +1274,7 @@ export function CustomsCalculator() {
                       />
                     </ResultSection>
 
-                    <ResultSection compact title="Доставка по РФ">
+                    <ResultSection compact title="Доставка">
                       <ResultRow
                         compact
                         label="Доставка"

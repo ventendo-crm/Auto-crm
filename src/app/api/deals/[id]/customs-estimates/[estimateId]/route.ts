@@ -12,7 +12,7 @@ export const DELETE = withAuth(async (_request, { user, params }) => {
   }
 
   try {
-    await deleteDealCustomsEstimate(params.id, params.estimateId);
+    await deleteDealCustomsEstimate(user, params.id, params.estimateId);
     return noContent();
   } catch (err) {
     if (err instanceof Error && err.message === "NOT_FOUND") {
