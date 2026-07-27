@@ -46,8 +46,24 @@ export const EXCISE_BRACKETS: Array<{ maxHp: number; ratePerHp: number }> = [
 
 export const VAT_RATE = 0.2;
 
-export const RECYCLING_BASE_PERSONAL = 20_000;
+/** Базовая ставка для легковых (категория M1), руб. */
+export const RECYCLING_BASE_PASSENGER = 20_000;
+
+/**
+ * Базовая ставка для грузовых/автобусов (не используется в калькуляторе легковушек).
+ * Коэффициенты «коммерческого» УС для легковых умножаются на RECYCLING_BASE_PASSENGER.
+ */
 export const RECYCLING_BASE_COMMERCIAL = 150_000;
+
+/** Порог льготного УС для физлица: мощность ДВС не выше 160 л.с. (117,68 кВт). */
+export const PREFERENTIAL_MAX_HP_ICE = 160;
+/** Порог льготного УС для физлица: 30-мин. мощность электро не выше 80 л.с. (58,84 кВт). */
+export const PREFERENTIAL_MAX_HP_EV = 80;
+/** Порог льготного УС: объём ДВС не более 3000 см³. */
+export const PREFERENTIAL_MAX_VOLUME_CC = 3000;
+
+/** @deprecated используйте RECYCLING_BASE_PASSENGER */
+export const RECYCLING_BASE_PERSONAL = RECYCLING_BASE_PASSENGER;
 
 /** 1 метрическая л.с. ≈ 0.73549875 кВт */
 export function hpToKw(hp: number): number {

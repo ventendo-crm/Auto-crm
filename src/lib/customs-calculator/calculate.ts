@@ -8,8 +8,10 @@ import {
   hpToKw,
   ImporterType,
   isYoungerThan3,
-  RECYCLING_BASE_COMMERCIAL,
-  RECYCLING_BASE_PERSONAL,
+  PREFERENTIAL_MAX_HP_EV,
+  PREFERENTIAL_MAX_HP_ICE,
+  PREFERENTIAL_MAX_VOLUME_CC,
+  RECYCLING_BASE_PASSENGER,
   VAT_RATE,
 } from "@/lib/customs-calculator/rates";
 
@@ -356,7 +358,7 @@ function pickCommercialIceCoeff(powerKw: number, volumeCc: number, young: boolea
         [160.08, 189.84],
         [172.44, 228.6],
         [209.52, 260.04],
-        // В таблице ncimport для >3500 / >367.75 указано 219.48 — оставляем как в источнике.
+        // В таблице ncimport для >3500 / >367.75 указано 219,48 (вероятно опечатка).
         [229.08, 219.48],
       ],
     },
@@ -395,32 +397,36 @@ function calcRecyclingFee(input: {
   const young = isYoungerThan3(age);
   const personal = importer === "personal";
 
+  // Льготный УС для физлица (личное пользование): база 20 000 × 0.17/0.26.
+  // Условия: ДВС ≤160 л.с. и ≤3000 см³, либо электро ≤80 л.с. (30-мин. мощность).
   if (personal) {
     if (engine === "electric") {
-      if (powerKw <= 58.84) {
+      if (powerHp <= PREFERENTIAL_MAX_HP_EV) {
         const k = young ? 0.17 : 0.26;
         return {
-          fee: RECYCLING_BASE_PERSONAL * k,
-          note: `Льготный УС: ${RECYCLING_BASE_PERSONAL.toLocaleString("ru-RU")} × ${k}`,
+          fee: RECYCLING_BASE_PASSENGER * k,
+          note: `Льготный УС: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${k}`,
         };
       }
-    } else if (volumeCc <= 3000 && powerKw <= 117.68) {
+    } else if (volumeCc <= PREFERENTIAL_MAX_VOLUME_CC && powerHp <= PREFERENTIAL_MAX_HP_ICE) {
       const k = young ? 0.17 : 0.26;
       return {
-        fee: RECYCLING_BASE_PERSONAL * k,
-        note: `Льготный УС: ${RECYCLING_BASE_PERSONAL.toLocaleString("ru-RU")} × ${k}`,
+        fee: RECYCLING_BASE_PASSENGER * k,
+        note: `Льготный УС: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${k}`,
       };
     }
   }
 
+  // Коммерческий УС для легковых (в т.ч. >160 л.с. для физлица, перепродажа, юрлицо):
+  // база тоже 20 000 руб. (150 000 — для грузовых/автобусов, не для M1).
   const coeff =
     engine === "electric"
       ? pickCommercialEvCoeff(powerKw, young)
       : pickCommercialIceCoeff(powerKw, volumeCc, young);
 
   return {
-    fee: RECYCLING_BASE_COMMERCIAL * coeff,
-    note: `Коммерческий УС: ${RECYCLING_BASE_COMMERCIAL.toLocaleString("ru-RU")} × ${coeff}`,
+    fee: RECYCLING_BASE_PASSENGER * coeff,
+    note: `Коммерческий УС: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${coeff}`,
   };
 }
 

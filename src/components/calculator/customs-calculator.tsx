@@ -283,6 +283,7 @@ export function CustomsCalculator() {
   const [ratesSource, setRatesSource] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "jpeg" | null>(null);
   const exportRef = useRef<HTMLDivElement>(null);
+  const resultSectionRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = loadPersistedState();
@@ -405,6 +406,17 @@ export function CustomsCalculator() {
 
   const handleCalculate = () => {
     setSubmitted(true);
+
+    const isStackedLayout =
+      typeof window !== "undefined" && window.matchMedia("(max-width: 1279px)").matches;
+    if (!isStackedLayout) return;
+
+    // Ждём отрисовку результата, затем скроллим к блоку расчёта
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        resultSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
   };
 
   const handleExport = async (format: "pdf" | "jpeg") => {
@@ -670,7 +682,7 @@ export function CustomsCalculator() {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-card">
+      <Card ref={resultSectionRef} className="scroll-mt-20 border-0 shadow-card">
         <CardHeader>
           <CardTitle>Результат расчёта</CardTitle>
           <p className="text-sm text-muted-foreground">
