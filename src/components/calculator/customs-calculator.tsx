@@ -1,7 +1,7 @@
 "use client";
 
-import { Calculator as CalculatorIcon, Loader2, RefreshCw } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, RefreshCw } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -158,39 +158,6 @@ function chinaExpensesForAge(age: CarAge): string {
   return age === "under3" ? "5000" : "12000";
 }
 
-function SegmentedControl<T extends string>({
-  value,
-  options,
-  onChange,
-}: {
-  value: T;
-  options: Array<{ value: T; label: string }>;
-  onChange: (value: T) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((option) => {
-        const active = option.value === value;
-        return (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-left text-xs font-medium transition-colors sm:text-sm",
-              active
-                ? "border-brand/40 bg-brand-muted text-foreground shadow-sm"
-                : "border-border/60 bg-card text-muted-foreground hover:border-brand/20 hover:bg-muted/40",
-            )}
-          >
-            {option.label}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
 function ResultRow({
   label,
   value,
@@ -237,6 +204,65 @@ function ResultSection({ title, children }: { title?: string; children: ReactNod
   );
 }
 
+function downloadBlob(filename: string, dataUrl: string) {
+  const link = document.createElement("a");
+  link.download = filename;
+  link.href = dataUrl;
+  link.click();
+}
+
+function exportFilename(extension: "pdf" | "jpg") {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+  return `rastamozhka-${stamp}.${extension}`;
+}
+
+async function captureResultCanvas(element: HTMLElement) {
+  const html2canvas = (await import("html2canvas")).default;
+  return html2canvas(element, {
+    scale: 2,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    logging: false,
+    onclone: (doc, cloned) => {
+      doc.documentElement.classList.remove("dark");
+      cloned.style.backgroundColor = "#ffffff";
+      cloned.style.color = "#1f2937";
+    },
+  });
+}
+
+async function saveResultAsJpeg(element: HTMLElement) {
+  const canvas = await captureResultCanvas(element);
+  downloadBlob(exportFilename("jpg"), canvas.toDataURL("image/jpeg", 0.92));
+}
+
+async function saveResultAsPdf(element: HTMLElement) {
+  const canvas = await captureResultCanvas(element);
+  const { jsPDF } = await import("jspdf");
+  const imgData = canvas.toDataURL("image/jpeg", 0.95);
+  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageWidth = pdf.internal.pageSize.getWidth();
+  const pageHeight = pdf.internal.pageSize.getHeight();
+  const margin = 10;
+  const usableWidth = pageWidth - margin * 2;
+  const imgHeight = (canvas.height * usableWidth) / canvas.width;
+
+  let heightLeft = imgHeight;
+  let position = margin;
+
+  pdf.addImage(imgData, "JPEG", margin, position, usableWidth, imgHeight);
+  heightLeft -= pageHeight - margin * 2;
+
+  while (heightLeft > 0) {
+    position = margin - (imgHeight - heightLeft);
+    pdf.addPage();
+    pdf.addImage(imgData, "JPEG", margin, position, usableWidth, imgHeight);
+    heightLeft -= pageHeight - margin * 2;
+  }
+
+  pdf.save(exportFilename("pdf"));
+}
+
 export function CustomsCalculator() {
   const [importer, setImporter] = useState<ImporterType>(DEFAULT_STATE.importer);
   const [age, setAge] = useState<CarAge>(DEFAULT_STATE.age);
@@ -255,6 +281,8 @@ export function CustomsCalculator() {
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
   const [ratesSource, setRatesSource] = useState<string | null>(null);
+  const [exporting, setExporting] = useState<"pdf" | "jpeg" | null>(null);
+  const exportRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const stored = loadPersistedState();
@@ -379,6 +407,25 @@ export function CustomsCalculator() {
     setSubmitted(true);
   };
 
+  const handleExport = async (format: "pdf" | "jpeg") => {
+    const element = exportRef.current;
+    if (!element) return;
+    setExporting(format);
+    try {
+      if (format === "pdf") {
+        await saveResultAsPdf(element);
+        toast.success("PDF сохранён");
+      } else {
+        await saveResultAsJpeg(element);
+        toast.success("JPEG сохранён");
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить файл");
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const handleAgeChange = (next: CarAge) => {
     setAge(next);
     setChinaExpensesCny(chinaExpensesForAge(next));
@@ -407,21 +454,53 @@ export function CustomsCalculator() {
         <CardContent className="space-y-6">
           <div className="space-y-2">
             <Label>Автомобиль ввозит</Label>
-            <SegmentedControl value={importer} options={IMPORTER_OPTIONS} onChange={setImporter} />
+            <Select value={importer} onValueChange={(value) => setImporter(value as ImporterType)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {IMPORTER_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
             <Label>Возраст автомобиля</Label>
-            <SegmentedControl value={age} options={AGE_OPTIONS} onChange={handleAgeChange} />
+            <Select value={age} onValueChange={(value) => handleAgeChange(value as CarAge)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {AGE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="space-y-2">
             <Label>Тип двигателя</Label>
-            <SegmentedControl
+            <Select
               value={normalizeEngine(engine)}
-              options={ENGINE_OPTIONS}
-              onChange={setEngine}
-            />
+              onValueChange={(value) => setEngine(value as EngineType)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ENGINE_OPTIONS.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-[1fr_180px]">
@@ -613,55 +692,109 @@ export function CustomsCalculator() {
 
           {result && (
             <div className="space-y-4">
-              <ResultSection>
-                <ResultRow label="Стоимость авто в рублях" value={result.priceRub} />
-                <ResultRow
-                  label="Расходы по Китаю"
-                  value={result.chinaExpensesRub}
-                  note={
-                    result.chinaExpensesCny > 0
-                      ? `${result.chinaExpensesCny.toLocaleString("ru-RU")} CNY`
-                      : undefined
-                  }
-                />
-                <ResultRow
-                  label="Итог с комиссией ВТБ"
-                  value={result.vtbTotalRub}
-                  note="Авто + расходы по Китаю + 2%"
-                  emphasize
-                />
-              </ResultSection>
-
-              <ResultSection title="Расходы по России">
-                <ResultRow label="Услуги брокера" value={result.brokerFeeRub} />
-                <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
-                <ResultRow
-                  label="Таможенная пошлина (ТП)"
-                  value={result.customsDuty}
-                  note={result.customsDutyNote}
-                />
-                <ResultRow
-                  label="Утилизационный сбор (УС)"
-                  value={result.recyclingFee}
-                  note={result.recyclingNote}
-                />
-                <ResultRow label="Акциз (А)" value={result.excise} />
-                <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
-              </ResultSection>
-
-              <ResultSection title="Доставка по РФ">
-                <ResultRow label="Доставка" value={result.deliveryRub} />
-                <ResultRow label="Услуги сопровождения" value={result.escortRub} />
-              </ResultSection>
-
-              {result.totalWithCar !== 0 && (
-                <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
-                  <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
-                  <p className="mt-1 text-2xl font-semibold tabular-nums">
-                    {formatCurrency(result.totalWithCar)}
+              <div
+                ref={exportRef}
+                className="space-y-4 rounded-xl bg-background p-1 sm:p-2"
+              >
+                <div className="space-y-1 px-1 pb-2">
+                  <p className="text-base font-semibold">Расчёт растаможки</p>
+                  <p className="text-xs text-muted-foreground">
+                    {new Date().toLocaleString("ru-RU")}
+                    {" · "}
+                    {IMPORTER_OPTIONS.find((item) => item.value === importer)?.label}
+                    {" · "}
+                    {AGE_OPTIONS.find((item) => item.value === age)?.label}
+                    {" · "}
+                    {ENGINE_OPTIONS.find((item) => item.value === normalizeEngine(engine))?.label}
+                    {" · "}
+                    {powerHp} л.с.
+                    {engine !== "electric" ? ` · ${volumeCc} см³` : ""}
+                    {" · "}
+                    {price} {currency}
                   </p>
                 </div>
-              )}
+
+                <ResultSection>
+                  <ResultRow label="Стоимость авто в рублях" value={result.priceRub} />
+                  <ResultRow
+                    label="Расходы по Китаю"
+                    value={result.chinaExpensesRub}
+                    note={
+                      result.chinaExpensesCny > 0
+                        ? `${result.chinaExpensesCny.toLocaleString("ru-RU")} CNY`
+                        : undefined
+                    }
+                  />
+                  <ResultRow
+                    label="Итог с комиссией ВТБ"
+                    value={result.vtbTotalRub}
+                    note="Авто + расходы по Китаю + 2%"
+                    emphasize
+                  />
+                </ResultSection>
+
+                <ResultSection title="Расходы по России">
+                  <ResultRow label="Услуги брокера" value={result.brokerFeeRub} />
+                  <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
+                  <ResultRow
+                    label="Таможенная пошлина (ТП)"
+                    value={result.customsDuty}
+                    note={result.customsDutyNote}
+                  />
+                  <ResultRow
+                    label="Утилизационный сбор (УС)"
+                    value={result.recyclingFee}
+                    note={result.recyclingNote}
+                  />
+                  <ResultRow label="Акциз (А)" value={result.excise} />
+                  <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
+                </ResultSection>
+
+                <ResultSection title="Доставка по РФ">
+                  <ResultRow label="Доставка" value={result.deliveryRub} />
+                  <ResultRow label="Услуги сопровождения" value={result.escortRub} />
+                </ResultSection>
+
+                {result.totalWithCar !== 0 && (
+                  <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
+                    <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
+                    <p className="mt-1 text-2xl font-semibold tabular-nums">
+                      {formatCurrency(result.totalWithCar)}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={exporting !== null}
+                  onClick={() => void handleExport("pdf")}
+                >
+                  {exporting === "pdf" ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <FileDown className="mr-1.5 h-4 w-4" />
+                  )}
+                  Сохранить в PDF
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex-1"
+                  disabled={exporting !== null}
+                  onClick={() => void handleExport("jpeg")}
+                >
+                  {exporting === "jpeg" ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <ImageDown className="mr-1.5 h-4 w-4" />
+                  )}
+                  Сохранить в JPEG
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
