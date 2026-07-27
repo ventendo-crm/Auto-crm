@@ -180,6 +180,10 @@ export function canManageUsers(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }
 
+export function canAccessCalculator(role: RoleName): boolean {
+  return role === ROLES.ADMIN;
+}
+
 export function canManageManagers(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }

@@ -5,8 +5,9 @@ import { isRoleName, RoleName, ROLES } from "@/lib/permissions";
 const PUBLIC_API_PATHS = ["/api/auth/login", "/api/auth/logout", "/api/telegram/webhook"];
 const PUBLIC_PAGE_PATHS = ["/login"];
 
-const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals"];
+const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals", "/calculator"];
 const CLIENT_PAGE_PREFIXES = ["/my-deal"];
+const ADMIN_PAGE_PREFIXES = ["/calculator"];
 
 function getJwtSecret(): Uint8Array {
   const secret = process.env.JWT_SECRET;
@@ -76,6 +77,15 @@ export async function middleware(request: NextRequest) {
   }
 
   if (authenticated && role && role !== ROLES.CLIENT && matchesPrefix(pathname, CLIENT_PAGE_PREFIXES)) {
+    return NextResponse.redirect(new URL("/dashboard", request.url));
+  }
+
+  if (
+    authenticated &&
+    role &&
+    role !== ROLES.ADMIN &&
+    matchesPrefix(pathname, ADMIN_PAGE_PREFIXES)
+  ) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
