@@ -50,6 +50,9 @@ export function CalculatorQuickSearch() {
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
+          Быстрый поиск помогает найти ориентир, но перед расчётом утильсбора лучше сверять мощность и характеристики по нескольким источникам.
+        </div>
         <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-2 sm:flex-row">
           <Input
             value={query}

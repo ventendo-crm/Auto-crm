@@ -119,11 +119,12 @@ async function callTavilySearch(
   mode: "bearer" | "body",
   signal: AbortSignal,
 ): Promise<Response> {
+  const russianQuery = `${query}\n\nОтвет дай только на русском языке. Если источники на английском, переведи итог кратко на русский.`;
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
   const payload: Record<string, unknown> = {
-    query,
+    query: russianQuery,
     search_depth: "basic",
     include_answer: true,
     max_results: 3,
