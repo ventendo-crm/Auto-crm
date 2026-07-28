@@ -631,6 +631,48 @@ export function CustomsCalculator() {
     submitted,
   ]);
 
+  const result = useMemo(() => {
+    if (!submitted) return null;
+    return calculateCustoms({
+      originCountry,
+      importer,
+      age,
+      engine,
+      powerHp: Number(powerHp.replace(",", ".")),
+      volumeCc: Number(volumeCc.replace(",", ".")),
+      price: Number(price.replace(",", ".")),
+      currency,
+      rates,
+      chinaExpensesCny: Number(chinaExpensesCny.replace(",", ".")),
+      koreaDocsDeliveryKrw: Number(koreaDocsDeliveryKrw.replace(",", ".")),
+      parkingFeeKrw: Number(parkingFeeKrw.replace(",", ".")),
+      brokerFeeRub: Number(brokerFeeRub.replace(",", ".")),
+      deliveryRoute,
+      deliveryRub: Number(deliveryRub.replace(",", ".")),
+      deliveryUsd: Number(deliveryUsd.replace(",", ".")),
+      escortRub: Number(escortRub.replace(",", ".")),
+    });
+  }, [
+    submitted,
+    originCountry,
+    importer,
+    age,
+    engine,
+    powerHp,
+    volumeCc,
+    price,
+    currency,
+    rates,
+    chinaExpensesCny,
+    koreaDocsDeliveryKrw,
+    parkingFeeKrw,
+    brokerFeeRub,
+    deliveryRoute,
+    deliveryRub,
+    deliveryUsd,
+    escortRub,
+  ]);
+
   useEffect(() => {
     if (!hydrated || !submitted || !result) return;
 
@@ -709,48 +751,6 @@ export function CustomsCalculator() {
     escortRub,
     rates,
     ratesUpdatedAt,
-  ]);
-
-  const result = useMemo(() => {
-    if (!submitted) return null;
-    return calculateCustoms({
-      originCountry,
-      importer,
-      age,
-      engine,
-      powerHp: Number(powerHp.replace(",", ".")),
-      volumeCc: Number(volumeCc.replace(",", ".")),
-      price: Number(price.replace(",", ".")),
-      currency,
-      rates,
-      chinaExpensesCny: Number(chinaExpensesCny.replace(",", ".")),
-      koreaDocsDeliveryKrw: Number(koreaDocsDeliveryKrw.replace(",", ".")),
-      parkingFeeKrw: Number(parkingFeeKrw.replace(",", ".")),
-      brokerFeeRub: Number(brokerFeeRub.replace(",", ".")),
-      deliveryRoute,
-      deliveryRub: Number(deliveryRub.replace(",", ".")),
-      deliveryUsd: Number(deliveryUsd.replace(",", ".")),
-      escortRub: Number(escortRub.replace(",", ".")),
-    });
-  }, [
-    submitted,
-    originCountry,
-    importer,
-    age,
-    engine,
-    powerHp,
-    volumeCc,
-    price,
-    currency,
-    rates,
-    chinaExpensesCny,
-    koreaDocsDeliveryKrw,
-    parkingFeeKrw,
-    brokerFeeRub,
-    deliveryRoute,
-    deliveryRub,
-    deliveryUsd,
-    escortRub,
   ]);
 
   const handleCalculate = () => {
