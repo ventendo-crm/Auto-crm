@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { CalculatorQuickSearch } from "@/components/calculator/calculator-quick-search";
 import { CustomsCalculator } from "@/components/calculator/customs-calculator";
 import { Header } from "@/components/layout/header";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -38,7 +39,7 @@ export default function CalculatorPage() {
       <Header title="Калькулятор" subtitle="Растаможка и утильсбор по правилам 2026 года" />
       <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
         <CustomsCalculator />
-        {/* Быстрый поиск (Tavily) скрыт, пока на сервере нет зарубежного прокси */}
+        <CalculatorQuickSearch />
       </div>
     </>
   );
