@@ -433,6 +433,56 @@ export const api = {
     },
   },
 
+  calculatorSettings: {
+    get: () =>
+      request<import("@/lib/services/calculator-settings").CalculatorSettingsDto>(
+        "/api/calculator/settings",
+      ),
+    savePresets: (
+      presets: import("@/lib/validators/calculator-settings").CalculatorPresetInput[],
+    ) =>
+      request<import("@/lib/services/calculator-settings").CalculatorSettingsDto>(
+        "/api/calculator/settings",
+        {
+          method: "PUT",
+          body: JSON.stringify({ presets }),
+        },
+      ),
+    uploadLogo: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/calculator/settings/logo", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const json = (await response.json()) as {
+        success: boolean;
+        data?: import("@/lib/services/calculator-settings").CalculatorSettingsDto;
+        error?: string;
+      };
+      if (!response.ok || !json.success || !json.data) {
+        throw new Error(json.error ?? "Не удалось загрузить логотип");
+      }
+      return json.data;
+    },
+    deleteLogo: async () => {
+      const response = await fetch("/api/calculator/settings/logo", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const json = (await response.json()) as {
+        success: boolean;
+        data?: import("@/lib/services/calculator-settings").CalculatorSettingsDto;
+        error?: string;
+      };
+      if (!response.ok || !json.success || !json.data) {
+        throw new Error(json.error ?? "Не удалось удалить логотип");
+      }
+      return json.data;
+    },
+  },
+
   quickSearch: {
     search: (query: string) =>
       request<{

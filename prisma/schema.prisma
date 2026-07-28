@@ -37,6 +37,7 @@ model User {
   createdTasks      Task[]         @relation("TaskCreatedBy")
   updatedAdditionalOptions DealAdditionalOption[] @relation("AdditionalOptionUpdatedBy")
   createdCustomsEstimates DealCustomsEstimate[] @relation("CustomsEstimateCreatedBy")
+  calculatorSettings UserCalculatorSettings?
   role              Role           @relation(fields: [roleId], references: [id])
   dealManagerAssignments DealManagerAssignment[] @relation("DealManagerAssignmentUser")
   managerLinksAsA   ManagerLink[]  @relation("ManagerLinkUserA")
@@ -278,6 +279,16 @@ model DealCustomsEstimate {
   @@index([dealId, createdAt])
   @@index([createdById])
   @@map("deal_customs_estimates")
+}
+
+model UserCalculatorSettings {
+  userId        String   @id
+  presets       Json     @default("[]")
+  exportLogoUrl String?
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_calculator_settings")
 }
 
 model Document {

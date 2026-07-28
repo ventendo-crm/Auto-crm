@@ -4,6 +4,7 @@ import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, RefreshCw, 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { CalculatorPresetsPanel } from "@/components/calculator/calculator-presets-panel";
 import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-to-deal-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,12 +53,14 @@ import {
   roundExchangeRate,
   roundExchangeRates,
 } from "@/lib/customs-calculator";
+import type { CalculatorPresetInput } from "@/lib/validators/calculator-settings";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const STORAGE_KEY = "autocrm-customs-calculator";
 const HISTORY_STORAGE_KEY = "autocrm-customs-calculator-history";
 const PRESETS_STORAGE_KEY = "autocrm-customs-calculator-presets";
-const MAX_USER_PRESETS = 12;
+const MAX_USER_PRESETS = 20;
+const EXPORT_LOGO_SRC = "/api/calculator/settings/logo";
 
 type CalculatorPersistedState = {
   originCountry: OriginCountry;
@@ -87,28 +90,7 @@ type CalculatorHistoryItem = CalculatorPersistedState & {
   totalWithCar: number;
 };
 
-type UserPreset = {
-  id: string;
-  name: string;
-  savedAt: string;
-  originCountry: OriginCountry;
-  importer: ImporterType;
-  age: CarAge;
-  engine: EngineType;
-  powerHp: string;
-  volumeCc: string;
-  price: string;
-  currency: CurrencyCode;
-  chinaExpensesCny: string;
-  koreaDocsDeliveryKrw: string;
-  parkingFeeKrw: string;
-  brokerFeeRub: string;
-  deliveryRoute: DeliveryRoute;
-  deliveryRub: string;
-  deliveryUsd: string;
-  escortRub: string;
-  rates: ExchangeRates;
-};
+type UserPreset = CalculatorPresetInput;
 
 const DEFAULT_STATE: CalculatorPersistedState = {
   originCountry: "china",
@@ -310,9 +292,9 @@ function loadUserPresets(): UserPreset[] {
   }
 }
 
-function saveUserPresets(items: UserPreset[]) {
+function clearLocalPresetsCache() {
   try {
-    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(items.slice(0, MAX_USER_PRESETS)));
+    localStorage.removeItem(PRESETS_STORAGE_KEY);
   } catch {
     // localStorage недоступен
   }
@@ -661,6 +643,10 @@ export function CustomsCalculator() {
   const [exporting, setExporting] = useState<"pdf" | "jpeg" | null>(null);
   const [history, setHistory] = useState<CalculatorHistoryItem[]>([]);
   const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [presetsSaving, setPresetsSaving] = useState(false);
+  const [presetsLoaded, setPresetsLoaded] = useState(false);
+  const [exportLogoUrl, setExportLogoUrl] = useState<string | null>(null);
+  const [logoUploading, setLogoUploading] = useState(false);
   const [presetDialogOpen, setPresetDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState("");
   const [autoOpen, setAutoOpen] = useState(true);
@@ -670,6 +656,7 @@ export function CustomsCalculator() {
   const [formulasOpen, setFormulasOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
   const resultSectionRef = useRef<HTMLDivElement>(null);
   const lastHistorySignatureRef = useRef<string | null>(null);
 
@@ -695,9 +682,48 @@ export function CustomsCalculator() {
     setRatesUpdatedAt(stored.ratesUpdatedAt);
     setSubmitted(stored.submitted);
     setHistory(loadCalculatorHistory());
-    setUserPresets(loadUserPresets());
     setHydrated(true);
   }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    let cancelled = false;
+
+    void api.calculatorSettings
+      .get()
+      .then(async (settings) => {
+        if (cancelled) return;
+
+        let presets = settings.presets;
+        if (presets.length === 0) {
+          const localPresets = loadUserPresets();
+          if (localPresets.length > 0) {
+            const migrated = await api.calculatorSettings.savePresets(localPresets);
+            presets = migrated.presets;
+            clearLocalPresetsCache();
+            toast.success("Пресеты перенесены в аккаунт");
+          }
+        } else {
+          clearLocalPresetsCache();
+        }
+
+        if (cancelled) return;
+        setUserPresets(presets);
+        setExportLogoUrl(settings.exportLogoUrl);
+        setPresetsLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setUserPresets(loadUserPresets());
+          setPresetsLoaded(true);
+          toast.error("Не удалось загрузить пресеты аккаунта");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated]);
 
   const loadExchangeRates = async () => {
     setRatesLoading(true);
@@ -992,6 +1018,27 @@ export function CustomsCalculator() {
     toast.success(`Пресет «${preset.name}» применён`);
   };
 
+  const persistPresets = async (next: UserPreset[], successMessage?: string) => {
+    setUserPresets(next);
+    setPresetsSaving(true);
+    try {
+      const saved = await api.calculatorSettings.savePresets(next.slice(0, MAX_USER_PRESETS));
+      setUserPresets(saved.presets);
+      if (successMessage) toast.success(successMessage);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить пресеты");
+      try {
+        const fresh = await api.calculatorSettings.get();
+        setUserPresets(fresh.presets);
+        setExportLogoUrl(fresh.exportLogoUrl);
+      } catch {
+        // ignore reload error
+      }
+    } finally {
+      setPresetsSaving(false);
+    }
+  };
+
   const handleSavePreset = () => {
     const name = presetName.trim();
     if (!name) {
@@ -1022,32 +1069,13 @@ export function CustomsCalculator() {
       rates,
     };
 
-    setUserPresets((current) => {
-      const next = [preset, ...current.filter((item) => item.name !== preset.name)].slice(
-        0,
-        MAX_USER_PRESETS,
-      );
-      saveUserPresets(next);
-      return next;
-    });
+    const next = [preset, ...userPresets.filter((item) => item.name !== preset.name)].slice(
+      0,
+      MAX_USER_PRESETS,
+    );
     setPresetDialogOpen(false);
     setPresetName("");
-    toast.success("Пресет сохранён");
-  };
-
-  const handleDeletePreset = (presetId: string) => {
-    setUserPresets((current) => {
-      const next = current.filter((item) => item.id !== presetId);
-      saveUserPresets(next);
-      return next;
-    });
-    toast.success("Пресет удалён");
-  };
-
-  const handleClearPresets = () => {
-    setUserPresets([]);
-    saveUserPresets([]);
-    toast.success("Все пресеты удалены");
+    void persistPresets(next, "Пресет сохранён в аккаунт");
   };
 
   const handleDeleteHistoryItem = (historyId: string) => {
@@ -1064,6 +1092,33 @@ export function CustomsCalculator() {
     saveCalculatorHistory([]);
     lastHistorySignatureRef.current = null;
     toast.success("История расчётов очищена");
+  };
+
+  const handleLogoUpload = async (file: File | null) => {
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const settings = await api.calculatorSettings.uploadLogo(file);
+      setExportLogoUrl(settings.exportLogoUrl);
+      toast.success("Логотип добавлен в отчёт");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось загрузить логотип");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
+  const handleLogoDelete = async () => {
+    setLogoUploading(true);
+    try {
+      const settings = await api.calculatorSettings.deleteLogo();
+      setExportLogoUrl(settings.exportLogoUrl);
+      toast.success("Логотип удалён");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить логотип");
+    } finally {
+      setLogoUploading(false);
+    }
   };
 
   const dealIdFromQuery = searchParams.get("dealId");
@@ -1172,74 +1227,26 @@ export function CustomsCalculator() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">Пресеты</p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setPresetName("");
-                  setPresetDialogOpen(true);
-                }}
-              >
-                Сохранить пресет
-              </Button>
-            </div>
-            {userPresets.length > 0 ? (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">Мои пресеты</p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                    onClick={handleClearPresets}
-                  >
-                    Очистить все
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {userPresets.map((preset) => (
-                    <div key={preset.id} className="flex items-center gap-0.5">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="rounded-r-none"
-                        onClick={() => applyUserPreset(preset)}
-                      >
-                        {preset.name}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        className="rounded-l-none px-2 text-muted-foreground hover:text-destructive"
-                        aria-label={`Удалить пресет ${preset.name}`}
-                        onClick={() => handleDeletePreset(preset.id)}
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">
-                Сохраните текущие параметры расчёта, чтобы быстро подставлять их позже.
-              </p>
-            )}
-          </div>
+          <CalculatorPresetsPanel
+            presets={userPresets}
+            saving={presetsSaving || !presetsLoaded}
+            onApply={applyUserPreset}
+            onChange={(next) => {
+              void persistPresets(next);
+            }}
+            onSaveCurrent={() => {
+              setPresetName("");
+              setPresetDialogOpen(true);
+            }}
+          />
 
           <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Сохранить пресет</DialogTitle>
                 <DialogDescription>
-                  Сохранятся текущие параметры расчёта. Пресет останется на этом устройстве.
+                  Сохранятся текущие параметры расчёта. Пресет будет доступен в вашем аккаунте на
+                  любом устройстве.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -1260,7 +1267,13 @@ export function CustomsCalculator() {
                     }}
                   />
                 </div>
-                <Button type="button" variant="brand" className="w-full" onClick={handleSavePreset}>
+                <Button
+                  type="button"
+                  variant="brand"
+                  className="w-full"
+                  disabled={presetsSaving}
+                  onClick={handleSavePreset}
+                >
                   Сохранить
                 </Button>
               </div>
@@ -1804,6 +1817,64 @@ export function CustomsCalculator() {
                 </Button>
               </div>
 
+              <div className="rounded-xl border px-4 py-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">Логотип в отчёте</p>
+                    <p className="text-xs text-muted-foreground">
+                      PNG, JPEG или WebP до 2 МБ. Сохраняется в аккаунте.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={logoUploading || exporting !== null}
+                      onClick={() => logoInputRef.current?.click()}
+                    >
+                      {logoUploading ? (
+                        <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                      ) : null}
+                      {exportLogoUrl ? "Заменить" : "Загрузить"}
+                    </Button>
+                    {exportLogoUrl && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-destructive"
+                        disabled={logoUploading || exporting !== null}
+                        onClick={() => void handleLogoDelete()}
+                      >
+                        Удалить
+                      </Button>
+                    )}
+                  </div>
+                </div>
+                <input
+                  ref={logoInputRef}
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    event.target.value = "";
+                    void handleLogoUpload(file);
+                  }}
+                />
+                {exportLogoUrl && (
+                  <div className="mt-3 rounded-lg border bg-muted/10 px-3 py-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={`${EXPORT_LOGO_SRC}?v=${encodeURIComponent(exportLogoUrl)}`}
+                      alt="Логотип для отчёта"
+                      className="h-12 w-auto max-w-[220px] object-contain"
+                    />
+                  </div>
+                )}
+              </div>
+
               <SaveEstimateToDealButton
                 input={calculatorInput}
                 totalWithCar={result.totalWithCar}
@@ -1825,6 +1896,16 @@ export function CustomsCalculator() {
                 </CollapsibleTrigger>
                 <CollapsiblePanel open={detailsOpen}>
                   <div ref={exportRef} className="space-y-2 bg-background px-3 pb-3">
+                    {exportLogoUrl && (
+                      <div className="pb-1">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={`${EXPORT_LOGO_SRC}?v=${encodeURIComponent(exportLogoUrl)}`}
+                          alt=""
+                          className="h-14 w-auto max-w-[240px] object-contain"
+                        />
+                      </div>
+                    )}
                     <div className="border-b border-border/40 pb-1.5">
                       <p className="text-sm font-semibold">
                         Расчёт растаможки · {isKorea ? "Корея" : "Китай"}
