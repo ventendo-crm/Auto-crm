@@ -1,7 +1,12 @@
-export type TavilyQuickSearchResult = {
+export type TavilyQuickSearchItem = {
   answer: string;
   sourceUrl: string | null;
   sourceTitle: string | null;
+};
+
+export type TavilyQuickSearchResult = {
+  summary: string;
+  variants: TavilyQuickSearchItem[];
 };
 
 const TAVILY_TIMEOUT_MS = 20_000;
@@ -233,19 +238,33 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
     results?: Array<{ title?: string; url?: string; content?: string }>;
   };
 
-  const top = data.results?.[0];
-  const rawAnswer =
+  const summaryRaw =
     (typeof data.answer === "string" && data.answer.trim()) ||
-    (typeof top?.content === "string" && top.content.trim()) ||
+    (typeof data.results?.[0]?.content === "string" && data.results[0].content.trim()) ||
     "";
 
-  if (!rawAnswer) {
+  const variants = (data.results ?? [])
+    .slice(0, 3)
+    .map((item) => {
+      const raw =
+        (typeof item.content === "string" && item.content.trim()) ||
+        (typeof item.title === "string" && item.title.trim()) ||
+        "";
+      if (!raw) return null;
+      return {
+        answer: firstSentence(raw),
+        sourceUrl: typeof item.url === "string" ? item.url : null,
+        sourceTitle: typeof item.title === "string" ? item.title : null,
+      } satisfies TavilyQuickSearchItem;
+    })
+    .filter((item): item is TavilyQuickSearchItem => item !== null);
+
+  if (!summaryRaw && variants.length === 0) {
     throw new TavilySearchError("Не удалось найти ответ по этому запросу", "TAVILY_EMPTY");
   }
 
   return {
-    answer: firstSentence(rawAnswer),
-    sourceUrl: typeof top?.url === "string" ? top.url : null,
-    sourceTitle: typeof top?.title === "string" ? top.title : null,
+    summary: summaryRaw ? firstSentence(summaryRaw) : variants[0]?.answer ?? "",
+    variants,
   };
 }

@@ -436,9 +436,12 @@ export const api = {
   quickSearch: {
     search: (query: string) =>
       request<{
-        answer: string;
-        sourceUrl: string | null;
-        sourceTitle: string | null;
+        summary: string;
+        variants: Array<{
+          answer: string;
+          sourceUrl: string | null;
+          sourceTitle: string | null;
+        }>;
       }>("/api/quick-search", {
         method: "POST",
         body: JSON.stringify({ query }),

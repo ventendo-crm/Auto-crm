@@ -11,9 +11,10 @@ import { api } from "@/lib/api-client";
 export function CalculatorQuickSearch() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
-  const [answer, setAnswer] = useState<string | null>(null);
-  const [sourceUrl, setSourceUrl] = useState<string | null>(null);
-  const [sourceTitle, setSourceTitle] = useState<string | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [variants, setVariants] = useState<
+    Array<{ answer: string; sourceUrl: string | null; sourceTitle: string | null }>
+  >([]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -26,13 +27,11 @@ export function CalculatorQuickSearch() {
     setLoading(true);
     try {
       const result = await api.quickSearch.search(trimmed);
-      setAnswer(result.answer);
-      setSourceUrl(result.sourceUrl);
-      setSourceTitle(result.sourceTitle);
+      setSummary(result.summary);
+      setVariants(result.variants);
     } catch (error) {
-      setAnswer(null);
-      setSourceUrl(null);
-      setSourceTitle(null);
+      setSummary(null);
+      setVariants([]);
       toast.error(error instanceof Error ? error.message : "Не удалось выполнить поиск");
     } finally {
       setLoading(false);
@@ -69,21 +68,37 @@ export function CalculatorQuickSearch() {
           </Button>
         </form>
 
-        {answer && (
-          <div className="rounded-xl border bg-muted/20 px-4 py-3">
-            <p className="text-sm leading-relaxed">{answer}</p>
-            {sourceUrl && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                Источник:{" "}
-                <a
-                  href={sourceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="underline underline-offset-2 hover:text-foreground"
-                >
-                  {sourceTitle || sourceUrl}
-                </a>
+        {summary && (
+          <div className="space-y-3">
+            <div className="rounded-xl border bg-muted/20 px-4 py-3">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Краткий вывод
               </p>
+              <p className="mt-1 text-sm leading-relaxed">{summary}</p>
+            </div>
+
+            {variants.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Найденные варианты</p>
+                {variants.map((variant, index) => (
+                  <div key={`${variant.sourceUrl ?? "no-url"}-${index}`} className="rounded-xl border px-4 py-3">
+                    <p className="text-sm leading-relaxed">{variant.answer}</p>
+                    {variant.sourceUrl && (
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Источник:{" "}
+                        <a
+                          href={variant.sourceUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="underline underline-offset-2 hover:text-foreground"
+                        >
+                          {variant.sourceTitle || variant.sourceUrl}
+                        </a>
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         )}
