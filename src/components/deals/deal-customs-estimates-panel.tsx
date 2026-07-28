@@ -88,9 +88,18 @@ export function DealCustomsEstimatesPanel({
             {title}
           </CardTitle>
           {showCalculatorLink && (
-            <Button asChild variant="outline" size="sm">
-              <Link href="/calculator">Открыть калькулятор</Link>
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {current && (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/calculator?dealId=${dealId}&estimateId=${current.id}`}>
+                    Дублировать в калькулятор
+                  </Link>
+                </Button>
+              )}
+              <Button asChild variant="outline" size="sm">
+                <Link href="/calculator">Открыть калькулятор</Link>
+              </Button>
+            </div>
           )}
         </div>
       </CardHeader>
@@ -152,6 +161,13 @@ export function DealCustomsEstimatesPanel({
                           )}
                         />
                       </button>
+                      {showCalculatorLink && (
+                        <Button asChild variant="ghost" size="sm" className="shrink-0">
+                          <Link href={`/calculator?dealId=${dealId}&estimateId=${estimate.id}`}>
+                            В калькулятор
+                          </Link>
+                        </Button>
+                      )}
                       {canDelete && (
                         <Button
                           type="button"

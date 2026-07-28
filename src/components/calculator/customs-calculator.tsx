@@ -1,12 +1,21 @@
 "use client";
 
-import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, RefreshCw } from "lucide-react";
+import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, RefreshCw, X } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-to-deal-button";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -16,11 +25,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
 import {
   calculateCustoms,
   CarAge,
   CurrencyCode,
+  CustomsCalculatorInput,
   DEFAULT_BROKER_FEE_RUB,
   DEFAULT_DELIVERY_RUB,
   DEFAULT_ESCORT_RUB,
@@ -38,14 +49,16 @@ import {
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
+  RECYCLING_BASE_PASSENGER,
   roundExchangeRate,
   roundExchangeRates,
 } from "@/lib/customs-calculator";
 import { cn, formatCurrency } from "@/lib/utils";
-import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-to-deal-button";
 
 const STORAGE_KEY = "autocrm-customs-calculator";
 const HISTORY_STORAGE_KEY = "autocrm-customs-calculator-history";
+const PRESETS_STORAGE_KEY = "autocrm-customs-calculator-presets";
+const MAX_USER_PRESETS = 12;
 
 type CalculatorPersistedState = {
   originCountry: OriginCountry;
@@ -73,6 +86,29 @@ type CalculatorHistoryItem = CalculatorPersistedState & {
   id: string;
   savedAt: string;
   totalWithCar: number;
+};
+
+type UserPreset = {
+  id: string;
+  name: string;
+  savedAt: string;
+  originCountry: OriginCountry;
+  importer: ImporterType;
+  age: CarAge;
+  engine: EngineType;
+  powerHp: string;
+  volumeCc: string;
+  price: string;
+  currency: CurrencyCode;
+  chinaExpensesCny: string;
+  koreaDocsDeliveryKrw: string;
+  parkingFeeKrw: string;
+  brokerFeeRub: string;
+  deliveryRoute: DeliveryRoute;
+  deliveryRub: string;
+  deliveryUsd: string;
+  escortRub: string;
+  rates: ExchangeRates;
 };
 
 const DEFAULT_STATE: CalculatorPersistedState = {
@@ -208,6 +244,81 @@ function saveCalculatorHistory(items: CalculatorHistoryItem[]) {
   }
 }
 
+function loadUserPresets(): UserPreset[] {
+  try {
+    const raw = localStorage.getItem(PRESETS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
+      .map((item) => {
+        const rates = roundExchangeRates({
+          ...DEFAULT_EXCHANGE_RATES,
+          USD: typeof item.rates === "object" && item.rates && typeof (item.rates as ExchangeRates).USD === "number"
+            ? (item.rates as ExchangeRates).USD
+            : DEFAULT_EXCHANGE_RATES.USD,
+          EUR: typeof item.rates === "object" && item.rates && typeof (item.rates as ExchangeRates).EUR === "number"
+            ? (item.rates as ExchangeRates).EUR
+            : DEFAULT_EXCHANGE_RATES.EUR,
+          CNY: typeof item.rates === "object" && item.rates && typeof (item.rates as ExchangeRates).CNY === "number"
+            ? (item.rates as ExchangeRates).CNY
+            : DEFAULT_EXCHANGE_RATES.CNY,
+          KRW: typeof item.rates === "object" && item.rates && typeof (item.rates as ExchangeRates).KRW === "number"
+            ? (item.rates as ExchangeRates).KRW
+            : DEFAULT_EXCHANGE_RATES.KRW,
+        });
+        return {
+          id: typeof item.id === "string" ? item.id : `${Date.now()}`,
+          name: typeof item.name === "string" && item.name.trim() ? item.name.trim() : "Без названия",
+          savedAt: typeof item.savedAt === "string" ? item.savedAt : new Date().toISOString(),
+          originCountry: isOriginCountry(item.originCountry)
+            ? item.originCountry
+            : DEFAULT_STATE.originCountry,
+          importer: isImporter(item.importer) ? item.importer : DEFAULT_STATE.importer,
+          age: isAge(item.age) ? item.age : DEFAULT_STATE.age,
+          engine: isEngine(item.engine) ? normalizeEngine(item.engine) : DEFAULT_STATE.engine,
+          powerHp: typeof item.powerHp === "string" ? item.powerHp : DEFAULT_STATE.powerHp,
+          volumeCc: typeof item.volumeCc === "string" ? item.volumeCc : DEFAULT_STATE.volumeCc,
+          price: typeof item.price === "string" ? item.price : DEFAULT_STATE.price,
+          currency: isCurrency(item.currency) ? item.currency : DEFAULT_STATE.currency,
+          chinaExpensesCny:
+            typeof item.chinaExpensesCny === "string"
+              ? item.chinaExpensesCny
+              : DEFAULT_STATE.chinaExpensesCny,
+          koreaDocsDeliveryKrw:
+            typeof item.koreaDocsDeliveryKrw === "string"
+              ? item.koreaDocsDeliveryKrw
+              : DEFAULT_STATE.koreaDocsDeliveryKrw,
+          parkingFeeKrw:
+            typeof item.parkingFeeKrw === "string" ? item.parkingFeeKrw : DEFAULT_STATE.parkingFeeKrw,
+          brokerFeeRub:
+            typeof item.brokerFeeRub === "string" ? item.brokerFeeRub : DEFAULT_STATE.brokerFeeRub,
+          deliveryRoute: isDeliveryRoute(item.deliveryRoute)
+            ? item.deliveryRoute
+            : DEFAULT_STATE.deliveryRoute,
+          deliveryRub:
+            typeof item.deliveryRub === "string" ? item.deliveryRub : DEFAULT_STATE.deliveryRub,
+          deliveryUsd:
+            typeof item.deliveryUsd === "string" ? item.deliveryUsd : DEFAULT_STATE.deliveryUsd,
+          escortRub: typeof item.escortRub === "string" ? item.escortRub : DEFAULT_STATE.escortRub,
+          rates,
+        } satisfies UserPreset;
+      })
+      .slice(0, MAX_USER_PRESETS);
+  } catch {
+    return [];
+  }
+}
+
+function saveUserPresets(items: UserPreset[]) {
+  try {
+    localStorage.setItem(PRESETS_STORAGE_KEY, JSON.stringify(items.slice(0, MAX_USER_PRESETS)));
+  } catch {
+    // localStorage недоступен
+  }
+}
+
 const IMPORTER_OPTIONS: Array<{ value: ImporterType; label: string }> = [
   { value: "personal", label: "Физ. лицо (для личного использования)" },
   { value: "resale", label: "Физ. лицо (для перепродажи)" },
@@ -316,6 +427,60 @@ const PRESET_OPTIONS: Array<{
 
 function chinaExpensesForAge(age: CarAge): string {
   return age === "under3" ? "5000" : "12000";
+}
+
+function numberToInputString(value: number | undefined, fallback: string): string {
+  if (typeof value !== "number" || !Number.isFinite(value)) return fallback;
+  return String(value);
+}
+
+function inputToCalculatorState(input: CustomsCalculatorInput): CalculatorPersistedState {
+  const originCountry = isOriginCountry(input.originCountry)
+    ? input.originCountry
+    : DEFAULT_STATE.originCountry;
+  const engine = isEngine(input.engine) ? normalizeEngine(input.engine) : DEFAULT_STATE.engine;
+  const age = isAge(input.age) ? input.age : DEFAULT_STATE.age;
+  const deliveryRoute = isDeliveryRoute(input.deliveryRoute)
+    ? input.deliveryRoute
+    : originCountry === "korea"
+      ? "vladivostok"
+      : DEFAULT_STATE.deliveryRoute;
+
+  return {
+    originCountry,
+    importer: isImporter(input.importer) ? input.importer : DEFAULT_STATE.importer,
+    age,
+    engine,
+    powerHp: numberToInputString(input.powerHp, DEFAULT_STATE.powerHp),
+    volumeCc: numberToInputString(input.volumeCc, DEFAULT_STATE.volumeCc),
+    price: numberToInputString(input.price, DEFAULT_STATE.price),
+    currency: isCurrency(input.currency) ? input.currency : DEFAULT_STATE.currency,
+    chinaExpensesCny: numberToInputString(input.chinaExpensesCny, chinaExpensesForAge(age)),
+    koreaDocsDeliveryKrw: numberToInputString(
+      input.koreaDocsDeliveryKrw,
+      DEFAULT_STATE.koreaDocsDeliveryKrw,
+    ),
+    parkingFeeKrw: numberToInputString(input.parkingFeeKrw, DEFAULT_STATE.parkingFeeKrw),
+    brokerFeeRub: numberToInputString(
+      input.brokerFeeRub,
+      originCountry === "korea"
+        ? String(DEFAULT_KOREA_BROKER_FEE_RUB)
+        : DEFAULT_STATE.brokerFeeRub,
+    ),
+    deliveryRoute,
+    deliveryRub: numberToInputString(
+      input.deliveryRub,
+      originCountry === "korea" ? String(DEFAULT_KOREA_DELIVERY_RUB) : DEFAULT_STATE.deliveryRub,
+    ),
+    deliveryUsd: numberToInputString(input.deliveryUsd, DEFAULT_STATE.deliveryUsd),
+    escortRub: numberToInputString(input.escortRub, DEFAULT_STATE.escortRub),
+    rates: roundExchangeRates({
+      ...DEFAULT_EXCHANGE_RATES,
+      ...(input.rates ?? {}),
+    }),
+    ratesUpdatedAt: null,
+    submitted: true,
+  };
 }
 
 function formatForeignNote(amount: number, code: "CNY" | "KRW"): string | undefined {
@@ -511,6 +676,8 @@ async function saveResultAsPdf(element: HTMLElement) {
 }
 
 export function CustomsCalculator() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [originCountry, setOriginCountry] = useState<OriginCountry>(DEFAULT_STATE.originCountry);
   const [importer, setImporter] = useState<ImporterType>(DEFAULT_STATE.importer);
   const [age, setAge] = useState<CarAge>(DEFAULT_STATE.age);
@@ -536,10 +703,15 @@ export function CustomsCalculator() {
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
   const [exporting, setExporting] = useState<"pdf" | "jpeg" | null>(null);
   const [history, setHistory] = useState<CalculatorHistoryItem[]>([]);
+  const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
+  const [presetDialogOpen, setPresetDialogOpen] = useState(false);
+  const [presetName, setPresetName] = useState("");
+  const [managerNote, setManagerNote] = useState("");
   const [autoOpen, setAutoOpen] = useState(true);
   const [expensesOpen, setExpensesOpen] = useState(true);
   const [ratesOpen, setRatesOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(true);
+  const [formulasOpen, setFormulasOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const resultSectionRef = useRef<HTMLDivElement>(null);
   const lastHistorySignatureRef = useRef<string | null>(null);
@@ -566,6 +738,7 @@ export function CustomsCalculator() {
     setRatesUpdatedAt(stored.ratesUpdatedAt);
     setSubmitted(stored.submitted);
     setHistory(loadCalculatorHistory());
+    setUserPresets(loadUserPresets());
     setHydrated(true);
   }, []);
 
@@ -849,6 +1022,108 @@ export function CustomsCalculator() {
     toast.success("Расчёт применён из истории");
   };
 
+  const applyUserPreset = (preset: UserPreset) => {
+    applyScenario(preset);
+    setRates(preset.rates);
+    toast.success(`Пресет «${preset.name}» применён`);
+  };
+
+  const handleSavePreset = () => {
+    const name = presetName.trim();
+    if (!name) {
+      toast.error("Введите название пресета");
+      return;
+    }
+
+    const preset: UserPreset = {
+      id: `${Date.now()}`,
+      name: name.slice(0, 60),
+      savedAt: new Date().toISOString(),
+      originCountry,
+      importer,
+      age,
+      engine,
+      powerHp,
+      volumeCc,
+      price,
+      currency,
+      chinaExpensesCny,
+      koreaDocsDeliveryKrw,
+      parkingFeeKrw,
+      brokerFeeRub,
+      deliveryRoute,
+      deliveryRub,
+      deliveryUsd,
+      escortRub,
+      rates,
+    };
+
+    setUserPresets((current) => {
+      const next = [preset, ...current.filter((item) => item.name !== preset.name)].slice(
+        0,
+        MAX_USER_PRESETS,
+      );
+      saveUserPresets(next);
+      return next;
+    });
+    setPresetDialogOpen(false);
+    setPresetName("");
+    toast.success("Пресет сохранён");
+  };
+
+  const handleDeletePreset = (presetId: string) => {
+    setUserPresets((current) => {
+      const next = current.filter((item) => item.id !== presetId);
+      saveUserPresets(next);
+      return next;
+    });
+    toast.success("Пресет удалён");
+  };
+
+  const dealIdFromQuery = searchParams.get("dealId");
+  const estimateIdFromQuery = searchParams.get("estimateId");
+
+  useEffect(() => {
+    if (!hydrated || !dealIdFromQuery || !estimateIdFromQuery) return;
+
+    let cancelled = false;
+
+    void api.deals.customsEstimates
+      .list(dealIdFromQuery)
+      .then((estimates) => {
+        if (cancelled) return;
+        const estimate = estimates.find((item) => item.id === estimateIdFromQuery);
+        if (!estimate) {
+          toast.error("Расчёт из сделки не найден");
+          router.replace("/calculator");
+          return;
+        }
+
+        const state = inputToCalculatorState(estimate.input);
+        applyScenario(state);
+        setRates(state.rates);
+        setRatesUpdatedAt(state.ratesUpdatedAt);
+        setSubmitted(true);
+        if (estimate.note) setManagerNote(estimate.note);
+        setDetailsOpen(true);
+        setFormulasOpen(true);
+        toast.success("Параметры загружены из сделки");
+        router.replace("/calculator");
+      })
+      .catch(() => {
+        if (!cancelled) {
+          toast.error("Не удалось загрузить расчёт из сделки");
+          router.replace("/calculator");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // applyScenario is a one-shot apply helper; omit from deps intentionally
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, dealIdFromQuery, estimateIdFromQuery, router]);
+
   const updateRate = (key: keyof ExchangeRates, value: string) => {
     const next = Number(value.replace(",", "."));
     if (!Number.isFinite(next) || next <= 0) return;
@@ -912,12 +1187,20 @@ export function CustomsCalculator() {
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm font-medium">Быстрые сценарии</p>
-              <Badge variant="outline" className="text-[11px]">
-                Пресеты
-              </Badge>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setPresetName("");
+                  setPresetDialogOpen(true);
+                }}
+              >
+                Сохранить пресет
+              </Button>
             </div>
             <div className="flex flex-wrap gap-2">
               {PRESET_OPTIONS.map((preset) => (
@@ -932,7 +1215,70 @@ export function CustomsCalculator() {
                 </Button>
               ))}
             </div>
+            {userPresets.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">Мои пресеты</p>
+                <div className="flex flex-wrap gap-2">
+                  {userPresets.map((preset) => (
+                    <div key={preset.id} className="flex items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="rounded-r-none"
+                        onClick={() => applyUserPreset(preset)}
+                      >
+                        {preset.name}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        className="rounded-l-none px-2 text-muted-foreground hover:text-destructive"
+                        aria-label={`Удалить пресет ${preset.name}`}
+                        onClick={() => handleDeletePreset(preset.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
+
+          <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Сохранить пресет</DialogTitle>
+                <DialogDescription>
+                  Сохранятся текущие параметры расчёта. Пресет останется на этом устройстве.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="preset-name">Название</Label>
+                  <Input
+                    id="preset-name"
+                    value={presetName}
+                    onChange={(event) => setPresetName(event.target.value.slice(0, 60))}
+                    placeholder="Например: Changan Q05 льготный"
+                    maxLength={60}
+                    autoFocus
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        handleSavePreset();
+                      }
+                    }}
+                  />
+                </div>
+                <Button type="button" variant="brand" className="w-full" onClick={handleSavePreset}>
+                  Сохранить
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <FormSection
             title="1. Автомобиль"
@@ -1341,11 +1687,11 @@ export function CustomsCalculator() {
               })}{" "}
               ₽
             </Badge>
-            <Badge variant="outline">
-              {ratesUpdatedAt
-                ? `Курс обновлён ${new Date(ratesUpdatedAt).toLocaleString("ru-RU")}`
-                : "Курс обновляется вручную"}
-            </Badge>
+            {ratesUpdatedAt && (
+              <Badge variant="outline">
+                Курс обновлён {new Date(ratesUpdatedAt).toLocaleString("ru-RU")}
+              </Badge>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -1364,59 +1710,80 @@ export function CustomsCalculator() {
           {result && (
             <div className="space-y-4">
               {result.totalWithCar !== 0 && (
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/60 px-4 py-4 dark:border-blue-900 dark:bg-blue-950/20">
-                    <p className="text-sm text-muted-foreground">{result.firstPaymentLabel}</p>
-                    <p className="mt-1 text-2xl font-semibold tabular-nums">
-                      {formatCurrency(result.vtbTotalRub)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">{result.firstPaymentNote}</p>
-                  </div>
-                  <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
-                    <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
-                    <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
-                      {formatCurrency(result.totalWithCar)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Таможня: {formatCurrency(result.totalCustoms)} · Доставка:{" "}
-                      {formatCurrency(result.deliveryRub + result.escortRub)}
-                    </p>
-                  </div>
+                <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
+                  <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>
+                  <p className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
+                    {formatCurrency(result.totalWithCar)}
+                  </p>
                 </div>
               )}
 
-              <div className="grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border bg-muted/20 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Стоимость авто
-                  </p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {formatCurrency(result.priceRub)}
-                  </p>
-                </div>
-                <div className="rounded-xl border bg-muted/20 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Таможня и налоги
-                  </p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {formatCurrency(result.totalCustoms)}
-                  </p>
-                </div>
-                <div className="rounded-xl border bg-muted/20 px-4 py-3">
-                  <p className="text-xs uppercase tracking-wide text-muted-foreground">
-                    Логистика и услуги
-                  </p>
-                  <p className="mt-1 text-lg font-semibold tabular-nums">
-                    {formatCurrency(
-                      result.brokerFeeRub +
-                        result.deliveryRub +
-                        result.escortRub +
-                        (result.parkingFeeRub ?? 0) +
-                        (result.koreaDocsDeliveryRub ?? 0) +
-                        result.chinaExpensesRub,
-                    )}
-                  </p>
-                </div>
+              <div className="rounded-xl border">
+                <CollapsibleTrigger
+                  open={formulasOpen}
+                  onToggle={() => setFormulasOpen((value) => !value)}
+                  className="px-4 py-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium">Пояснения к формулам</p>
+                    <p className="text-xs text-muted-foreground">
+                      Утильсбор, пошлина и НДС в этом расчёте
+                    </p>
+                  </div>
+                </CollapsibleTrigger>
+                <CollapsiblePanel open={formulasOpen}>
+                  <div className="space-y-3 px-4 pb-4 text-sm">
+                    <div className="rounded-lg border bg-muted/10 px-3 py-3">
+                      <p className="font-medium">Утилизационный сбор (УС)</p>
+                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
+                        <li>
+                          База для легковых:{" "}
+                          {RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} ₽
+                        </li>
+                        <li>
+                          Льготный для физлица (личное пользование): ДВС до{" "}
+                          {PREFERENTIAL_MAX_HP_ICE} л.с. и{" "}
+                          {PREFERENTIAL_MAX_VOLUME_CC.toLocaleString("ru-RU")} см³ либо электро до{" "}
+                          {PREFERENTIAL_MAX_HP_EV} л.с. — коэффициент 0,17 (до 3 лет) или 0,26
+                        </li>
+                        <li>
+                          Иначе коммерческий коэффициент по мощности / объёму двигателя
+                        </li>
+                      </ul>
+                      <p className="mt-2 text-xs">
+                        В этом расчёте: {result.recyclingNote} ={" "}
+                        <span className="font-medium tabular-nums">
+                          {formatCurrency(result.recyclingFee)}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/10 px-3 py-3">
+                      <p className="font-medium">Таможенная пошлина (ТП)</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        Зависит от возраста, типа двигателя, стоимости и объёма. Ставка в расчёте:{" "}
+                        {result.customsDutyNote || "см. подробный расчёт"}.
+                      </p>
+                      <p className="mt-2 text-xs">
+                        Сумма:{" "}
+                        <span className="font-medium tabular-nums">
+                          {formatCurrency(result.customsDuty)}
+                        </span>
+                      </p>
+                    </div>
+                    <div className="rounded-lg border bg-muted/10 px-3 py-3">
+                      <p className="font-medium">НДС</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        20% от (стоимость авто + таможенная пошлина + акциз).
+                      </p>
+                      <p className="mt-2 text-xs">
+                        Сумма:{" "}
+                        <span className="font-medium tabular-nums">
+                          {formatCurrency(result.vat)}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </CollapsiblePanel>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
@@ -1482,10 +1849,28 @@ export function CustomsCalculator() {
                 </div>
               )}
 
+              <div className="space-y-2 rounded-xl border px-4 py-4">
+                <Label htmlFor="manager-note">Комментарий менеджера</Label>
+                <Textarea
+                  id="manager-note"
+                  value={managerNote}
+                  onChange={(event) => setManagerNote(event.target.value.slice(0, 500))}
+                  placeholder="Например: вариант с доставкой до Москвы"
+                  maxLength={500}
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Сохранится вместе с расчётом в сделку. Клиент увидит комментарий во вкладке
+                  «Расчёт».
+                </p>
+              </div>
+
               <SaveEstimateToDealButton
                 input={calculatorInput}
                 totalWithCar={result.totalWithCar}
                 disabled={exporting !== null}
+                note={managerNote}
+                onNoteChange={setManagerNote}
               />
 
               <div className="rounded-xl border">
