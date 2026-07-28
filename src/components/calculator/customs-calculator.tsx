@@ -601,14 +601,15 @@ async function captureResultCanvas(element: HTMLElement, scale = 2) {
 }
 
 async function saveResultAsJpeg(element: HTMLElement) {
-  const canvas = await captureResultCanvas(element, 3);
-  downloadBlob(exportFilename("jpg"), canvas.toDataURL("image/jpeg", 0.98));
+  const canvas = await captureResultCanvas(element, 5);
+  downloadBlob(exportFilename("jpg"), canvas.toDataURL("image/jpeg", 1));
 }
 
 async function saveResultAsPdf(element: HTMLElement) {
-  const canvas = await captureResultCanvas(element, 2.5);
+  const canvas = await captureResultCanvas(element, 4);
   const { jsPDF } = await import("jspdf");
-  const imgData = canvas.toDataURL("image/jpeg", 0.95);
+  // PNG даёт более чёткий текст в PDF, чем JPEG
+  const imgData = canvas.toDataURL("image/png");
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
@@ -627,7 +628,7 @@ async function saveResultAsPdf(element: HTMLElement) {
 
   const x = margin + (usableWidth - imgWidth) / 2;
   const y = margin + (usableHeight - imgHeight) / 2;
-  pdf.addImage(imgData, "JPEG", x, y, imgWidth, imgHeight);
+  pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
   pdf.save(exportFilename("pdf"));
 }
 
