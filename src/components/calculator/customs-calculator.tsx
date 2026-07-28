@@ -415,7 +415,14 @@ function formatForeignNote(amount: number, code: "CNY" | "KRW"): string | undefi
   if (!Number.isFinite(amount) || amount <= 0) return undefined;
   return `${amount.toLocaleString("ru-RU", {
     maximumFractionDigits: 2,
-  })} ${code}`;
+  }).replace(/[\u00A0\u202F]/g, " ")} ${code}`;
+}
+
+function formatTableCurrency(value: number): string {
+  const amount = Math.round(value)
+    .toLocaleString("ru-RU", { maximumFractionDigits: 0 })
+    .replace(/[\u00A0\u202F]/g, " ");
+  return `${amount} ₽`;
 }
 
 function priceToForeign(
@@ -449,39 +456,45 @@ function ResultRow({
   return (
     <div
       className={cn(
-        "flex items-start justify-between gap-3 border-b border-border/50 last:border-b-0",
+        "grid grid-cols-[minmax(0,1fr)_7.75rem] items-center gap-x-3 border-b border-border/50 last:border-b-0",
         compact ? "py-1.5" : "py-3",
         emphasize && (compact ? "border-b-0 pt-2" : "border-b-0 pt-4"),
       )}
     >
-      <div className="min-w-0">
+      <div className="min-w-0 pr-1">
         <p
           className={cn(
+            "leading-snug",
             compact ? "text-xs" : "text-sm",
-            emphasize ? "font-semibold" : "text-muted-foreground",
+            emphasize ? "font-semibold text-foreground" : "text-muted-foreground",
           )}
         >
           {label}
         </p>
         {note && (
-          <p className={cn("mt-0.5 text-muted-foreground", compact ? "text-[10px] leading-tight" : "text-xs")}>
+          <p
+            className={cn(
+              "mt-0.5 leading-snug text-muted-foreground",
+              compact ? "text-[10px]" : "text-xs",
+            )}
+          >
             {note}
           </p>
         )}
       </div>
       <p
         className={cn(
-          "shrink-0 text-right tabular-nums",
+          "text-right font-medium leading-none tracking-normal tabular-nums whitespace-nowrap",
           emphasize
             ? compact
-              ? "text-base font-semibold"
-              : "text-xl font-semibold"
+              ? "text-xs font-semibold"
+              : "text-base font-semibold"
             : compact
-              ? "text-xs font-medium"
-              : "text-sm font-medium",
+              ? "text-xs"
+              : "text-sm",
         )}
       >
-        {formatCurrency(value)}
+        {formatTableCurrency(value)}
       </p>
     </div>
   );
@@ -558,16 +571,31 @@ function exportFilename(extension: "pdf" | "jpg") {
 }
 
 async function captureResultCanvas(element: HTMLElement, scale = 2) {
+  if (typeof document !== "undefined" && document.fonts?.ready) {
+    await document.fonts.ready;
+  }
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
   const html2canvas = (await import("html2canvas")).default;
   return html2canvas(element, {
     scale,
     useCORS: true,
     backgroundColor: "#ffffff",
     logging: false,
-    onclone: (doc, cloned) => {
-      doc.documentElement.classList.remove("dark");
+    onclone: (_doc, cloned) => {
       cloned.style.backgroundColor = "#ffffff";
       cloned.style.color = "#1f2937";
+      cloned.style.fontFamily = "Arial, Helvetica, sans-serif";
+      cloned.style.letterSpacing = "0";
+      cloned.style.wordSpacing = "0";
+      cloned.querySelectorAll<HTMLElement>("*").forEach((node) => {
+        node.style.letterSpacing = "0";
+        node.style.wordSpacing = "normal";
+        node.style.fontVariantNumeric = "tabular-nums";
+        node.style.fontFamily = "Arial, Helvetica, sans-serif";
+      });
     },
   });
 }
@@ -876,7 +904,11 @@ export function CustomsCalculator() {
     const wasDetailsOpen = detailsOpen;
     if (!wasDetailsOpen) {
       setDetailsOpen(true);
-      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await new Promise<void>((resolve) => {
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      });
+      // Даём layout и шрифтам стабилизироваться перед снимком
+      await new Promise((resolve) => setTimeout(resolve, 120));
     }
 
     setExporting(format);
@@ -892,7 +924,10 @@ export function CustomsCalculator() {
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить файл");
     } finally {
       setExporting(null);
-      if (!wasDetailsOpen) setDetailsOpen(false);
+      // Не закрываем сразу — иначе на экране «скачут» шрифты/высота блока
+      if (!wasDetailsOpen) {
+        window.setTimeout(() => setDetailsOpen(false), 200);
+      }
     }
   };
 
@@ -1897,8 +1932,8 @@ export function CustomsCalculator() {
                     {result.totalWithCar !== 0 && (
                       <div className="rounded-lg border border-brand/20 bg-brand-muted/40 px-3 py-2.5">
                         <p className="text-[11px] text-muted-foreground">Итого со всеми расходами</p>
-                        <p className="mt-0.5 text-xl font-semibold tabular-nums">
-                          {formatCurrency(result.totalWithCar)}
+                        <p className="mt-0.5 text-xl font-semibold tracking-normal tabular-nums">
+                          {formatTableCurrency(result.totalWithCar)}
                         </p>
                       </div>
                     )}
