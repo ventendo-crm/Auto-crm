@@ -118,7 +118,7 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   powerHp: "150",
   volumeCc: "2000",
   price: "25000",
-  currency: "USD",
+  currency: "CNY",
   chinaExpensesCny: "5000",
   koreaDocsDeliveryKrw: String(DEFAULT_KOREA_DOCS_DELIVERY_KRW),
   parkingFeeKrw: String(DEFAULT_KOREA_PARKING_FEE_KRW),
@@ -366,7 +366,7 @@ const PRESET_OPTIONS: Array<{
       importer: "personal",
       age: "under3",
       engine: "petrol",
-      currency: "USD",
+      currency: "CNY",
       chinaExpensesCny: "5000",
       brokerFeeRub: String(DEFAULT_BROKER_FEE_RUB),
       deliveryRoute: "ussuriysk",
@@ -382,7 +382,7 @@ const PRESET_OPTIONS: Array<{
       age: "under3",
       engine: "electric",
       volumeCc: "0",
-      currency: "USD",
+      currency: "CNY",
       chinaExpensesCny: "5000",
       brokerFeeRub: String(DEFAULT_BROKER_FEE_RUB),
       deliveryRoute: "ussuriysk",
@@ -983,7 +983,7 @@ export function CustomsCalculator() {
       setParkingFeeKrw(String(DEFAULT_KOREA_PARKING_FEE_KRW));
       setKoreaDocsDeliveryKrw(String(DEFAULT_KOREA_DOCS_DELIVERY_KRW));
     } else {
-      setCurrency("USD");
+      setCurrency("CNY");
       setBrokerFeeRub(String(DEFAULT_BROKER_FEE_RUB));
       setDeliveryRoute("ussuriysk");
       setDeliveryRub(String(DEFAULT_DELIVERY_RUB));
