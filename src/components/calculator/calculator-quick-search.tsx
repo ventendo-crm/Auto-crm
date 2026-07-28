@@ -46,7 +46,7 @@ export function CalculatorQuickSearch() {
           Быстрый поиск
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Короткий ответ из интернета — например, «30-ти минутная мощность Changan Q05»
+          Короткий ответ из интернета — например, «30-ти минутная мощность Changan Q05 для расчета утильсбора»
         </p>
       </CardHeader>
       <CardContent className="space-y-3">

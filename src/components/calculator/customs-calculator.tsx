@@ -687,10 +687,7 @@ export function CustomsCalculator() {
 
   return (
     <div
-      className={cn(
-        "grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]",
-        result && result.totalWithCar !== 0 && "pb-24 xl:pb-0",
-      )}
+      className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]"
     >
       <Card className="border-0 shadow-card">
         <CardHeader>
