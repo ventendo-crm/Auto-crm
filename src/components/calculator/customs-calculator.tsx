@@ -710,6 +710,7 @@ export function CustomsCalculator() {
   const [ratesOpen, setRatesOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [formulasOpen, setFormulasOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const resultSectionRef = useRef<HTMLDivElement>(null);
   const lastHistorySignatureRef = useRef<string | null>(null);
@@ -1848,59 +1849,72 @@ export function CustomsCalculator() {
               </div>
 
               {history.length > 0 && (
-                <div className="rounded-xl border bg-muted/10 px-4 py-4">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-medium">Последние расчёты на этом устройстве</p>
-                      <Badge variant="outline">{history.length}</Badge>
+                <div className="rounded-xl border">
+                  <CollapsibleTrigger
+                    open={historyOpen}
+                    onToggle={() => setHistoryOpen((value) => !value)}
+                    className="px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">История расчётов</p>
+                        <Badge variant="outline">{history.length}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Последние расчёты на этом устройстве
+                      </p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-                      onClick={handleClearHistory}
-                    >
-                      Очистить
-                    </Button>
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {history.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex items-center gap-1 rounded-lg border pr-1"
-                      >
-                        <button
-                          type="button"
-                          className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40"
-                          onClick={() => applyHistoryItem(item)}
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">
-                              {item.originCountry === "korea" ? "Корея" : "Китай"} ·{" "}
-                              {item.engine === "electric" ? "электро" : "ДВС"}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {new Date(item.savedAt).toLocaleString("ru-RU")}
-                            </p>
-                          </div>
-                          <p className="shrink-0 text-sm font-semibold tabular-nums">
-                            {formatCurrency(item.totalWithCar)}
-                          </p>
-                        </button>
+                  </CollapsibleTrigger>
+                  <CollapsiblePanel open={historyOpen}>
+                    <div className="space-y-2 px-4 pb-4">
+                      <div className="flex justify-end">
                         <Button
                           type="button"
                           variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                          aria-label="Удалить из истории"
-                          onClick={() => handleDeleteHistoryItem(item.id)}
+                          size="sm"
+                          className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                          onClick={handleClearHistory}
                         >
-                          <X className="h-3.5 w-3.5" />
+                          Очистить
                         </Button>
                       </div>
-                    ))}
-                  </div>
+                      {history.map((item) => (
+                        <div
+                          key={item.id}
+                          className="flex items-center gap-1 rounded-lg border pr-1"
+                        >
+                          <button
+                            type="button"
+                            className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left transition-colors hover:bg-muted/40"
+                            onClick={() => applyHistoryItem(item)}
+                          >
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium">
+                                {item.originCountry === "korea" ? "Корея" : "Китай"} ·{" "}
+                                {item.engine === "electric" ? "электро" : "ДВС"}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(item.savedAt).toLocaleString("ru-RU")}
+                              </p>
+                            </div>
+                            <p className="shrink-0 text-sm font-semibold tabular-nums">
+                              {formatCurrency(item.totalWithCar)}
+                            </p>
+                          </button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                            aria-label="Удалить из истории"
+                            onClick={() => handleDeleteHistoryItem(item.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsiblePanel>
                 </div>
               )}
 
