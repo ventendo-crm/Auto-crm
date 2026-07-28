@@ -29,26 +29,20 @@ interface SaveEstimateToDealButtonProps {
   input: CustomsCalculatorInput;
   totalWithCar: number;
   disabled?: boolean;
-  note?: string;
-  onNoteChange?: (note: string) => void;
 }
 
 export function SaveEstimateToDealButton({
   input,
   totalWithCar,
   disabled = false,
-  note: controlledNote,
-  onNoteChange,
 }: SaveEstimateToDealButtonProps) {
   const [open, setOpen] = useState(false);
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [loadingDeals, setLoadingDeals] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dealId, setDealId] = useState("");
-  const [internalNote, setInternalNote] = useState("");
+  const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
-  const note = controlledNote ?? internalNote;
-  const setNote = onNoteChange ?? setInternalNote;
 
   useEffect(() => {
     if (!open) return;
@@ -93,10 +87,6 @@ export function SaveEstimateToDealButton({
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleNoteChange = (value: string) => {
-    setNote(value.slice(0, 500));
   };
 
   return (
@@ -153,11 +143,11 @@ export function SaveEstimateToDealButton({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="estimate-note">Комментарий менеджера</Label>
+              <Label htmlFor="estimate-note">Комментарий (необязательно)</Label>
               <Input
                 id="estimate-note"
                 value={note}
-                onChange={(event) => handleNoteChange(event.target.value)}
+                onChange={(event) => setNote(event.target.value.slice(0, 500))}
                 placeholder="Например: вариант с доставкой до Москвы"
                 maxLength={500}
               />

@@ -25,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
 import {
   calculateCustoms,
@@ -706,7 +705,6 @@ export function CustomsCalculator() {
   const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
   const [presetDialogOpen, setPresetDialogOpen] = useState(false);
   const [presetName, setPresetName] = useState("");
-  const [managerNote, setManagerNote] = useState("");
   const [autoOpen, setAutoOpen] = useState(true);
   const [expensesOpen, setExpensesOpen] = useState(true);
   const [ratesOpen, setRatesOpen] = useState(false);
@@ -1104,7 +1102,6 @@ export function CustomsCalculator() {
         setRates(state.rates);
         setRatesUpdatedAt(state.ratesUpdatedAt);
         setSubmitted(true);
-        if (estimate.note) setManagerNote(estimate.note);
         setDetailsOpen(true);
         setFormulasOpen(true);
         toast.success("Параметры загружены из сделки");
@@ -1849,28 +1846,10 @@ export function CustomsCalculator() {
                 </div>
               )}
 
-              <div className="space-y-2 rounded-xl border px-4 py-4">
-                <Label htmlFor="manager-note">Комментарий менеджера</Label>
-                <Textarea
-                  id="manager-note"
-                  value={managerNote}
-                  onChange={(event) => setManagerNote(event.target.value.slice(0, 500))}
-                  placeholder="Например: вариант с доставкой до Москвы"
-                  maxLength={500}
-                  rows={3}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Сохранится вместе с расчётом в сделку. Клиент увидит комментарий во вкладке
-                  «Расчёт».
-                </p>
-              </div>
-
               <SaveEstimateToDealButton
                 input={calculatorInput}
                 totalWithCar={result.totalWithCar}
                 disabled={exporting !== null}
-                note={managerNote}
-                onNoteChange={setManagerNote}
               />
 
               <div className="rounded-xl border">
