@@ -353,77 +353,6 @@ const DELIVERY_ROUTE_OPTIONS: Array<{ value: DeliveryRoute; label: string }> = [
   { value: "kazakhstan", label: "Через Казахстан" },
 ];
 
-const PRESET_OPTIONS: Array<{
-  id: string;
-  label: string;
-  apply: Partial<CalculatorPersistedState>;
-}> = [
-  {
-    id: "china-petrol",
-    label: "Китай · ДВС",
-    apply: {
-      originCountry: "china",
-      importer: "personal",
-      age: "under3",
-      engine: "petrol",
-      currency: "CNY",
-      chinaExpensesCny: "5000",
-      brokerFeeRub: String(DEFAULT_BROKER_FEE_RUB),
-      deliveryRoute: "ussuriysk",
-      deliveryRub: String(DEFAULT_DELIVERY_RUB),
-    },
-  },
-  {
-    id: "china-ev",
-    label: "Китай · Электро",
-    apply: {
-      originCountry: "china",
-      importer: "personal",
-      age: "under3",
-      engine: "electric",
-      volumeCc: "0",
-      currency: "CNY",
-      chinaExpensesCny: "5000",
-      brokerFeeRub: String(DEFAULT_BROKER_FEE_RUB),
-      deliveryRoute: "ussuriysk",
-      deliveryRub: String(DEFAULT_DELIVERY_RUB),
-    },
-  },
-  {
-    id: "korea-petrol",
-    label: "Корея · ДВС",
-    apply: {
-      originCountry: "korea",
-      importer: "personal",
-      age: "under3",
-      engine: "petrol",
-      currency: "KRW",
-      koreaDocsDeliveryKrw: String(DEFAULT_KOREA_DOCS_DELIVERY_KRW),
-      parkingFeeKrw: String(DEFAULT_KOREA_PARKING_FEE_KRW),
-      brokerFeeRub: String(DEFAULT_KOREA_BROKER_FEE_RUB),
-      deliveryRoute: "vladivostok",
-      deliveryRub: String(DEFAULT_KOREA_DELIVERY_RUB),
-    },
-  },
-  {
-    id: "korea-ev",
-    label: "Корея · Электро",
-    apply: {
-      originCountry: "korea",
-      importer: "personal",
-      age: "under3",
-      engine: "electric",
-      volumeCc: "0",
-      currency: "KRW",
-      koreaDocsDeliveryKrw: String(DEFAULT_KOREA_DOCS_DELIVERY_KRW),
-      parkingFeeKrw: String(DEFAULT_KOREA_PARKING_FEE_KRW),
-      brokerFeeRub: String(DEFAULT_KOREA_BROKER_FEE_RUB),
-      deliveryRoute: "vladivostok",
-      deliveryRub: String(DEFAULT_KOREA_DELIVERY_RUB),
-    },
-  },
-];
-
 function chinaExpensesForAge(age: CarAge): string {
   return age === "under3" ? "5000" : "12000";
 }
@@ -1209,7 +1138,7 @@ export function CustomsCalculator() {
         <CardContent className="space-y-4">
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">Быстрые сценарии</p>
+              <p className="text-sm font-medium">Пресеты</p>
               <Button
                 type="button"
                 variant="outline"
@@ -1222,20 +1151,7 @@ export function CustomsCalculator() {
                 Сохранить пресет
               </Button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {PRESET_OPTIONS.map((preset) => (
-                <Button
-                  key={preset.id}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => applyScenario(preset.apply)}
-                >
-                  {preset.label}
-                </Button>
-              ))}
-            </div>
-            {userPresets.length > 0 && (
+            {userPresets.length > 0 ? (
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
                   <p className="text-xs text-muted-foreground">Мои пресеты</p>
@@ -1275,6 +1191,10 @@ export function CustomsCalculator() {
                   ))}
                 </div>
               </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                Сохраните текущие параметры расчёта, чтобы быстро подставлять их позже.
+              </p>
             )}
           </div>
 
