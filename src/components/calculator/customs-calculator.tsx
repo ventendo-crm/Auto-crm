@@ -49,7 +49,6 @@ import {
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
-  RECYCLING_BASE_PASSENGER,
   roundExchangeRate,
   roundExchangeRates,
 } from "@/lib/customs-calculator";
@@ -653,7 +652,6 @@ export function CustomsCalculator() {
   const [expensesOpen, setExpensesOpen] = useState(true);
   const [ratesOpen, setRatesOpen] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(true);
-  const [formulasOpen, setFormulasOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
@@ -1146,7 +1144,6 @@ export function CustomsCalculator() {
         setRatesUpdatedAt(state.ratesUpdatedAt);
         setSubmitted(true);
         setDetailsOpen(true);
-        setFormulasOpen(true);
         toast.success("Параметры загружены из сделки");
         router.replace("/calculator");
       })
@@ -1717,74 +1714,6 @@ export function CustomsCalculator() {
                   </p>
                 </div>
               )}
-
-              <div className="rounded-xl border">
-                <CollapsibleTrigger
-                  open={formulasOpen}
-                  onToggle={() => setFormulasOpen((value) => !value)}
-                  className="px-4 py-3"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium">Пояснения к формулам</p>
-                    <p className="text-xs text-muted-foreground">
-                      Утильсбор, пошлина и НДС в этом расчёте
-                    </p>
-                  </div>
-                </CollapsibleTrigger>
-                <CollapsiblePanel open={formulasOpen}>
-                  <div className="space-y-3 px-4 pb-4 text-sm">
-                    <div className="rounded-lg border bg-muted/10 px-3 py-3">
-                      <p className="font-medium">Утилизационный сбор (УС)</p>
-                      <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-muted-foreground">
-                        <li>
-                          База для легковых:{" "}
-                          {RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} ₽
-                        </li>
-                        <li>
-                          Льготный для физлица (личное пользование): ДВС до{" "}
-                          {PREFERENTIAL_MAX_HP_ICE} л.с. и{" "}
-                          {PREFERENTIAL_MAX_VOLUME_CC.toLocaleString("ru-RU")} см³ либо электро до{" "}
-                          {PREFERENTIAL_MAX_HP_EV} л.с. — коэффициент 0,17 (до 3 лет) или 0,26
-                        </li>
-                        <li>
-                          Иначе коммерческий коэффициент по мощности / объёму двигателя
-                        </li>
-                      </ul>
-                      <p className="mt-2 text-xs">
-                        В этом расчёте: {result.recyclingNote} ={" "}
-                        <span className="font-medium tabular-nums">
-                          {formatCurrency(result.recyclingFee)}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="rounded-lg border bg-muted/10 px-3 py-3">
-                      <p className="font-medium">Таможенная пошлина (ТП)</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Зависит от возраста, типа двигателя, стоимости и объёма. Ставка в расчёте:{" "}
-                        {result.customsDutyNote || "см. подробный расчёт"}.
-                      </p>
-                      <p className="mt-2 text-xs">
-                        Сумма:{" "}
-                        <span className="font-medium tabular-nums">
-                          {formatCurrency(result.customsDuty)}
-                        </span>
-                      </p>
-                    </div>
-                    <div className="rounded-lg border bg-muted/10 px-3 py-3">
-                      <p className="font-medium">НДС</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        20% от (стоимость авто + таможенная пошлина + акциз).
-                      </p>
-                      <p className="mt-2 text-xs">
-                        Сумма:{" "}
-                        <span className="font-medium tabular-nums">
-                          {formatCurrency(result.vat)}
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                </CollapsiblePanel>
-              </div>
 
               <div className="flex flex-col gap-2 sm:flex-row">
                 <Button
