@@ -12,6 +12,12 @@ run_as_nextjs() {
   su-exec nextjs "$@"
 }
 
+echo "[auto-crm] Applying multitenancy backfill (companies)..."
+if [ -f ./prisma/ensure-companies-multitenancy.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-companies-multitenancy.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Companies ensure failed — check logs; db push may also fail"
+fi
+
 echo "[auto-crm] Applying database schema..."
 if command -v npx >/dev/null 2>&1; then
   run_as_nextjs npx prisma db push --skip-generate
