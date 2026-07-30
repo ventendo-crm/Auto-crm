@@ -1,4 +1,4 @@
-import { DealStageType, NotificationType } from "@prisma/client";
+import { DealStageType, DocumentType, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendEmailToClientUser } from "@/lib/email/send";
 import {
@@ -20,8 +20,10 @@ import {
   getCompanyTelegramConfig,
   getDefaultTelegramChatIds,
   isCompanyTelegramConfigured,
+  sendCompanyTelegramDocument,
   sendCompanyTelegramMessages,
 } from "@/lib/telegram/bot";
+import { displayStoredFileName } from "@/lib/storage/local-uploads";
 
 interface CreateNotificationParams {
   userId: string;
@@ -232,6 +234,15 @@ async function notifyClientStageChange(params: {
     includeDefaultChatIds: false,
   });
 
+  if (params.toStage === DealStageType.INVOICE) {
+    await sendClientInvoiceDocumentIfReady({
+      companyId: params.companyId,
+      dealId: params.dealId,
+      clientUserId: params.clientUserId,
+      vin: params.vin,
+    });
+  }
+
   const email = await formatClientStageEmail({
     companyId: params.companyId,
     stageLabel,
@@ -241,6 +252,98 @@ async function notifyClientStageChange(params: {
   });
 
   void sendEmailToClientUser(params.clientUserId, email);
+}
+
+/** Отправляет файл INVOICE клиенту в Telegram, если документ загружен и Chat ID привязан. */
+export async function sendClientInvoiceDocumentIfReady(params: {
+  companyId: string;
+  dealId: string;
+  clientUserId: string;
+  vin?: string | null;
+}): Promise<boolean> {
+  const [client, invoice] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: params.clientUserId },
+      select: { telegramChatId: true, name: true },
+    }),
+    prisma.document.findUnique({
+      where: {
+        dealId_type: { dealId: params.dealId, type: DocumentType.INVOICE },
+      },
+      select: { fileUrl: true },
+    }),
+  ]);
+
+  if (!client?.telegramChatId?.trim()) {
+    console.warn(
+      "[notifications] Invoice Telegram skipped: client has no telegramChatId",
+      params.clientUserId,
+    );
+    return false;
+  }
+
+  if (!invoice?.fileUrl) {
+    console.warn(
+      "[notifications] Invoice Telegram skipped: INVOICE file missing for deal",
+      params.dealId,
+    );
+    return false;
+  }
+
+  const fileName = displayStoredFileName(invoice.fileUrl.split("/").pop() || "invoice.pdf");
+  const caption = [
+    "📄 <b>Инвойс по вашей сделке</b>",
+    params.vin?.trim() ? `VIN: <code>${params.vin.trim()}</code>` : "",
+    "",
+    "Документ во вложении.",
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  const result = await sendCompanyTelegramDocument({
+    companyId: params.companyId,
+    chatId: client.telegramChatId.trim(),
+    fileUrl: invoice.fileUrl,
+    caption,
+    displayName: fileName,
+  });
+
+  if (!result.ok) {
+    console.error(
+      "[notifications] Invoice Telegram document failed:",
+      result.chatId,
+      result.error,
+    );
+    return false;
+  }
+
+  return true;
+}
+
+/** Вызывается после загрузки INVOICE, если сделка уже на этапе Инвойс. */
+export async function notifyClientInvoiceUploaded(params: {
+  dealId: string;
+  companyId: string;
+}): Promise<void> {
+  const deal = await prisma.deal.findFirst({
+    where: { id: params.dealId, companyId: params.companyId },
+    select: {
+      currentStage: true,
+      clientUserId: true,
+      vin: true,
+    },
+  });
+
+  if (!deal?.clientUserId || deal.currentStage !== DealStageType.INVOICE) {
+    return;
+  }
+
+  await sendClientInvoiceDocumentIfReady({
+    companyId: params.companyId,
+    dealId: params.dealId,
+    clientUserId: deal.clientUserId,
+    vin: deal.vin,
+  });
 }
 
 export async function notifyCommentAdded(params: {

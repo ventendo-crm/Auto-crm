@@ -85,3 +85,39 @@ export async function callTelegramApi<T = unknown>(
     clearTimeout(timeout);
   }
 }
+
+const TELEGRAM_UPLOAD_TIMEOUT_MS = 60_000;
+
+export async function callTelegramApiForm<T = unknown>(
+  token: string,
+  method: string,
+  form: FormData,
+): Promise<{ ok: true; result: T } | { ok: false; error: string }> {
+  const url = buildTelegramApiUrl(token, method);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TELEGRAM_UPLOAD_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      body: form,
+      signal: controller.signal,
+    });
+
+    const data = (await response.json()) as {
+      ok: boolean;
+      description?: string;
+      result?: T;
+    };
+
+    if (!data.ok) {
+      return { ok: false, error: data.description ?? `Ошибка Telegram API (${method})` };
+    }
+
+    return { ok: true, result: data.result as T };
+  } catch (error) {
+    return { ok: false, error: describeTelegramFetchError(error) };
+  } finally {
+    clearTimeout(timeout);
+  }
+}

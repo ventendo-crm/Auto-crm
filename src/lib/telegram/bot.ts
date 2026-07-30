@@ -1,7 +1,14 @@
 import { randomBytes } from "crypto";
-import { callTelegramApi } from "@/lib/telegram/http";
+import { readFile } from "fs/promises";
+import { callTelegramApi, callTelegramApiForm } from "@/lib/telegram/http";
 import { formatTestNotificationMessage } from "@/lib/telegram/templates";
 import { prisma } from "@/lib/prisma";
+import {
+  displayStoredFileName,
+  guessUploadContentType,
+  isLocalUploadUrl,
+  localUploadFilePath,
+} from "@/lib/storage/local-uploads";
 
 export {
   formatCommentMessage,
@@ -141,6 +148,98 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
     return false;
   }
   return sendTelegramMessageWithToken(token, chatId, text);
+}
+
+export async function sendTelegramDocumentWithToken(params: {
+  token: string;
+  chatId: string;
+  filePath: string;
+  fileName: string;
+  caption?: string;
+  contentType?: string;
+}): Promise<TelegramSendResult> {
+  try {
+    const bytes = await readFile(params.filePath);
+    const form = new FormData();
+    form.append("chat_id", params.chatId);
+    form.append(
+      "document",
+      new Blob([bytes], {
+        type: params.contentType || guessUploadContentType(params.fileName),
+      }),
+      params.fileName,
+    );
+    if (params.caption?.trim()) {
+      const caption =
+        params.caption.length > 1024 ? `${params.caption.slice(0, 1020).trim()}…` : params.caption;
+      form.append("caption", caption);
+      form.append("parse_mode", "HTML");
+    }
+
+    const result = await callTelegramApiForm(params.token, "sendDocument", form);
+    if (!result.ok) {
+      // retry caption without HTML if parse fails
+      if (result.error?.includes("can't parse entities") && params.caption) {
+        const plainForm = new FormData();
+        plainForm.append("chat_id", params.chatId);
+        plainForm.append(
+          "document",
+          new Blob([bytes], {
+            type: params.contentType || guessUploadContentType(params.fileName),
+          }),
+          params.fileName,
+        );
+        plainForm.append("caption", params.caption.replace(/<[^>]+>/g, "").slice(0, 1024));
+        const plain = await callTelegramApiForm(params.token, "sendDocument", plainForm);
+        if (!plain.ok) {
+          return { ok: false, chatId: params.chatId, error: plain.error };
+        }
+        return { ok: true, chatId: params.chatId };
+      }
+      return { ok: false, chatId: params.chatId, error: result.error };
+    }
+
+    return { ok: true, chatId: params.chatId };
+  } catch (error) {
+    return {
+      ok: false,
+      chatId: params.chatId,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+export async function sendCompanyTelegramDocument(params: {
+  companyId: string;
+  chatId: string;
+  fileUrl: string;
+  caption?: string;
+  displayName?: string;
+}): Promise<TelegramSendResult> {
+  const config = await getCompanyTelegramConfig(params.companyId);
+  if (!config.token) {
+    return { ok: false, chatId: params.chatId, error: "Telegram-бот компании не настроен" };
+  }
+
+  if (!isLocalUploadUrl(params.fileUrl)) {
+    return {
+      ok: false,
+      chatId: params.chatId,
+      error: "Поддерживается только локально загруженный файл инвойса",
+    };
+  }
+
+  const fileName =
+    params.displayName?.trim() || displayStoredFileName(params.fileUrl.split("/").pop() || "invoice");
+
+  return sendTelegramDocumentWithToken({
+    token: config.token,
+    chatId: params.chatId,
+    filePath: localUploadFilePath(params.fileUrl),
+    fileName,
+    caption: params.caption,
+    contentType: guessUploadContentType(fileName),
+  });
 }
 
 export function formatWelcomeMessage(chatId: number | string, botName?: string | null): string {
