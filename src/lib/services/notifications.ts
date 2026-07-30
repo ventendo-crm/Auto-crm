@@ -118,7 +118,7 @@ export async function notifyStageChange(params: {
     `Изменил: ${params.changedBy.name}`,
   ].join("\n");
 
-  const telegramText = formatStageChangeMessage({
+  const telegramText = await formatStageChangeMessage({
     clientName: params.clientName,
     vin: params.vin,
     fromStage: params.fromStage,
@@ -193,7 +193,7 @@ async function notifyClientStageChange(params: {
     type: NotificationType.SYSTEM,
   });
 
-  const telegramText = formatClientStageNotificationMessage({
+  const telegramText = await formatClientStageNotificationMessage({
     stageLabel,
     body,
     carLabel,
@@ -244,7 +244,7 @@ export async function notifyCommentAdded(params: {
   const authorRoleLabel =
     COMMENT_AUTHOR_ROLE_LABELS[params.author.role] ?? params.author.role;
 
-  const telegramText = formatCommentMessage({
+  const telegramText = await formatCommentMessage({
     clientName: params.deal.clientName,
     vin: params.deal.vin,
     authorName: params.author.name,

@@ -441,6 +441,17 @@ model EmailTemplate {
   @@map("email_templates")
 }
 
+model TelegramTemplate {
+  key         String   @id
+  name        String
+  textBody    String   @db.Text
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedById String?
+
+  @@map("telegram_templates")
+}
+
 enum DealStageType {
   LEADS
   SEARCH

@@ -1,6 +1,7 @@
 "use client";
 
 import { EmailTemplatesPanel } from "@/components/settings/email-templates-panel";
+import { TelegramTemplatesPanel } from "@/components/settings/telegram-templates-panel";
 import { Header } from "@/components/layout/header";
 import { ManagersPanel } from "@/components/settings/managers-panel";
 import { UsersPanel } from "@/components/settings/users-panel";
@@ -18,7 +19,7 @@ export function SettingsView() {
   const canManageManagersTab = role === "ADMIN" || role === "MANAGER";
 
   const subtitle = isAdmin
-    ? "Профиль, уведомления, письма и пользователи"
+    ? "Профиль, уведомления, письма, Telegram и пользователи"
     : canManageManagersTab
       ? "Профиль, уведомления и менеджеры"
       : isClient
@@ -37,6 +38,7 @@ export function SettingsView() {
               {canManageManagersTab && <TabsTrigger value="managers">Менеджеры</TabsTrigger>}
               {isAdmin && <TabsTrigger value="users">Пользователи</TabsTrigger>}
               {isAdmin && <TabsTrigger value="email">Письма</TabsTrigger>}
+              {isAdmin && <TabsTrigger value="telegram">Telegram</TabsTrigger>}
             </TabsList>
           </div>
 
@@ -63,6 +65,12 @@ export function SettingsView() {
           {isAdmin && (
             <TabsContent value="email" className="mt-4">
               <EmailTemplatesPanel />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="telegram" className="mt-4">
+              <TelegramTemplatesPanel />
             </TabsContent>
           )}
         </Tabs>

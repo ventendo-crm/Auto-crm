@@ -8,6 +8,7 @@ import {
   DealListItem,
   DocumentItem,
   EmailTemplateItem,
+  TelegramTemplateItem,
   MediaItem,
   NotificationItem,
   Paginated,
@@ -694,6 +695,15 @@ export const api = {
       data: { subject: string; textBody: string; htmlTitle: string },
     ) =>
       request<EmailTemplateItem>(`/api/email/templates/${key}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+  },
+
+  telegram: {
+    listTemplates: () => request<TelegramTemplateItem[]>("/api/telegram/templates"),
+    updateTemplate: (key: string, data: { textBody: string }) =>
+      request<TelegramTemplateItem>(`/api/telegram/templates/${key}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),

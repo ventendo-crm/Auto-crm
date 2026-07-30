@@ -240,6 +240,16 @@ export interface EmailTemplateItem {
   placeholders?: string[];
 }
 
+export interface TelegramTemplateItem {
+  key: string;
+  name: string;
+  textBody: string;
+  description: string | null;
+  updatedAt: string;
+  updatedById?: string | null;
+  placeholders?: string[];
+}
+
 export interface NotificationItem {
   id: string;
   dealId?: string | null;
