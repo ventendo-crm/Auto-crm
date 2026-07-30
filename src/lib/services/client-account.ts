@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { dealManagersInclude, enrichDealWithManagers } from "@/lib/deal-managers";
 import { hashPassword } from "@/lib/auth";
 import { DOCUMENT_LABELS, STAGE_LABELS } from "@/lib/constants";
@@ -14,7 +15,99 @@ const clientUserSelect = {
   name: true,
   email: true,
   createdAt: true,
+  telegramChatId: true,
 } as const;
+
+const TELEGRAM_LINK_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 дней
+
+export function createTelegramLinkToken(): string {
+  return randomBytes(16).toString("hex");
+}
+
+export function buildTelegramInviteUrl(botUsername: string, linkToken: string): string {
+  const username = botUsername.replace(/^@/, "").trim();
+  return `https://t.me/${username}?start=link_${linkToken}`;
+}
+
+export async function issueTelegramLinkToken(userId: string): Promise<{
+  token: string;
+  expiresAt: Date;
+}> {
+  const token = createTelegramLinkToken();
+  const expiresAt = new Date(Date.now() + TELEGRAM_LINK_TTL_MS);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      telegramLinkToken: token,
+      telegramLinkTokenExpiresAt: expiresAt,
+    },
+  });
+
+  return { token, expiresAt };
+}
+
+export async function getClientTelegramInvite(params: {
+  dealId: string;
+  companyId: string;
+  refresh?: boolean;
+}): Promise<{
+  inviteUrl: string;
+  botUsername: string;
+  telegramLinked: boolean;
+  expiresAt: string;
+}> {
+  const deal = await prisma.deal.findFirst({
+    where: { id: params.dealId, companyId: params.companyId },
+    select: {
+      clientUserId: true,
+      clientUser: {
+        select: {
+          id: true,
+          telegramChatId: true,
+          telegramLinkToken: true,
+          telegramLinkTokenExpiresAt: true,
+        },
+      },
+      company: {
+        select: {
+          telegramBotUsername: true,
+          telegramBotToken: true,
+        },
+      },
+    },
+  });
+
+  if (!deal?.clientUserId || !deal.clientUser) {
+    throw new Error("CLIENT_NOT_LINKED");
+  }
+
+  const botUsername = deal.company.telegramBotUsername?.trim();
+  if (!botUsername) {
+    throw new Error("BOT_NOT_CONNECTED");
+  }
+
+  const now = new Date();
+  const tokenValid =
+    Boolean(deal.clientUser.telegramLinkToken) &&
+    deal.clientUser.telegramLinkTokenExpiresAt &&
+    deal.clientUser.telegramLinkTokenExpiresAt > now;
+
+  const issued =
+    params.refresh || !tokenValid
+      ? await issueTelegramLinkToken(deal.clientUser.id)
+      : {
+          token: deal.clientUser.telegramLinkToken!,
+          expiresAt: deal.clientUser.telegramLinkTokenExpiresAt!,
+        };
+
+  return {
+    inviteUrl: buildTelegramInviteUrl(botUsername, issued.token),
+    botUsername,
+    telegramLinked: Boolean(deal.clientUser.telegramChatId),
+    expiresAt: issued.expiresAt.toISOString(),
+  };
+}
 
 const galleryMediaInclude = {
   uploadedBy: {
@@ -230,6 +323,8 @@ export async function createClientAccount(
   }
 
   const passwordHash = await hashPassword(input.password);
+  const linkToken = createTelegramLinkToken();
+  const linkExpiresAt = new Date(Date.now() + TELEGRAM_LINK_TTL_MS);
 
   const user = await prisma.$transaction(async (tx) => {
     const created = await tx.user.create({
@@ -239,6 +334,8 @@ export async function createClientAccount(
         passwordHash,
         roleId: role.id,
         companyId: deal.companyId,
+        telegramLinkToken: linkToken,
+        telegramLinkTokenExpiresAt: linkExpiresAt,
       },
       select: clientUserSelect,
     });
@@ -260,7 +357,17 @@ export async function createClientAccount(
     newValue: { email: user.email, role: "CLIENT", dealId },
   });
 
-  return user;
+  let telegramInvite: Awaited<ReturnType<typeof getClientTelegramInvite>> | null = null;
+  try {
+    telegramInvite = await getClientTelegramInvite({
+      dealId,
+      companyId: deal.companyId,
+    });
+  } catch {
+    telegramInvite = null;
+  }
+
+  return { clientUser: user, telegramInvite };
 }
 
 export async function unlinkClientAccount(actor: AuthUser, dealId: string) {

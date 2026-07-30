@@ -175,9 +175,33 @@ export const api = {
       dealId: string,
       data: { name: string; email: string; password: string },
     ) =>
-      request<{ clientUser: User }>(`/api/deals/${dealId}/client-account`, {
+      request<{
+        clientUser: User;
+        telegramInvite: {
+          inviteUrl: string;
+          botUsername: string;
+          telegramLinked: boolean;
+          expiresAt: string;
+        } | null;
+      }>(`/api/deals/${dealId}/client-account`, {
         method: "POST",
         body: JSON.stringify(data),
+      }),
+    getTelegramInvite: (dealId: string) =>
+      request<{
+        inviteUrl: string;
+        botUsername: string;
+        telegramLinked: boolean;
+        expiresAt: string;
+      }>(`/api/deals/${dealId}/client-account/telegram-invite`),
+    refreshTelegramInvite: (dealId: string) =>
+      request<{
+        inviteUrl: string;
+        botUsername: string;
+        telegramLinked: boolean;
+        expiresAt: string;
+      }>(`/api/deals/${dealId}/client-account/telegram-invite`, {
+        method: "POST",
       }),
     unlinkClientAccount: async (dealId: string) => {
       const response = await fetch(`/api/deals/${dealId}/client-account`, {

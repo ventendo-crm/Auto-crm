@@ -16,8 +16,8 @@ export const POST = withAuth(async (request, { user, params }) => {
   const body = createClientAccountSchema.parse(await request.json());
 
   try {
-    const clientUser = await createClientAccount(user, params.id, body);
-    return created(serialize({ clientUser }));
+    const result = await createClientAccount(user, params.id, body);
+    return created(serialize(result));
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === "CLIENT_ALREADY_LINKED") {

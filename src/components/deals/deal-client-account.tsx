@@ -1,7 +1,7 @@
 "use client";
 
-import { Loader2, Unlink, UserPlus } from "lucide-react";
-import { useState } from "react";
+import { Check, Copy, Loader2, RefreshCw, Send, Unlink, UserPlus } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,26 +26,64 @@ interface DealClientAccountProps {
   onUpdated?: () => void;
 }
 
+interface TelegramInvite {
+  inviteUrl: string;
+  botUsername: string;
+  telegramLinked: boolean;
+  expiresAt: string;
+}
+
 export function DealClientAccount({ deal, canManage = false, onUpdated }: DealClientAccountProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
+  const [invite, setInvite] = useState<TelegramInvite | null>(null);
+  const [inviteLoading, setInviteLoading] = useState(false);
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
   const [form, setForm] = useState({
     name: deal.clientName,
     email: deal.email ?? "",
     password: "",
   });
 
+  const loadInvite = useCallback(async () => {
+    if (!deal.clientUser || !canManage) return;
+    setInviteLoading(true);
+    setInviteError(null);
+    try {
+      setInvite(await api.deals.getTelegramInvite(deal.id));
+    } catch (err) {
+      setInvite(null);
+      setInviteError(err instanceof Error ? err.message : "Не удалось получить ссылку");
+    } finally {
+      setInviteLoading(false);
+    }
+  }, [canManage, deal.clientUser, deal.id]);
+
+  useEffect(() => {
+    void loadInvite();
+  }, [loadInvite]);
+
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     try {
-      await api.deals.createClientAccount(deal.id, {
+      const result = await api.deals.createClientAccount(deal.id, {
         name: form.name.trim(),
         email: form.email.trim(),
         password: form.password,
       });
       toast.success("Личный кабинет клиента создан");
+      if (result.telegramInvite) {
+        setInvite(result.telegramInvite);
+        try {
+          await navigator.clipboard.writeText(result.telegramInvite.inviteUrl);
+          toast.success("Ссылка Telegram скопирована");
+        } catch {
+          // clipboard may be blocked
+        }
+      }
       setOpen(false);
       setForm((current) => ({ ...current, password: "" }));
       onUpdated?.();
@@ -65,6 +103,7 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
     try {
       await api.deals.unlinkClientAccount(deal.id);
       toast.success("Личный кабинет отвязан");
+      setInvite(null);
       onUpdated?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Не удалось отвязать кабинет");
@@ -72,6 +111,33 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
       setUnlinking(false);
     }
   };
+
+  const handleCopy = async () => {
+    if (!invite?.inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(invite.inviteUrl);
+      setCopied(true);
+      toast.success("Ссылка скопирована");
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Не удалось скопировать ссылку");
+    }
+  };
+
+  const handleRefreshInvite = async () => {
+    setInviteLoading(true);
+    setInviteError(null);
+    try {
+      setInvite(await api.deals.refreshTelegramInvite(deal.id));
+      toast.success("Новая ссылка создана");
+    } catch (err) {
+      setInviteError(err instanceof Error ? err.message : "Не удалось обновить ссылку");
+    } finally {
+      setInviteLoading(false);
+    }
+  };
+
+  const telegramLinked = Boolean(deal.clientUser?.telegramChatId || invite?.telegramLinked);
 
   return (
     <Card className="border-0 shadow-card">
@@ -88,9 +154,17 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="font-medium">{deal.clientUser.name}</p>
-                  <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300">
-                    Привязан
+                  <Badge
+                    variant="outline"
+                    className="border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300"
+                  >
+                    Кабинет создан
                   </Badge>
+                  {telegramLinked ? (
+                    <Badge variant="brand">Telegram привязан</Badge>
+                  ) : (
+                    <Badge variant="secondary">Telegram не привязан</Badge>
+                  )}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{deal.clientUser.email}</p>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -117,6 +191,62 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
               )}
             </div>
 
+            {canManage && (
+              <div className="mt-4 space-y-2 rounded-md border bg-muted/30 p-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Send className="h-4 w-4" />
+                  Приглашение в Telegram
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Отправьте клиенту ссылку. Он нажмёт Start — и уведомления по этой сделке
+                  включатся автоматически.
+                </p>
+
+                {inviteLoading && !invite ? (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Готовим ссылку…
+                  </div>
+                ) : invite ? (
+                  <>
+                    <Input readOnly value={invite.inviteUrl} className="font-mono text-xs" />
+                    <div className="flex flex-wrap gap-2">
+                      <Button type="button" size="sm" variant="brand" onClick={() => void handleCopy()}>
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                        Копировать
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" asChild>
+                        <a href={invite.inviteUrl} target="_blank" rel="noreferrer">
+                          Открыть
+                        </a>
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={inviteLoading}
+                        onClick={() => void handleRefreshInvite()}
+                      >
+                        {inviteLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                        Новая ссылка
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Действует до {formatDateTime(invite.expiresAt)} · @{invite.botUsername}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {inviteError ?? "Не удалось получить ссылку"}
+                  </p>
+                )}
+              </div>
+            )}
+
             <p className="mt-3 text-xs text-muted-foreground">
               Клиент входит на странице входа и попадает в личный кабинет `/my-deal`.
             </p>
@@ -133,7 +263,7 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
               <DialogHeader>
                 <DialogTitle>Личный кабинет клиента</DialogTitle>
                 <DialogDescription>
-                  Укажите данные для входа. Клиент увидит только эту сделку.
+                  Укажите данные для входа. После создания появится ссылка для Telegram.
                 </DialogDescription>
               </DialogHeader>
 
@@ -176,7 +306,11 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
                     Отмена
                   </Button>
                   <Button type="submit" variant="brand" disabled={loading}>
-                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserPlus className="h-4 w-4" />}
+                    {loading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <UserPlus className="h-4 w-4" />
+                    )}
                     Создать
                   </Button>
                 </div>

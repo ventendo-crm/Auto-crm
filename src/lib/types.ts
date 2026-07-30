@@ -197,6 +197,7 @@ export interface DealDetail extends DealListItem {
     name: string;
     email: string;
     createdAt: string;
+    telegramChatId?: string | null;
   } | null;
   documents: DocumentItem[];
   shipment?: Shipment | null;

@@ -48,6 +48,8 @@ model User {
   companyId         String
   isPlatformAdmin   Boolean        @default(false)
   telegramChatId    String?
+  telegramLinkToken String?        @unique
+  telegramLinkTokenExpiresAt DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   company           Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)

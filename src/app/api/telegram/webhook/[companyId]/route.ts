@@ -55,6 +55,52 @@ export async function POST(
   const send = (body: string) => sendTelegramMessageWithToken(token, chatId, body);
 
   if (text === "/start" || text.startsWith("/start ")) {
+    const payload = text === "/start" ? "" : text.slice("/start".length).trim();
+
+    if (payload.startsWith("link_")) {
+      const linkToken = payload.slice("link_".length).trim();
+      if (!linkToken) {
+        await send("Ссылка приглашения неполная. Попросите менеджера прислать новую.");
+        return NextResponse.json({ ok: true });
+      }
+
+      const user = await prisma.user.findFirst({
+        where: {
+          companyId: company.id,
+          telegramLinkToken: linkToken,
+        },
+        select: {
+          id: true,
+          name: true,
+          telegramLinkTokenExpiresAt: true,
+        },
+      });
+
+      if (!user) {
+        await send("Ссылка приглашения недействительна. Попросите менеджера прислать новую.");
+        return NextResponse.json({ ok: true });
+      }
+
+      if (user.telegramLinkTokenExpiresAt && user.telegramLinkTokenExpiresAt < new Date()) {
+        await send("Срок действия ссылки истёк. Попросите менеджера прислать новую.");
+        return NextResponse.json({ ok: true });
+      }
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          telegramChatId: chatId,
+          telegramLinkToken: null,
+          telegramLinkTokenExpiresAt: null,
+        },
+      });
+
+      await send(
+        `✅ Аккаунт <b>${user.name}</b> привязан.\nУведомления по вашей сделке включены.`,
+      );
+      return NextResponse.json({ ok: true });
+    }
+
     await send(formatWelcomeMessage(chatId, company.telegramBotName));
     return NextResponse.json({ ok: true });
   }
@@ -67,6 +113,8 @@ export async function POST(
         "/start — получить Chat ID",
         "/link — привязать Telegram к аккаунту CRM",
         "/help — справка",
+        "",
+        "Удобнее: откройте ссылку-приглашение от менеджера.",
       ].join("\n"),
     );
     return NextResponse.json({ ok: true });
@@ -77,7 +125,7 @@ export async function POST(
 
     if (!email) {
       await send(
-        "Отправьте: <code>/link ваш@email.com</code>\n\nEmail должен совпадать с аккаунтом в CRM.",
+        "Отправьте: <code>/link ваш@email.com</code>\n\nEmail должен совпадать с аккаунтом в CRM.\nИли откройте ссылку-приглашение от менеджера.",
       );
       return NextResponse.json({ ok: true });
     }
