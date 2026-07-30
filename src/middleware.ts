@@ -30,6 +30,10 @@ async function getSession(request: NextRequest): Promise<{ authenticated: boolea
   try {
     const { payload } = await jwtVerify(token, getJwtSecret());
     const role = payload.role;
+    // После мультитенантности в JWT обязателен companyId; старые сессии считаем невалидными
+    if (typeof payload.companyId !== "string" || !payload.companyId) {
+      return { authenticated: false, role: null };
+    }
     return {
       authenticated: true,
       role: typeof role === "string" && isRoleName(role) ? role : null,
@@ -64,7 +68,12 @@ export async function middleware(request: NextRequest) {
   if (!authenticated && !isPublicPage) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("from", pathname);
-    return NextResponse.redirect(loginUrl);
+    const response = NextResponse.redirect(loginUrl);
+    // Сбрасываем устаревший cookie без companyId, чтобы не крутить редиректы
+    if (request.cookies.get("auth-token")) {
+      response.cookies.set("auth-token", "", { path: "/", maxAge: 0 });
+    }
+    return response;
   }
 
   if (authenticated && pathname === "/login") {
