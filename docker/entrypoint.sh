@@ -15,12 +15,28 @@ run_as_nextjs() {
 echo "[auto-crm] Applying multitenancy backfill (companies)..."
 if [ -f ./prisma/ensure-companies-multitenancy.sql ]; then
   run_as_nextjs npx prisma db execute --file ./prisma/ensure-companies-multitenancy.sql --schema ./prisma/schema.prisma \
-    || echo "[auto-crm] Companies ensure failed — check logs; db push may also fail"
+    || echo "[auto-crm] Companies ensure failed — check logs; continuing"
+fi
+
+echo "[auto-crm] Ensuring telegram invite link columns..."
+if [ -f ./prisma/ensure-telegram-link-token.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-telegram-link-token.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Telegram link token ensure failed — continuing"
 fi
 
 echo "[auto-crm] Applying database schema..."
 if command -v npx >/dev/null 2>&1; then
-  run_as_nextjs npx prisma db push --skip-generate
+  # Non-interactive: do not hang/fail the whole container on drift prompts.
+  # Ensure SQL above already applies critical columns safely.
+  set +e
+  run_as_nextjs npx prisma db push --skip-generate --accept-data-loss
+  push_status=$?
+  set -e
+  if [ "$push_status" -ne 0 ]; then
+    echo "[auto-crm] WARNING: prisma db push exited with $push_status — starting app anyway"
+  else
+    echo "[auto-crm] Database schema is up to date"
+  fi
 fi
 
 echo "[auto-crm] Ensuring default roles..."
