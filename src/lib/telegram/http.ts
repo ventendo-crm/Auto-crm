@@ -1,7 +1,10 @@
 const TELEGRAM_TIMEOUT_MS = 15_000;
 
 function getTelegramApiBaseUrl(): string {
-  return (process.env.TELEGRAM_API_BASE_URL ?? "https://api.telegram.org").replace(/\/$/, "");
+  // В Docker пустая строка TELEGRAM_API_BASE_URL="" не должна ломать URL
+  // (иначе получается "/bot…/sendMessage" → Invalid URL)
+  const configured = process.env.TELEGRAM_API_BASE_URL?.trim();
+  return (configured || "https://api.telegram.org").replace(/\/$/, "");
 }
 
 export function buildTelegramApiUrl(token: string, method: string): string {

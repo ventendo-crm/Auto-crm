@@ -44,7 +44,10 @@ if (!webhookUrl) {
   process.exit(1);
 }
 
-const apiBase = (process.env.TELEGRAM_API_BASE_URL ?? "https://api.telegram.org").replace(/\/$/, "");
+const apiBase = (process.env.TELEGRAM_API_BASE_URL?.trim() || "https://api.telegram.org").replace(
+  /\/$/,
+  "",
+);
 if (process.env.TELEGRAM_PROXY_URL?.trim()) {
   process.env.HTTP_PROXY = process.env.TELEGRAM_PROXY_URL.trim();
   process.env.HTTPS_PROXY = process.env.TELEGRAM_PROXY_URL.trim();
