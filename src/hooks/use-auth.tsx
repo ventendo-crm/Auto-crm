@@ -9,9 +9,10 @@ import { User } from "@/lib/types";
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, companySlug?: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  switchProfile: (userId: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -36,10 +37,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, [refresh]);
 
-  const login = async (email: string, password: string) => {
-    const result = await api.auth.login(email, password);
+  const login = async (email: string, password: string, companySlug?: string) => {
+    const result = await api.auth.login(email, password, companySlug);
     setUser(result.user);
     const role = getClientRoleName(result.user);
+    router.push(role ? getDefaultRouteForRole(role) : "/dashboard");
+    router.refresh();
+  };
+
+  const switchProfile = async (userId: string) => {
+    const nextUser = await api.auth.switchProfile(userId);
+    setUser(nextUser);
+    const role = getClientRoleName(nextUser);
     router.push(role ? getDefaultRouteForRole(role) : "/dashboard");
     router.refresh();
   };
@@ -57,7 +66,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, refresh }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, refresh, switchProfile }}>
       {children}
     </AuthContext.Provider>
   );

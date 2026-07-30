@@ -2,13 +2,15 @@ import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import {
-  isTelegramConfigured,
+  getCompanyTelegramConfig,
+  isCompanyTelegramConfigured,
   sendTestTelegramNotification,
 } from "@/lib/telegram/bot";
 
 export const POST = withAuth(async (_request, { user }) => {
-  if (!isTelegramConfigured()) {
-    return error("Telegram не настроен: задайте TELEGRAM_BOT_TOKEN на сервере", 503);
+  const config = await getCompanyTelegramConfig(user.companyId);
+  if (!isCompanyTelegramConfigured(config)) {
+    return error("Telegram не настроен: привяжите бота компании в Настройки → Telegram", 503);
   }
 
   const account = await prisma.user.findUnique({
@@ -21,6 +23,7 @@ export const POST = withAuth(async (_request, { user }) => {
   }
 
   const result = await sendTestTelegramNotification({
+    companyId: user.companyId,
     chatId: account.telegramChatId,
     userName: account.name,
   });

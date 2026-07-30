@@ -10,7 +10,7 @@ import { serialize } from "@/lib/serialize";
 import { createClientAccountSchema } from "@/lib/validators/client-account";
 
 export const POST = withAuth(async (request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
   assertAllowed(canManageClientAccount(user.role, user.id, deal));
 
   const body = createClientAccountSchema.parse(await request.json());
@@ -35,7 +35,7 @@ export const POST = withAuth(async (request, { user, params }) => {
 });
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
   assertAllowed(canManageClientAccount(user.role, user.id, deal));
 
   try {

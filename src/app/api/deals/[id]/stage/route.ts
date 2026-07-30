@@ -6,7 +6,7 @@ import { serialize } from "@/lib/serialize";
 import { changeStageSchema } from "@/lib/validators/deal";
 
 export const PATCH = withAuth(async (request, { user, params }) => {
-  const existing = assertFound(await getDeal(params.id));
+  const existing = assertFound(await getDeal(params.id, user.companyId));
   assertAllowed(canChangeStage(user.role, user.id, existing));
 
   const body = changeStageSchema.parse(await request.json());

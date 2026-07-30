@@ -1,5 +1,7 @@
+import { randomBytes } from "crypto";
 import { callTelegramApi } from "@/lib/telegram/http";
 import { formatTestNotificationMessage } from "@/lib/telegram/templates";
+import { prisma } from "@/lib/prisma";
 
 export {
   formatCommentMessage,
@@ -9,31 +11,91 @@ export {
   formatTestNotificationMessage,
 } from "@/lib/telegram/templates";
 
-function getBotToken(): string | null {
-  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
-  return token || null;
-}
-
-export function isTelegramConfigured(): boolean {
-  return Boolean(getBotToken());
-}
-
 export interface TelegramSendResult {
   ok: boolean;
   chatId: string;
   error?: string;
 }
 
+export interface CompanyTelegramConfig {
+  companyId: string;
+  token: string | null;
+  defaultChatId: string | null;
+  botUsername: string | null;
+  botName: string | null;
+  botId: string | null;
+  connectedAt: Date | null;
+  webhookSecret: string | null;
+}
+
+function getEnvFallbackToken(): string | null {
+  const token = process.env.TELEGRAM_BOT_TOKEN?.trim();
+  return token || null;
+}
+
+function getEnvFallbackChatIds(): string[] {
+  const raw = process.env.TELEGRAM_CHAT_ID ?? process.env.TELEGRAM_NOTIFY_CHAT_IDS ?? "";
+  return raw
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+}
+
+export function getAppPublicUrl(): string {
+  const configured =
+    process.env.APP_PUBLIC_URL?.trim() ||
+    process.env.APP_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    process.env.NEXTAUTH_URL?.trim();
+  if (configured) {
+    return configured.replace(/\/$/, "");
+  }
+  return "http://localhost:3000";
+}
+
+export async function getCompanyTelegramConfig(companyId: string): Promise<CompanyTelegramConfig> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: {
+      id: true,
+      telegramBotToken: true,
+      telegramBotId: true,
+      telegramBotUsername: true,
+      telegramBotName: true,
+      telegramDefaultChatId: true,
+      telegramWebhookSecret: true,
+      telegramConnectedAt: true,
+    },
+  });
+
+  const token = company?.telegramBotToken?.trim() || getEnvFallbackToken();
+
+  return {
+    companyId,
+    token: token || null,
+    defaultChatId: company?.telegramDefaultChatId?.trim() || null,
+    botUsername: company?.telegramBotUsername ?? null,
+    botName: company?.telegramBotName ?? null,
+    botId: company?.telegramBotId ?? null,
+    connectedAt: company?.telegramConnectedAt ?? null,
+    webhookSecret: company?.telegramWebhookSecret ?? null,
+  };
+}
+
+export function isCompanyTelegramConfigured(config: CompanyTelegramConfig): boolean {
+  return Boolean(config.token);
+}
+
+export function isTelegramConfigured(): boolean {
+  return Boolean(getEnvFallbackToken());
+}
+
 async function postTelegramMessage(
+  token: string,
   chatId: string,
   text: string,
   parseMode?: "HTML",
 ): Promise<TelegramSendResult> {
-  const token = getBotToken();
-  if (!token) {
-    return { ok: false, chatId, error: "TELEGRAM_BOT_TOKEN is not set" };
-  }
-
   const result = await callTelegramApi(token, "sendMessage", {
     chat_id: chatId,
     text,
@@ -48,15 +110,19 @@ async function postTelegramMessage(
   return { ok: true, chatId };
 }
 
-export async function sendTelegramMessage(chatId: string, text: string): Promise<boolean> {
-  const htmlResult = await postTelegramMessage(chatId, text, "HTML");
+export async function sendTelegramMessageWithToken(
+  token: string,
+  chatId: string,
+  text: string,
+): Promise<boolean> {
+  const htmlResult = await postTelegramMessage(token, chatId, text, "HTML");
 
   if (htmlResult.ok) {
     return true;
   }
 
   if (htmlResult.error?.includes("can't parse entities")) {
-    const plainResult = await postTelegramMessage(chatId, text.replace(/<[^>]+>/g, ""));
+    const plainResult = await postTelegramMessage(token, chatId, text.replace(/<[^>]+>/g, ""));
     if (!plainResult.ok) {
       console.error("[telegram] send failed (plain):", plainResult.error, "chatId=", chatId);
     }
@@ -67,9 +133,20 @@ export async function sendTelegramMessage(chatId: string, text: string): Promise
   return false;
 }
 
-export function formatWelcomeMessage(chatId: number | string): string {
+/** @deprecated Prefer sendTelegramMessageWithToken with company token */
+export async function sendTelegramMessage(chatId: string, text: string): Promise<boolean> {
+  const token = getEnvFallbackToken();
+  if (!token) {
+    console.error("[telegram] send failed: TELEGRAM_BOT_TOKEN is not set");
+    return false;
+  }
+  return sendTelegramMessageWithToken(token, chatId, text);
+}
+
+export function formatWelcomeMessage(chatId: number | string, botName?: string | null): string {
+  const title = botName?.trim() ? botName.trim() : "Auto-CRM Bot";
   return [
-    "👋 <b>Auto-CRM Bot</b>",
+    `👋 <b>${title}</b>`,
     "",
     `Ваш Chat ID: <code>${chatId}</code>`,
     "",
@@ -82,39 +159,178 @@ export function formatWelcomeMessage(chatId: number | string): string {
   ].join("\n");
 }
 
+export async function sendCompanyTelegramMessages(params: {
+  token: string;
+  chatIds: Array<string | null | undefined>;
+  text: string;
+}): Promise<TelegramSendResult[]> {
+  const unique = [...new Set(params.chatIds.filter((id): id is string => Boolean(id?.trim())))];
+
+  return Promise.all(
+    unique.map(async (chatId) => {
+      const htmlResult = await postTelegramMessage(params.token, chatId, params.text, "HTML");
+      if (htmlResult.ok) return htmlResult;
+      if (htmlResult.error?.includes("can't parse entities")) {
+        return postTelegramMessage(params.token, chatId, params.text.replace(/<[^>]+>/g, ""));
+      }
+      return htmlResult;
+    }),
+  );
+}
+
+/** @deprecated */
 export async function sendToTelegramChatIds(
   chatIds: Array<string | null | undefined>,
   text: string,
 ): Promise<TelegramSendResult[]> {
-  const unique = [...new Set(chatIds.filter((id): id is string => Boolean(id?.trim())))];
-
-  return Promise.all(
-    unique.map((chatId) =>
-      postTelegramMessage(chatId, text, "HTML").then(async (result) => {
-        if (result.ok) return result;
-        if (result.error?.includes("can't parse entities")) {
-          return postTelegramMessage(chatId, text.replace(/<[^>]+>/g, ""));
-        }
-        return result;
-      }),
-    ),
-  );
+  const token = getEnvFallbackToken();
+  if (!token) {
+    return chatIds
+      .filter((id): id is string => Boolean(id?.trim()))
+      .map((chatId) => ({ ok: false, chatId, error: "TELEGRAM_BOT_TOKEN is not set" }));
+  }
+  return sendCompanyTelegramMessages({ token, chatIds, text });
 }
 
-export function getDefaultTelegramChatIds(): string[] {
-  const raw = process.env.TELEGRAM_CHAT_ID ?? process.env.TELEGRAM_NOTIFY_CHAT_IDS ?? "";
-  return raw
-    .split(",")
-    .map((id) => id.trim())
-    .filter(Boolean);
+export function getDefaultTelegramChatIds(companyDefaultChatId?: string | null): string[] {
+  if (companyDefaultChatId?.trim()) {
+    return companyDefaultChatId
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+  }
+  return getEnvFallbackChatIds();
 }
 
 export async function sendTestTelegramNotification(params: {
+  companyId: string;
   chatId: string;
   userName: string;
 }): Promise<TelegramSendResult> {
-  const text = await formatTestNotificationMessage(params.userName);
-  const result = await postTelegramMessage(params.chatId, text, "HTML");
+  const config = await getCompanyTelegramConfig(params.companyId);
+  if (!config.token) {
+    return { ok: false, chatId: params.chatId, error: "Telegram-бот компании не настроен" };
+  }
+
+  const text = await formatTestNotificationMessage(params.companyId, params.userName);
+  const result = await postTelegramMessage(config.token, params.chatId, text, "HTML");
   if (result.ok) return result;
-  return postTelegramMessage(params.chatId, text.replace(/<[^>]+>/g, ""));
+  return postTelegramMessage(config.token, params.chatId, text.replace(/<[^>]+>/g, ""));
+}
+
+export interface TelegramBotIdentity {
+  id: number;
+  username?: string;
+  first_name: string;
+}
+
+export async function fetchTelegramBotIdentity(
+  token: string,
+): Promise<{ ok: true; bot: TelegramBotIdentity } | { ok: false; error: string }> {
+  const result = await callTelegramApi<TelegramBotIdentity>(token, "getMe");
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+  return { ok: true, bot: result.result };
+}
+
+export async function setCompanyTelegramWebhook(params: {
+  token: string;
+  companyId: string;
+  secret: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const url = `${getAppPublicUrl()}/api/telegram/webhook/${params.companyId}`;
+  const result = await callTelegramApi(params.token, "setWebhook", {
+    url,
+    secret_token: params.secret,
+    drop_pending_updates: true,
+    allowed_updates: ["message"],
+  });
+
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+  return { ok: true };
+}
+
+export async function deleteTelegramWebhook(token: string): Promise<void> {
+  await callTelegramApi(token, "deleteWebhook", { drop_pending_updates: true });
+}
+
+export function createTelegramWebhookSecret(): string {
+  return randomBytes(24).toString("hex");
+}
+
+export async function connectCompanyTelegramBot(params: {
+  companyId: string;
+  token: string;
+  defaultChatId?: string | null;
+}): Promise<
+  | {
+      ok: true;
+      botUsername: string | null;
+      botName: string | null;
+      botId: string;
+    }
+  | { ok: false; error: string }
+> {
+  const token = params.token.trim();
+  const identity = await fetchTelegramBotIdentity(token);
+  if (!identity.ok) {
+    return { ok: false, error: identity.error };
+  }
+
+  const secret = createTelegramWebhookSecret();
+  const webhook = await setCompanyTelegramWebhook({
+    token,
+    companyId: params.companyId,
+    secret,
+  });
+  if (!webhook.ok) {
+    return { ok: false, error: webhook.error };
+  }
+
+  await prisma.company.update({
+    where: { id: params.companyId },
+    data: {
+      telegramBotToken: token,
+      telegramBotId: String(identity.bot.id),
+      telegramBotUsername: identity.bot.username ?? null,
+      telegramBotName: identity.bot.first_name,
+      telegramDefaultChatId: params.defaultChatId?.trim() || null,
+      telegramWebhookSecret: secret,
+      telegramConnectedAt: new Date(),
+    },
+  });
+
+  return {
+    ok: true,
+    botUsername: identity.bot.username ?? null,
+    botName: identity.bot.first_name,
+    botId: String(identity.bot.id),
+  };
+}
+
+export async function disconnectCompanyTelegramBot(companyId: string): Promise<void> {
+  const company = await prisma.company.findUnique({
+    where: { id: companyId },
+    select: { telegramBotToken: true },
+  });
+
+  if (company?.telegramBotToken) {
+    await deleteTelegramWebhook(company.telegramBotToken);
+  }
+
+  await prisma.company.update({
+    where: { id: companyId },
+    data: {
+      telegramBotToken: null,
+      telegramBotId: null,
+      telegramBotUsername: null,
+      telegramBotName: null,
+      telegramDefaultChatId: null,
+      telegramWebhookSecret: null,
+      telegramConnectedAt: null,
+    },
+  });
 }

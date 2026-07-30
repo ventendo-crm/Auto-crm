@@ -11,7 +11,7 @@ import { serialize } from "@/lib/serialize";
 import { updateDealSchema } from "@/lib/validators/deal";
 
 export const GET = withAuth(async (_request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
 
   if (!(await canUserViewDeal(user, deal))) {
     assertAllowed(false);
@@ -23,7 +23,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 });
 
 export const PATCH = withAuth(async (request, { user, params }) => {
-  const existing = assertFound(await getDeal(params.id));
+  const existing = assertFound(await getDeal(params.id, user.companyId));
   assertAllowed(canUpdateDeal(user.role, user.id, existing));
 
   const body = updateDealSchema.parse(await request.json());
@@ -33,7 +33,7 @@ export const PATCH = withAuth(async (request, { user, params }) => {
 });
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
-  const existing = assertFound(await getDeal(params.id));
+  const existing = assertFound(await getDeal(params.id, user.companyId));
   assertAllowed(canDeleteDeal(user.role, user.id, existing));
 
   await deleteDeal(user, existing.id);

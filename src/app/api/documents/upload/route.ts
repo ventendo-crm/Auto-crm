@@ -34,7 +34,7 @@ export const POST = withAuth(async (request, { user }) => {
     throw new Error("Недопустимый тип документа");
   }
 
-  const deal = assertFound(await getDeal(dealId));
+  const deal = assertFound(await getDeal(dealId, user.companyId));
   assertAllowed(canUploadDealDocuments(user.role, user.id, deal));
 
   const bytes = await file.arrayBuffer();

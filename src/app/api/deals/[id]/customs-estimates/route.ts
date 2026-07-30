@@ -11,7 +11,7 @@ import { serialize } from "@/lib/serialize";
 import { createCustomsEstimateSchema } from "@/lib/validators/customs-estimate";
 
 export const GET = withAuth(async (_request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
 
   if (!(await canUserViewDeal(user, deal))) {
     assertAllowed(false);
@@ -22,7 +22,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 });
 
 export const POST = withAuth(async (request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
 
   if (!canCreateCustomsEstimates(user.role, user.id, deal)) {
     assertAllowed(false);

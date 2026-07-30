@@ -17,10 +17,12 @@ function isStaffRoleName(role: string): role is StaffRoleName {
 
 export async function createUser(params: {
   actorId: string;
+  companyId: string;
   name: string;
   email: string;
   password: string;
   roleName: StaffRoleName;
+  isPlatformAdmin?: boolean;
 }) {
   const role = await getRoleByName(params.roleName);
   if (!role) {
@@ -29,7 +31,9 @@ export async function createUser(params: {
 
   const email = params.email.toLowerCase();
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({
+    where: { companyId_email: { companyId: params.companyId, email } },
+  });
   if (existing) {
     throw new Error("EMAIL_EXISTS");
   }
@@ -42,6 +46,8 @@ export async function createUser(params: {
       email,
       passwordHash,
       roleId: role.id,
+      companyId: params.companyId,
+      isPlatformAdmin: params.isPlatformAdmin ?? false,
     },
     select: {
       id: true,
@@ -49,12 +55,15 @@ export async function createUser(params: {
       email: true,
       telegramChatId: true,
       createdAt: true,
+      companyId: true,
+      isPlatformAdmin: true,
       role: { select: { id: true, name: true } },
     },
   });
 
   await createAuditLog({
     userId: params.actorId,
+    companyId: params.companyId,
     entity: "User",
     entityId: user.id,
     action: "CREATE",
@@ -75,6 +84,7 @@ export async function createUser(params: {
 
 export async function createManagerUser(params: {
   actorId: string;
+  companyId: string;
   name: string;
   email: string;
   password: string;
@@ -191,7 +201,7 @@ export async function deleteUser(params: { actorId: string; userId: string }) {
 
   if (roleName === ROLES.ADMIN) {
     const adminCount = await prisma.user.count({
-      where: { role: { name: ROLES.ADMIN } },
+      where: { companyId: user.companyId, role: { name: ROLES.ADMIN } },
     });
 
     if (adminCount <= 1) {

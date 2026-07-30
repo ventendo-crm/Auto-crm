@@ -10,11 +10,14 @@ export interface ClientStageMessageRecord {
   updatedById: string | null;
 }
 
-export async function ensureClientStageMessages(): Promise<void> {
+export async function ensureClientStageMessages(companyId: string): Promise<void> {
   for (const stage of STAGE_ORDER) {
     await prisma.clientStageMessage.upsert({
-      where: { stage },
+      where: {
+        companyId_stage: { companyId, stage },
+      },
       create: {
+        companyId,
         stage,
         textBody: CLIENT_STAGE_NOTIFICATIONS[stage],
         updatedAt: new Date(),
@@ -24,10 +27,12 @@ export async function ensureClientStageMessages(): Promise<void> {
   }
 }
 
-export async function listClientStageMessages(): Promise<ClientStageMessageRecord[]> {
-  await ensureClientStageMessages();
+export async function listClientStageMessages(
+  companyId: string,
+): Promise<ClientStageMessageRecord[]> {
+  await ensureClientStageMessages(companyId);
 
-  const items = await prisma.clientStageMessage.findMany();
+  const items = await prisma.clientStageMessage.findMany({ where: { companyId } });
   const byStage = new Map(items.map((item) => [item.stage, item]));
 
   return STAGE_ORDER.map((stage) => {
@@ -42,22 +47,28 @@ export async function listClientStageMessages(): Promise<ClientStageMessageRecor
   });
 }
 
-export async function getClientStageMessage(stage: DealStageType): Promise<string> {
-  await ensureClientStageMessages();
+export async function getClientStageMessage(
+  companyId: string,
+  stage: DealStageType,
+): Promise<string> {
+  await ensureClientStageMessages(companyId);
 
-  const record = await prisma.clientStageMessage.findUnique({ where: { stage } });
+  const record = await prisma.clientStageMessage.findUnique({
+    where: { companyId_stage: { companyId, stage } },
+  });
   return record?.textBody?.trim() || CLIENT_STAGE_NOTIFICATIONS[stage];
 }
 
 export async function updateClientStageMessages(
+  companyId: string,
   updates: Array<{ stage: DealStageType; textBody: string }>,
   updatedById: string,
 ): Promise<ClientStageMessageRecord[]> {
-  await ensureClientStageMessages();
+  await ensureClientStageMessages(companyId);
 
   for (const item of updates) {
     await prisma.clientStageMessage.update({
-      where: { stage: item.stage },
+      where: { companyId_stage: { companyId, stage: item.stage } },
       data: {
         textBody: item.textBody.trim(),
         updatedById,
@@ -65,5 +76,5 @@ export async function updateClientStageMessages(
     });
   }
 
-  return listClientStageMessages();
+  return listClientStageMessages(companyId);
 }

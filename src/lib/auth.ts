@@ -28,6 +28,8 @@ export interface SessionPayload {
   email: string;
   name: string;
   role: RoleName;
+  companyId: string;
+  isPlatformAdmin: boolean;
 }
 
 function getJwtSecret(): Uint8Array {
@@ -44,20 +46,17 @@ export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, 12);
 }
 
-export async function verifyPassword(
-  password: string,
-  hash: string
-): Promise<boolean> {
+export async function verifyPassword(password: string, hash: string): Promise<boolean> {
   return bcrypt.compare(password, hash);
 }
 
-export async function createSessionToken(
-  user: AuthUser
-): Promise<string> {
+export async function createSessionToken(user: AuthUser): Promise<string> {
   return new SignJWT({
     email: user.email,
     name: user.name,
     role: user.role,
+    companyId: user.companyId,
+    isPlatformAdmin: user.isPlatformAdmin,
   })
     .setProtectedHeader({
       alg: "HS256",
@@ -68,21 +67,17 @@ export async function createSessionToken(
     .sign(getJwtSecret());
 }
 
-export async function verifySessionToken(
-  token: string
-): Promise<SessionPayload | null> {
+export async function verifySessionToken(token: string): Promise<SessionPayload | null> {
   try {
-    const { payload } = await jwtVerify(
-      token,
-      getJwtSecret()
-    );
+    const { payload } = await jwtVerify(token, getJwtSecret());
 
     const role = payload.role;
 
     if (
       typeof payload.sub !== "string" ||
       typeof role !== "string" ||
-      !isRoleName(role)
+      !isRoleName(role) ||
+      typeof payload.companyId !== "string"
     ) {
       return null;
     }
@@ -92,26 +87,22 @@ export async function verifySessionToken(
       email: String(payload.email ?? ""),
       name: String(payload.name ?? ""),
       role,
+      companyId: payload.companyId,
+      isPlatformAdmin: Boolean(payload.isPlatformAdmin),
     };
   } catch {
     return null;
   }
 }
 
-export async function getSessionFromRequest(
-  request: Request
-): Promise<SessionPayload | null> {
-  const authHeader =
-    request.headers.get("authorization");
+export async function getSessionFromRequest(request: Request): Promise<SessionPayload | null> {
+  const authHeader = request.headers.get("authorization");
 
   if (authHeader?.startsWith("Bearer ")) {
-    return verifySessionToken(
-      authHeader.slice(7)
-    );
+    return verifySessionToken(authHeader.slice(7));
   }
 
-  const cookieHeader =
-    request.headers.get("cookie");
+  const cookieHeader = request.headers.get("cookie");
 
   if (!cookieHeader) {
     return null;
@@ -119,9 +110,7 @@ export async function getSessionFromRequest(
 
   const token = cookieHeader
     .split(";")
-    .find((c) =>
-      c.trim().startsWith(`${COOKIE_NAME}=`)
-    )
+    .find((c) => c.trim().startsWith(`${COOKIE_NAME}=`))
     ?.split("=")[1];
 
   if (!token) {
@@ -131,17 +120,11 @@ export async function getSessionFromRequest(
   return verifySessionToken(token);
 }
 
-export async function requireAuth(
-  request: Request
-): Promise<AuthUser> {
-  const session =
-    await getSessionFromRequest(request);
+export async function requireAuth(request: Request): Promise<AuthUser> {
+  const session = await getSessionFromRequest(request);
 
   if (!session) {
-    throw new AuthError(
-      "Unauthorized",
-      401
-    );
+    throw new AuthError("Unauthorized", 401);
   }
 
   return {
@@ -149,32 +132,40 @@ export async function requireAuth(
     email: session.email,
     name: session.name,
     role: session.role,
+    companyId: session.companyId,
+    isPlatformAdmin: session.isPlatformAdmin,
   };
 }
 
 export async function authenticateUser(
   email: string,
-  password: string
+  password: string,
+  companySlug?: string,
 ): Promise<AuthUser | null> {
-  const user =
-    await prisma.user.findUnique({
-      where: {
-        email: email.toLowerCase(),
-      },
-      include: {
-        role: true,
-      },
-    });
+  const normalizedEmail = email.toLowerCase();
 
-  if (!user) {
+  const users = await prisma.user.findMany({
+    where: {
+      email: normalizedEmail,
+      ...(companySlug ? { company: { slug: companySlug } } : {}),
+    },
+    include: {
+      role: true,
+      company: { select: { id: true, slug: true } },
+    },
+  });
+
+  if (users.length === 0) {
     return null;
   }
 
-  const valid =
-    await verifyPassword(
-      password,
-      user.passwordHash
-    );
+  if (users.length > 1 && !companySlug) {
+    throw new AuthError("Укажите компанию (companySlug) — найдено несколько аккаунтов", 409);
+  }
+
+  const user = users[0];
+
+  const valid = await verifyPassword(password, user.passwordHash);
 
   if (!valid) {
     return null;
@@ -189,13 +180,15 @@ export async function authenticateUser(
     email: user.email,
     name: user.name,
     role: user.role.name,
+    companyId: user.companyId,
+    isPlatformAdmin: user.isPlatformAdmin,
   };
 }
 
 export class AuthError extends Error {
   constructor(
     message: string,
-    public status: number
+    public status: number,
   ) {
     super(message);
     this.name = "AuthError";

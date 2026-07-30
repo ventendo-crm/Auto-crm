@@ -19,7 +19,7 @@ export const PATCH = withAuth(async (request, { user, params }) => {
 
   const body = updateTelegramTemplateSchema.parse(await request.json());
 
-  const template = await updateTelegramTemplate(keyResult.data, {
+  const template = await updateTelegramTemplate(user.companyId, keyResult.data, {
     ...body,
     updatedById: user.id,
   });

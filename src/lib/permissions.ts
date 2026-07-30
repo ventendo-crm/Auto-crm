@@ -14,6 +14,8 @@ export interface AuthUser {
   email: string;
   name: string;
   role: RoleName;
+  companyId: string;
+  isPlatformAdmin: boolean;
 }
 
 export function isRoleName(value: string): value is RoleName {
@@ -177,6 +179,14 @@ export function canChangeStage(
 }
 
 export function canManageUsers(role: RoleName): boolean {
+  return role === ROLES.ADMIN;
+}
+
+export function canManageCompanies(user: Pick<AuthUser, "isPlatformAdmin">): boolean {
+  return user.isPlatformAdmin;
+}
+
+export function canManageCompanyTelegram(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }
 

@@ -19,7 +19,7 @@ export const PATCH = withAuth(async (request, { user, params }) => {
 
   const body = updateEmailTemplateSchema.parse(await request.json());
 
-  const template = await updateEmailTemplate(keyResult.data, {
+  const template = await updateEmailTemplate(user.companyId, keyResult.data, {
     ...body,
     updatedById: user.id,
   });

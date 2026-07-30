@@ -18,10 +18,23 @@ async function main() {
   await prisma.stageHistory.deleteMany();
   await prisma.shipment.deleteMany();
   await prisma.deal.deleteMany();
+  await prisma.clientStageMessage.deleteMany();
+  await prisma.telegramTemplate.deleteMany();
+  await prisma.emailTemplate.deleteMany();
+  await prisma.managerLink.deleteMany();
   await prisma.user.deleteMany();
+  await prisma.company.deleteMany();
   await prisma.role.deleteMany();
 
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
+
+  const company = await prisma.company.create({
+    data: {
+      id: "default_company_seed",
+      name: "Default",
+      slug: "default",
+    },
+  });
 
   const adminRole = await prisma.role.create({ data: { name: "ADMIN" } });
   const managerRole = await prisma.role.create({ data: { name: "MANAGER" } });
@@ -33,6 +46,8 @@ async function main() {
       email: "admin@auto-crm.local",
       passwordHash,
       roleId: adminRole.id,
+      companyId: company.id,
+      isPlatformAdmin: true,
     },
   });
 
@@ -42,6 +57,7 @@ async function main() {
       email: "alex@auto-crm.local",
       passwordHash,
       roleId: managerRole.id,
+      companyId: company.id,
       telegramChatId: "100001",
     },
   });
@@ -52,6 +68,7 @@ async function main() {
       email: "maria@auto-crm.local",
       passwordHash,
       roleId: managerRole.id,
+      companyId: company.id,
       telegramChatId: "100002",
     },
   });
@@ -62,6 +79,7 @@ async function main() {
       email: "viewer@auto-crm.local",
       passwordHash,
       roleId: viewerRole.id,
+      companyId: company.id,
     },
   });
 
@@ -73,6 +91,7 @@ async function main() {
 
   const deal1 = await prisma.deal.create({
     data: {
+      companyId: company.id,
       clientName: "Иван Петров",
       phone: "+7 999 123-45-67",
       email: "ivan.petrov@mail.ru",
@@ -189,6 +208,7 @@ async function main() {
 
   await prisma.auditLog.create({
     data: {
+      companyId: company.id,
       userId: managerAlex.id,
       entity: "Deal",
       entityId: deal1.id,
@@ -203,6 +223,7 @@ async function main() {
 
   const deal2 = await prisma.deal.create({
     data: {
+      companyId: company.id,
       clientName: "Елена Смирнова",
       phone: "+7 916 555-12-34",
       email: "elena.smirnova@gmail.com",
@@ -297,6 +318,7 @@ async function main() {
 
   const deal3 = await prisma.deal.create({
     data: {
+      companyId: company.id,
       clientName: "Дмитрий Козлов",
       phone: "+7 903 777-88-99",
       vin: "JTDKN3DU5A3456789",
@@ -349,6 +371,7 @@ async function main() {
 
   const deal4 = await prisma.deal.create({
     data: {
+      companyId: company.id,
       clientName: "Ольга Новикова",
       phone: "+7 921 333-44-55",
       email: "olga.novikova@yandex.ru",
@@ -417,6 +440,7 @@ async function main() {
 
   const deal5 = await prisma.deal.create({
     data: {
+      companyId: company.id,
       clientName: "Сергей Волков",
       phone: "+7 985 111-22-33",
       vin: "1HGBH41JXMN567890",
@@ -462,6 +486,7 @@ async function main() {
 
   await prisma.auditLog.create({
     data: {
+      companyId: company.id,
       userId: admin.id,
       entity: "User",
       entityId: viewer.id,

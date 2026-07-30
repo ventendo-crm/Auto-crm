@@ -7,7 +7,7 @@ import { createReminderSchema } from "@/lib/validators/reminders";
 
 export const GET = withAuth(async (_request, { user, params }) => {
   try {
-    assertFound(await getDeal(params.id));
+    assertFound(await getDeal(params.id, user.companyId));
     const reminders = await listDealReminders(user, params.id);
     return ok(serialize(reminders));
   } catch (err) {
@@ -27,7 +27,7 @@ export const POST = withAuth(async (request, { user, params }) => {
   const body = createReminderSchema.parse(await request.json());
 
   try {
-    assertFound(await getDeal(params.id));
+    assertFound(await getDeal(params.id, user.companyId));
     const reminder = await createReminder(user, params.id, body);
     return created(serialize(reminder));
   } catch (err) {

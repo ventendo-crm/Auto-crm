@@ -7,7 +7,7 @@ import { serialize } from "@/lib/serialize";
 import { setImportProcessEnabledSchema } from "@/lib/validators/import-process";
 
 export const PATCH = withAuth(async (request, { user, params }) => {
-  const existing = assertFound(await getDeal(params.id));
+  const existing = assertFound(await getDeal(params.id, user.companyId));
   assertAllowed(canUpdateDeal(user.role, user.id, existing));
 
   const body = setImportProcessEnabledSchema.parse(await request.json());

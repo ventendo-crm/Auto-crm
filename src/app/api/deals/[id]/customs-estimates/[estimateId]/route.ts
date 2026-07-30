@@ -5,7 +5,7 @@ import { deleteDealCustomsEstimate } from "@/lib/services/deal-customs-estimates
 import { getDeal } from "@/lib/services/deals";
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
 
   if (!canDeleteCustomsEstimates(user.role, user.id, deal)) {
     assertAllowed(false);

@@ -8,7 +8,7 @@ import { serialize } from "@/lib/serialize";
 export const GET = withAuth(async (_request, { user }) => {
   assertAllowed(canManageUsers(user.role));
 
-  const templates = await listTelegramTemplates();
+  const templates = await listTelegramTemplates(user.companyId);
   return ok(
     serialize(
       templates.map((template) => ({

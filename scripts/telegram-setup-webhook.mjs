@@ -39,7 +39,8 @@ if (!token) {
 
 if (!webhookUrl) {
   console.error(
-    "Usage: node scripts/telegram-setup-webhook.mjs https://importcrm.ru/api/telegram/webhook",
+    "Usage: node scripts/telegram-setup-webhook.mjs https://importcrm.ru/api/telegram/webhook/<companyId>\n" +
+      "Предпочтительно: привязка бота в Настройки → Telegram (CRM ставит webhook сама).",
   );
   process.exit(1);
 }

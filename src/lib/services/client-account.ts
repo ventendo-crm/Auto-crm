@@ -202,7 +202,7 @@ export async function createClientAccount(
 ) {
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { id: true, clientUserId: true, clientName: true },
+    select: { id: true, clientUserId: true, clientName: true, companyId: true },
   });
 
   if (!deal) {
@@ -222,7 +222,9 @@ export async function createClientAccount(
 
   const email = input.email.toLowerCase();
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({
+    where: { companyId_email: { companyId: deal.companyId, email } },
+  });
   if (existing) {
     throw new Error("EMAIL_EXISTS");
   }
@@ -236,6 +238,7 @@ export async function createClientAccount(
         email,
         passwordHash,
         roleId: role.id,
+        companyId: deal.companyId,
       },
       select: clientUserSelect,
     });
@@ -250,6 +253,7 @@ export async function createClientAccount(
 
   await createAuditLog({
     userId: actor.id,
+    companyId: deal.companyId,
     entity: "User",
     entityId: user.id,
     action: "CREATE",

@@ -19,12 +19,50 @@ export interface User {
   email: string;
   telegramChatId?: string | null;
   createdAt: string;
+  companyId?: string;
+  isPlatformAdmin?: boolean;
+  company?: { id: string; name: string; slug: string } | null;
   role: { id: string; name: string };
   clientDeal?: { id: string; clientName: string } | null;
   _count?: {
     deals?: number;
     comments?: number;
   };
+}
+
+export interface AuthProfile {
+  id: string;
+  name: string;
+  email: string;
+  companyId: string;
+  isPlatformAdmin: boolean;
+  company: { id: string; name: string; slug: string };
+  role: { id: string; name: string };
+  isCurrent: boolean;
+}
+
+export interface CompanyListItem {
+  id: string;
+  name: string;
+  slug: string;
+  telegramBotUsername: string | null;
+  telegramConnectedAt: string | null;
+  createdAt: string;
+  _count: { users: number; deals: number };
+}
+
+export interface CompanyTelegramBotSettings {
+  companyId: string;
+  companyName: string;
+  companySlug: string;
+  connected: boolean;
+  botId: string | null;
+  botUsername: string | null;
+  botName: string | null;
+  defaultChatId: string | null;
+  connectedAt: string | null;
+  hasToken: boolean;
+  tokenMasked: string | null;
 }
 
 export interface DealManager {

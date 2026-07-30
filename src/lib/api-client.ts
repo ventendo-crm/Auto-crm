@@ -1,8 +1,11 @@
 import { DealStageType, DocumentType } from "@prisma/client";
 import {
   ApiResponse,
+  AuthProfile,
   CommentItem,
   ClientPortalDeal,
+  CompanyListItem,
+  CompanyTelegramBotSettings,
   DashboardData,
   DealDetail,
   DealListItem,
@@ -51,13 +54,19 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 export const api = {
   auth: {
-    login: (email: string, password: string) =>
+    login: (email: string, password: string, companySlug?: string) =>
       request<{ user: User; token: string }>("/api/auth/login", {
         method: "POST",
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, ...(companySlug ? { companySlug } : {}) }),
       }),
     logout: () => request<{ message: string }>("/api/auth/logout", { method: "POST" }),
     me: () => request<User>("/api/auth/me"),
+    listProfiles: () => request<AuthProfile[]>("/api/auth/profiles"),
+    switchProfile: (userId: string) =>
+      request<User>("/api/auth/switch-profile", {
+        method: "POST",
+        body: JSON.stringify({ userId }),
+      }),
     linkTelegram: (telegramChatId: string) =>
       request<User>("/api/auth/telegram", {
         method: "PATCH",
@@ -72,6 +81,21 @@ export const api = {
       request<{ message: string }>("/api/auth/password", {
         method: "PATCH",
         body: JSON.stringify({ currentPassword, newPassword }),
+      }),
+  },
+
+  companies: {
+    list: () => request<CompanyListItem[]>("/api/companies"),
+    create: (data: {
+      name: string;
+      slug?: string;
+      adminName: string;
+      adminEmail: string;
+      adminPassword: string;
+    }) =>
+      request<CompanyListItem>("/api/companies", {
+        method: "POST",
+        body: JSON.stringify(data),
       }),
   },
 
@@ -702,6 +726,16 @@ export const api = {
   },
 
   telegram: {
+    getBotSettings: () => request<CompanyTelegramBotSettings>("/api/telegram/bot-settings"),
+    connectBot: (data: { token: string; defaultChatId?: string | null }) =>
+      request<CompanyTelegramBotSettings>("/api/telegram/bot-settings", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    disconnectBot: () =>
+      request<CompanyTelegramBotSettings>("/api/telegram/bot-settings", {
+        method: "DELETE",
+      }),
     listTemplates: () => request<TelegramTemplateItem[]>("/api/telegram/templates"),
     updateTemplate: (key: string, data: { textBody: string }) =>
       request<TelegramTemplateItem>(`/api/telegram/templates/${key}`, {

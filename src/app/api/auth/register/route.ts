@@ -21,8 +21,9 @@ export const POST = withAuth(async (request, { user }) => {
     return error("Создание администратора через эту форму запрещено", 403);
   }
 
+  const email = body.email.toLowerCase();
   const existing = await prisma.user.findUnique({
-    where: { email: body.email.toLowerCase() },
+    where: { companyId_email: { companyId: user.companyId, email } },
   });
   if (existing) {
     return error("Email уже зарегистрирован", 409);
@@ -32,9 +33,10 @@ export const POST = withAuth(async (request, { user }) => {
   const createdUser = await prisma.user.create({
     data: {
       name: body.name,
-      email: body.email.toLowerCase(),
+      email,
       passwordHash,
       roleId: body.roleId,
+      companyId: user.companyId,
       telegramChatId: body.telegramChatId ?? null,
     },
     select: {
@@ -49,6 +51,7 @@ export const POST = withAuth(async (request, { user }) => {
 
   await createAuditLog({
     userId: user.id,
+    companyId: user.companyId,
     entity: "User",
     entityId: createdUser.id,
     action: "CREATE",

@@ -7,6 +7,6 @@ import { serialize } from "@/lib/serialize";
 export const GET = withAuth(async (_request, { user }) => {
   assertAllowed(canManageUsers(user.role));
 
-  const templates = await listEmailTemplates();
+  const templates = await listEmailTemplates(user.companyId);
   return ok(serialize(templates));
 });

@@ -6,7 +6,7 @@ import { serialize } from "@/lib/serialize";
 import { updateSearchProcessLinksSchema } from "@/lib/validators/search-process-links";
 
 export const PATCH = withAuth(async (request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
 
   const body = updateSearchProcessLinksSchema.parse(await request.json());
   const links = await updateSearchProcessLinks(user, params.id, body);

@@ -79,7 +79,9 @@ function toDecimal(value: string | number | null | undefined): Prisma.Decimal | 
 }
 
 async function buildDealWhere(user: AuthUser, filters: ListDealsInput): Promise<Prisma.DealWhereInput> {
-  const where: Prisma.DealWhereInput = {};
+  const where: Prisma.DealWhereInput = {
+    companyId: user.companyId,
+  };
 
   if (user.role === ROLES.CLIENT) {
     where.clientUserId = user.id;
@@ -127,9 +129,12 @@ export async function listDeals(user: AuthUser, filters: ListDealsInput) {
   };
 }
 
-export async function getDeal(id: string) {
-  const deal = await prisma.deal.findUnique({
-    where: { id },
+export async function getDeal(id: string, companyId: string) {
+  const deal = await prisma.deal.findFirst({
+    where: {
+      id,
+      companyId,
+    },
     include: dealDetailInclude,
   });
 
@@ -144,6 +149,7 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
   const deal = await prisma.$transaction(async (tx) => {
     const created = await tx.deal.create({
       data: {
+        companyId: user.companyId,
         clientName: input.clientName,
         phone: input.phone ?? null,
         email: input.email ?? null,
@@ -212,7 +218,7 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
 }
 
 export async function updateDeal(user: AuthUser, id: string, input: UpdateDealInput) {
-  const existing = await getDeal(id);
+  const existing = await getDeal(id, user.companyId);
   if (!existing) {
     throw new Error("Not found");
   }
@@ -274,7 +280,7 @@ export async function updateDeal(user: AuthUser, id: string, input: UpdateDealIn
 }
 
 export async function deleteDeal(user: AuthUser, id: string) {
-  const existing = await getDeal(id);
+  const existing = await getDeal(id, user.companyId);
   if (!existing) {
     throw new Error("Not found");
   }
@@ -291,7 +297,7 @@ export async function deleteDeal(user: AuthUser, id: string) {
 }
 
 export async function changeDealStage(user: AuthUser, id: string, toStage: DealStageType) {
-  const existing = await getDeal(id);
+  const existing = await getDeal(id, user.companyId);
   if (!existing) {
     throw new Error("Not found");
   }

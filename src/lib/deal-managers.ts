@@ -88,12 +88,13 @@ export function enrichDealWithManagers<T extends DealWithManagerAssignments>(dea
   };
 }
 
-export async function assertValidManagerIds(managerIds: string[]) {
+export async function assertValidManagerIds(managerIds: string[], companyId: string) {
   if (managerIds.length === 0) return;
 
   const managers = await prisma.user.findMany({
     where: {
       id: { in: managerIds },
+      companyId,
       role: { name: ROLES.MANAGER },
     },
     select: { id: true },
@@ -137,12 +138,12 @@ export async function resolveCreateManagerIds(
   );
 
   if (user.role === ROLES.ADMIN) {
-    await assertValidManagerIds(requestedIds);
+    await assertValidManagerIds(requestedIds, user.companyId);
     return requestedIds;
   }
 
   const managerIds = normalizeManagerIds([user.id, ...requestedIds]);
-  await assertValidManagerIds(managerIds);
+  await assertValidManagerIds(managerIds, user.companyId);
   return managerIds;
 }
 
@@ -179,7 +180,7 @@ export async function resolveUpdateManagerIds(
     return undefined;
   }
 
-  await assertValidManagerIds(nextManagerIds);
+  await assertValidManagerIds(nextManagerIds, user.companyId);
   return nextManagerIds;
 }
 

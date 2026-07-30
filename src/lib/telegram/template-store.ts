@@ -75,11 +75,14 @@ function isTelegramTemplateKey(value: string): value is TelegramTemplateKey {
   return value in DEFAULT_TEMPLATES;
 }
 
-export async function ensureTelegramTemplates(): Promise<void> {
+export async function ensureTelegramTemplates(companyId: string): Promise<void> {
   for (const template of Object.values(DEFAULT_TEMPLATES)) {
     await prisma.telegramTemplate.upsert({
-      where: { key: template.key },
+      where: {
+        companyId_key: { companyId, key: template.key },
+      },
       create: {
+        companyId,
         ...template,
         updatedAt: new Date(),
       },
@@ -88,10 +91,11 @@ export async function ensureTelegramTemplates(): Promise<void> {
   }
 }
 
-export async function listTelegramTemplates(): Promise<TelegramTemplateRecord[]> {
-  await ensureTelegramTemplates();
+export async function listTelegramTemplates(companyId: string): Promise<TelegramTemplateRecord[]> {
+  await ensureTelegramTemplates(companyId);
 
   const items = await prisma.telegramTemplate.findMany({
+    where: { companyId },
     orderBy: { key: "asc" },
   });
 
@@ -110,11 +114,14 @@ export async function listTelegramTemplates(): Promise<TelegramTemplateRecord[]>
 }
 
 export async function getTelegramTemplateRecord(
+  companyId: string,
   key: TelegramTemplateKey,
 ): Promise<TelegramTemplateRecord> {
-  await ensureTelegramTemplates();
+  await ensureTelegramTemplates(companyId);
 
-  const record = await prisma.telegramTemplate.findUnique({ where: { key } });
+  const record = await prisma.telegramTemplate.findUnique({
+    where: { companyId_key: { companyId, key } },
+  });
   if (record && isTelegramTemplateKey(record.key)) {
     return {
       key: record.key,
@@ -134,16 +141,17 @@ export async function getTelegramTemplateRecord(
 }
 
 export async function updateTelegramTemplate(
+  companyId: string,
   key: TelegramTemplateKey,
   data: {
     textBody: string;
     updatedById: string;
   },
 ): Promise<TelegramTemplateRecord> {
-  await ensureTelegramTemplates();
+  await ensureTelegramTemplates(companyId);
 
   const updated = await prisma.telegramTemplate.update({
-    where: { key },
+    where: { companyId_key: { companyId, key } },
     data: {
       textBody: data.textBody,
       updatedById: data.updatedById,

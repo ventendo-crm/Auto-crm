@@ -43,14 +43,16 @@ function escapeVars(vars: Record<string, string>): Record<string, string> {
 }
 
 async function renderTelegramTemplate(
+  companyId: string,
   key: TelegramTemplateKey,
   vars: Record<string, string>,
 ): Promise<string> {
-  const template = await getTelegramTemplateRecord(key);
+  const template = await getTelegramTemplateRecord(companyId, key);
   return renderTemplateString(template.textBody, escapeVars(vars)).trim();
 }
 
 export async function formatStageChangeMessage(params: {
+  companyId: string;
   clientName: string;
   vin: string;
   fromStage: string;
@@ -68,7 +70,7 @@ export async function formatStageChangeMessage(params: {
     minute: "2-digit",
   }).format(date);
 
-  return renderTelegramTemplate("STAGE_CHANGE", {
+  return renderTelegramTemplate(params.companyId, "STAGE_CHANGE", {
     clientName: params.clientName,
     vin: params.vin,
     fromStage: formatStageLabel(params.fromStage),
@@ -80,12 +82,13 @@ export async function formatStageChangeMessage(params: {
 }
 
 export async function formatClientStageNotificationMessage(params: {
+  companyId: string;
   stageLabel: string;
   body: string;
   carLabel?: string | null;
   vin?: string | null;
 }): Promise<string> {
-  const template = await getTelegramTemplateRecord("CLIENT_STAGE");
+  const template = await getTelegramTemplateRecord(params.companyId, "CLIENT_STAGE");
   return renderTemplateString(template.textBody, {
     stageLabel: escapeHtml(params.stageLabel),
     body: escapeHtml(params.body),
@@ -97,6 +100,7 @@ export async function formatClientStageNotificationMessage(params: {
 }
 
 export async function formatCommentMessage(params: {
+  companyId: string;
   clientName: string;
   vin: string;
   authorName: string;
@@ -106,7 +110,7 @@ export async function formatCommentMessage(params: {
   const preview =
     params.text.length > 200 ? `${params.text.slice(0, 200).trim()}…` : params.text;
 
-  return renderTelegramTemplate("COMMENT", {
+  return renderTelegramTemplate(params.companyId, "COMMENT", {
     clientName: params.clientName,
     vin: params.vin,
     authorName: params.authorName,
@@ -115,6 +119,9 @@ export async function formatCommentMessage(params: {
   });
 }
 
-export async function formatTestNotificationMessage(userName: string): Promise<string> {
-  return renderTelegramTemplate("TEST", { userName });
+export async function formatTestNotificationMessage(
+  companyId: string,
+  userName: string,
+): Promise<string> {
+  return renderTelegramTemplate(companyId, "TEST", { userName });
 }

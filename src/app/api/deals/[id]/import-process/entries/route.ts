@@ -8,13 +8,13 @@ import {
 import { serialize } from "@/lib/serialize";
 
 export const GET = withAuth(async (_request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
   const entries = await listImportProcessEntries(user, params.id);
   return ok(serialize(entries));
 });
 
 export const POST = withAuth(async (_request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
   const entry = await createImportProcessEntry(user, params.id);
   return created(serialize(entry));
 });

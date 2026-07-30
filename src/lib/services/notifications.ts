@@ -17,9 +17,10 @@ import {
   formatClientStageNotificationMessage,
   formatCommentMessage,
   formatStageChangeMessage,
+  getCompanyTelegramConfig,
   getDefaultTelegramChatIds,
-  isTelegramConfigured,
-  sendToTelegramChatIds,
+  isCompanyTelegramConfigured,
+  sendCompanyTelegramMessages,
 } from "@/lib/telegram/bot";
 
 interface CreateNotificationParams {
@@ -58,18 +59,31 @@ async function getUserTelegramChatId(userId: string): Promise<string | null> {
   return user?.telegramChatId ?? null;
 }
 
+async function resolveDealCompanyId(dealId: string): Promise<string | null> {
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { companyId: true },
+  });
+  return deal?.companyId ?? null;
+}
+
 async function dispatchTelegramToUsers(params: {
+  companyId: string;
   userIds: string[];
   text: string;
   includeDefaultChatIds?: boolean;
 }): Promise<void> {
-  if (!isTelegramConfigured()) {
-    console.warn("[notifications] Telegram skipped: TELEGRAM_BOT_TOKEN is not set");
+  const config = await getCompanyTelegramConfig(params.companyId);
+  if (!isCompanyTelegramConfigured(config) || !config.token) {
+    console.warn("[notifications] Telegram skipped: company bot token is not set", params.companyId);
     return;
   }
 
   const chatIds = await Promise.all(params.userIds.map(getUserTelegramChatId));
-  const defaultChatIds = params.includeDefaultChatIds === false ? [] : getDefaultTelegramChatIds();
+  const defaultChatIds =
+    params.includeDefaultChatIds === false
+      ? []
+      : getDefaultTelegramChatIds(config.defaultChatId);
   const uniqueChatIds = [
     ...new Set([...chatIds.filter((id): id is string => Boolean(id?.trim())), ...defaultChatIds]),
   ];
@@ -78,12 +92,16 @@ async function dispatchTelegramToUsers(params: {
     console.warn(
       "[notifications] Telegram skipped: no chat IDs for users",
       params.userIds,
-      "and TELEGRAM_CHAT_ID is empty",
+      "and company default chat is empty",
     );
     return;
   }
 
-  const results = await sendToTelegramChatIds(uniqueChatIds, params.text);
+  const results = await sendCompanyTelegramMessages({
+    token: config.token,
+    chatIds: uniqueChatIds,
+    text: params.text,
+  });
   const failed = results.filter((result) => !result.ok);
 
   if (failed.length > 0) {
@@ -106,6 +124,7 @@ export async function notifyStageChange(params: {
   managers: Array<{ id: string; name: string }>;
   changedBy: AuthUser;
 }) {
+  const companyId = (await resolveDealCompanyId(params.dealId)) ?? params.changedBy.companyId;
   const title = "Сделка переведена";
   const managerLabel =
     params.managers.length > 0
@@ -120,6 +139,7 @@ export async function notifyStageChange(params: {
   ].join("\n");
 
   const telegramText = await formatStageChangeMessage({
+    companyId,
     clientName: params.clientName,
     vin: params.vin,
     fromStage: params.fromStage,
@@ -145,11 +165,13 @@ export async function notifyStageChange(params: {
   }
 
   await dispatchTelegramToUsers({
+    companyId,
     userIds: [...recipientIds],
     text: telegramText,
   });
 
   await notifyClientStageChange({
+    companyId,
     dealId: params.dealId,
     clientUserId: params.clientUserId,
     toStage: params.toStage,
@@ -160,6 +182,7 @@ export async function notifyStageChange(params: {
 }
 
 async function notifyClientStageChange(params: {
+  companyId: string;
   dealId: string;
   clientUserId?: string | null;
   toStage: string;
@@ -175,7 +198,7 @@ async function notifyClientStageChange(params: {
     return;
   }
 
-  const body = await getClientStageMessage(params.toStage);
+  const body = await getClientStageMessage(params.companyId, params.toStage);
   const stageLabel = STAGE_LABELS[params.toStage];
   const carLabel = [params.carBrand, params.carModel].filter(Boolean).join(" ").trim() || null;
   const title = `Этап: ${stageLabel}`;
@@ -195,6 +218,7 @@ async function notifyClientStageChange(params: {
   });
 
   const telegramText = await formatClientStageNotificationMessage({
+    companyId: params.companyId,
     stageLabel,
     body,
     carLabel,
@@ -202,12 +226,14 @@ async function notifyClientStageChange(params: {
   });
 
   await dispatchTelegramToUsers({
+    companyId: params.companyId,
     userIds: [params.clientUserId],
     text: telegramText,
     includeDefaultChatIds: false,
   });
 
   const email = await formatClientStageEmail({
+    companyId: params.companyId,
     stageLabel,
     body,
     carLabel,
@@ -220,6 +246,7 @@ async function notifyClientStageChange(params: {
 export async function notifyCommentAdded(params: {
   dealId: string;
   deal: {
+    companyId?: string;
     clientName: string;
     vin: string;
     managerId: string | null;
@@ -229,6 +256,11 @@ export async function notifyCommentAdded(params: {
   author: AuthUser;
   commentText: string;
 }) {
+  const companyId =
+    params.deal.companyId ??
+    (await resolveDealCompanyId(params.dealId)) ??
+    params.author.companyId;
+
   const title = "Новый комментарий";
   const preview =
     params.commentText.length > 120
@@ -246,6 +278,7 @@ export async function notifyCommentAdded(params: {
     COMMENT_AUTHOR_ROLE_LABELS[params.author.role] ?? params.author.role;
 
   const telegramText = await formatCommentMessage({
+    companyId,
     clientName: params.deal.clientName,
     vin: params.deal.vin,
     authorName: params.author.name,
@@ -269,7 +302,7 @@ export async function notifyCommentAdded(params: {
       }
     } else {
       const admins = await prisma.user.findMany({
-        where: { role: { name: ROLES.ADMIN } },
+        where: { companyId, role: { name: ROLES.ADMIN } },
         select: { id: true },
       });
       for (const admin of admins) {
@@ -294,6 +327,7 @@ export async function notifyCommentAdded(params: {
 
   if (recipientIds.size > 0) {
     await dispatchTelegramToUsers({
+      companyId,
       userIds: [...recipientIds],
       text: telegramText,
     });
@@ -305,6 +339,7 @@ export async function notifyCommentAdded(params: {
     recipientIds.has(params.deal.clientUserId)
   ) {
     const email = await formatClientCommentEmail({
+      companyId,
       clientName: params.deal.clientName,
       vin: params.deal.vin,
       authorName: params.author.name,

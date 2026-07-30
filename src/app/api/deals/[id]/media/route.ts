@@ -8,13 +8,13 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export const GET = withAuth(async (_request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
   const media = await listDealMedia(user, params.id);
   return ok(serialize(media));
 });
 
 export const POST = withAuth(async (request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
 
   const formData = await request.formData();
   const files = formData.getAll("files").filter((item): item is File => item instanceof File);

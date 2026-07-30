@@ -2,7 +2,11 @@ import { withAuth } from "@/lib/api-handler";
 import { ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { serialize } from "@/lib/serialize";
-import { isTelegramConfigured, sendTelegramMessage } from "@/lib/telegram/bot";
+import {
+  getCompanyTelegramConfig,
+  isCompanyTelegramConfigured,
+  sendTelegramMessageWithToken,
+} from "@/lib/telegram/bot";
 import { z } from "zod";
 
 const schema = z.object({
@@ -25,8 +29,10 @@ export const PATCH = withAuth(async (request, { user }) => {
     },
   });
 
-  if (isTelegramConfigured()) {
-    const delivered = await sendTelegramMessage(
+  const config = await getCompanyTelegramConfig(user.companyId);
+  if (isCompanyTelegramConfigured(config) && config.token) {
+    const delivered = await sendTelegramMessageWithToken(
+      config.token,
       body.telegramChatId,
       "✅ <b>Auto-CRM</b>\nTelegram успешно привязан. Вы будете получать уведомления о сделках.",
     );

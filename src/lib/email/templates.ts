@@ -11,12 +11,13 @@ export const EMAIL_TEMPLATE_PLACEHOLDERS = {
 export type EmailTemplateKey = keyof typeof EMAIL_TEMPLATE_PLACEHOLDERS;
 
 export async function formatClientStageEmail(params: {
+  companyId: string;
   stageLabel: string;
   body: string;
   carLabel?: string | null;
   vin?: string | null;
 }): Promise<{ subject: string; text: string; html: string }> {
-  const template = await getEmailTemplateRecord("CLIENT_STAGE");
+  const template = await getEmailTemplateRecord(params.companyId, "CLIENT_STAGE");
   const portalUrl = `${getAppUrl()}/my-deal`;
   const vars = {
     stageLabel: params.stageLabel,
@@ -38,13 +39,14 @@ export async function formatClientStageEmail(params: {
 }
 
 export async function formatClientCommentEmail(params: {
+  companyId: string;
   clientName: string;
   vin: string;
   authorName: string;
   authorRole: string;
   text: string;
 }): Promise<{ subject: string; text: string; html: string }> {
-  const template = await getEmailTemplateRecord("CLIENT_COMMENT");
+  const template = await getEmailTemplateRecord(params.companyId, "CLIENT_COMMENT");
   const portalUrl = `${getAppUrl()}/my-deal`;
   const commentText =
     params.text.length > 500 ? `${params.text.slice(0, 500).trim()}…` : params.text;
@@ -70,9 +72,10 @@ export async function formatClientCommentEmail(params: {
 }
 
 export async function formatTestEmail(
+  companyId: string,
   userName: string,
 ): Promise<{ subject: string; text: string; html: string }> {
-  const template = await getEmailTemplateRecord("CLIENT_TEST");
+  const template = await getEmailTemplateRecord(companyId, "CLIENT_TEST");
   const vars = { userName };
 
   const subject = renderTemplateString(template.subject, vars);

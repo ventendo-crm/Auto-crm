@@ -6,7 +6,7 @@ import { getDeal } from "@/lib/services/deals";
 import { replaceDealExpensesSchema } from "@/lib/validators/deal-expenses";
 
 export const GET = withAuth(async (_request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
 
   if (!canManageDealExpenses(user.role, user.id, deal)) {
     assertAllowed(false);
@@ -17,7 +17,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 });
 
 export const PUT = withAuth(async (request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
 
   if (!canManageDealExpenses(user.role, user.id, deal)) {
     assertAllowed(false);

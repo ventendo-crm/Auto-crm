@@ -11,9 +11,18 @@ function normalizeManagerPair(userId: string, peerId: string): [string, string] 
 async function upsertManagerLink(userId: string, peerId: string, createdById: string) {
   const [userAId, userBId] = normalizeManagerPair(userId, peerId);
 
+  const users = await prisma.user.findMany({
+    where: { id: { in: [userAId, userBId] } },
+    select: { id: true, companyId: true },
+  });
+
+  if (users.length !== 2 || users[0].companyId !== users[1].companyId) {
+    throw new Error("INVALID_MANAGER_LINK");
+  }
+
   return prisma.managerLink.upsert({
     where: { userAId_userBId: { userAId, userBId } },
-    create: { userAId, userBId, createdById },
+    create: { companyId: users[0].companyId, userAId, userBId, createdById },
     update: {},
   });
 }

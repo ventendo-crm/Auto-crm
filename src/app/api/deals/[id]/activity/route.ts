@@ -6,7 +6,7 @@ import { clearDealHistory, listDealActivity } from "@/lib/services/deal-activity
 import { getDeal } from "@/lib/services/deals";
 
 export const GET = withAuth(async (_request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
 
   if (!(await canUserViewDeal(user, deal))) {
     assertAllowed(false);
@@ -17,7 +17,7 @@ export const GET = withAuth(async (_request, { user, params }) => {
 });
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
 
   assertAllowed(canClearDealHistory(user.role, user.id, deal));
 

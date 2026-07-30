@@ -68,11 +68,14 @@ function isEmailTemplateKey(value: string): value is EmailTemplateKey {
   return value in DEFAULT_TEMPLATES;
 }
 
-export async function ensureEmailTemplates(): Promise<void> {
+export async function ensureEmailTemplates(companyId: string): Promise<void> {
   for (const template of Object.values(DEFAULT_TEMPLATES)) {
     await prisma.emailTemplate.upsert({
-      where: { key: template.key },
+      where: {
+        companyId_key: { companyId, key: template.key },
+      },
       create: {
+        companyId,
         ...template,
         updatedAt: new Date(),
       },
@@ -81,10 +84,11 @@ export async function ensureEmailTemplates(): Promise<void> {
   }
 }
 
-export async function listEmailTemplates(): Promise<EmailTemplateRecord[]> {
-  await ensureEmailTemplates();
+export async function listEmailTemplates(companyId: string): Promise<EmailTemplateRecord[]> {
+  await ensureEmailTemplates(companyId);
 
   const items = await prisma.emailTemplate.findMany({
+    where: { companyId },
     orderBy: { key: "asc" },
   });
 
@@ -102,10 +106,15 @@ export async function listEmailTemplates(): Promise<EmailTemplateRecord[]> {
     }));
 }
 
-export async function getEmailTemplateRecord(key: EmailTemplateKey): Promise<EmailTemplateRecord> {
-  await ensureEmailTemplates();
+export async function getEmailTemplateRecord(
+  companyId: string,
+  key: EmailTemplateKey,
+): Promise<EmailTemplateRecord> {
+  await ensureEmailTemplates(companyId);
 
-  const record = await prisma.emailTemplate.findUnique({ where: { key } });
+  const record = await prisma.emailTemplate.findUnique({
+    where: { companyId_key: { companyId, key } },
+  });
   if (record && isEmailTemplateKey(record.key)) {
     return {
       key: record.key,
@@ -127,6 +136,7 @@ export async function getEmailTemplateRecord(key: EmailTemplateKey): Promise<Ema
 }
 
 export async function updateEmailTemplate(
+  companyId: string,
   key: EmailTemplateKey,
   data: {
     subject: string;
@@ -135,10 +145,10 @@ export async function updateEmailTemplate(
     updatedById: string;
   },
 ): Promise<EmailTemplateRecord> {
-  await ensureEmailTemplates();
+  await ensureEmailTemplates(companyId);
 
   const updated = await prisma.emailTemplate.update({
-    where: { key },
+    where: { companyId_key: { companyId, key } },
     data: {
       subject: data.subject,
       textBody: data.textBody,

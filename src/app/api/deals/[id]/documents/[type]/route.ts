@@ -18,7 +18,7 @@ export const PATCH = withAuth(async (request, { user, params }) => {
     throw new Error("Not found");
   }
 
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
   assertAllowed(canUpdateDeal(user.role, user.id, deal));
 
   const body = updateSchema.parse(await request.json());
@@ -37,7 +37,7 @@ export const DELETE = withAuth(async (_request, { user, params }) => {
     throw new Error("Not found");
   }
 
-  const deal = assertFound(await getDeal(params.id));
+  const deal = assertFound(await getDeal(params.id, user.companyId));
   assertAllowed(canUpdateDeal(user.role, user.id, deal));
 
   const type = params.type as DocumentType;

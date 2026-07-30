@@ -7,6 +7,30 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Company {
+  id                     String               @id @default(cuid())
+  name                   String
+  slug                   String               @unique
+  telegramBotToken       String?
+  telegramBotId          String?
+  telegramBotUsername    String?
+  telegramBotName        String?
+  telegramDefaultChatId  String?
+  telegramWebhookSecret  String?
+  telegramConnectedAt    DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  users                  User[]
+  deals                  Deal[]
+  managerLinks           ManagerLink[]
+  auditLogs              AuditLog[]
+  emailTemplates         EmailTemplate[]
+  telegramTemplates      TelegramTemplate[]
+  clientStageMessages    ClientStageMessage[]
+
+  @@map("companies")
+}
+
 model Role {
   id    String @id @default(cuid())
   name  String @unique
@@ -18,12 +42,15 @@ model Role {
 model User {
   id                String         @id @default(cuid())
   name              String
-  email             String         @unique
+  email             String
   passwordHash      String
   roleId            String
+  companyId         String
+  isPlatformAdmin   Boolean        @default(false)
   telegramChatId    String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
+  company           Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   auditLogs         AuditLog[]
   comments          Comment[]
   deals             Deal[]         @relation("DealManager")
@@ -43,12 +70,15 @@ model User {
   managerLinksAsA   ManagerLink[]  @relation("ManagerLinkUserA")
   managerLinksAsB   ManagerLink[]  @relation("ManagerLinkUserB")
 
+  @@unique([companyId, email])
   @@index([roleId])
+  @@index([companyId])
   @@map("users")
 }
 
 model Deal {
   id                 String         @id @default(cuid())
+  companyId          String
   clientName         String
   phone              String?
   email              String?
@@ -76,6 +106,7 @@ model Deal {
   carCarrierDestinationTitle String     @default("")
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
+  company            Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   comments           Comment[]
   manager            User?          @relation("DealManager", fields: [managerId], references: [id])
   clientUser         User?          @relation("DealClientUser", fields: [clientUserId], references: [id], onDelete: SetNull)
@@ -94,6 +125,7 @@ model Deal {
   expenses             DealExpense[]
   customsEstimates     DealCustomsEstimate[]
 
+  @@index([companyId])
   @@index([managerId])
   @@index([clientUserId])
   @@index([currentStage])
@@ -398,14 +430,17 @@ model FcmDevice {
 
 model ManagerLink {
   id          String   @id @default(cuid())
+  companyId   String
   userAId     String
   userBId     String
   createdById String?
   createdAt   DateTime @default(now())
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   userA       User     @relation("ManagerLinkUserA", fields: [userAId], references: [id], onDelete: Cascade)
   userB       User     @relation("ManagerLinkUserB", fields: [userBId], references: [id], onDelete: Cascade)
 
   @@unique([userAId, userBId])
+  @@index([companyId])
   @@index([userAId])
   @@index([userBId])
   @@map("manager_links")
@@ -413,6 +448,7 @@ model ManagerLink {
 
 model AuditLog {
   id        String   @id @default(cuid())
+  companyId String
   userId    String
   entity    String
   entityId  String
@@ -420,8 +456,10 @@ model AuditLog {
   oldValue  Json?
   newValue  Json?
   createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   user      User     @relation(fields: [userId], references: [id])
 
+  @@index([companyId])
   @@index([userId])
   @@index([entity, entityId])
   @@index([createdAt])
@@ -429,7 +467,9 @@ model AuditLog {
 }
 
 model EmailTemplate {
-  key         String   @id
+  id          String   @id @default(cuid())
+  companyId   String
+  key         String
   name        String
   subject     String
   textBody    String   @db.Text
@@ -437,27 +477,40 @@ model EmailTemplate {
   description String?
   updatedAt   DateTime @updatedAt
   updatedById String?
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  @@unique([companyId, key])
+  @@index([companyId])
   @@map("email_templates")
 }
 
 model TelegramTemplate {
-  key         String   @id
+  id          String   @id @default(cuid())
+  companyId   String
+  key         String
   name        String
   textBody    String   @db.Text
   description String?
   updatedAt   DateTime @updatedAt
   updatedById String?
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  @@unique([companyId, key])
+  @@index([companyId])
   @@map("telegram_templates")
 }
 
 model ClientStageMessage {
-  stage       DealStageType @id
+  id          String        @id @default(cuid())
+  companyId   String
+  stage       DealStageType
   textBody    String        @db.Text
   updatedAt   DateTime      @updatedAt
   updatedById String?
+  company     Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
+  @@unique([companyId, stage])
+  @@index([companyId])
   @@map("client_stage_messages")
 }
 

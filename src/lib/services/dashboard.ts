@@ -7,15 +7,17 @@ import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { DashboardChartData, DashboardData, DashboardArrivalEvent, DashboardManagerStat, DashboardStats } from "@/lib/types";
 
 async function buildDealWhere(user: AuthUser, managerId?: string): Promise<Prisma.DealWhereInput> {
+  const base: Prisma.DealWhereInput = { companyId: user.companyId };
+
   if (user.role === ROLES.MANAGER) {
-    return buildManagerDealsWhere(user, managerId);
+    return { AND: [base, await buildManagerDealsWhere(user, managerId)] };
   }
 
   if (managerId) {
-    return buildDealManagerFilter(managerId);
+    return { AND: [base, buildDealManagerFilter(managerId)] };
   }
 
-  return {};
+  return base;
 }
 
 type DealRow = {

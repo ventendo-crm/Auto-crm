@@ -11,8 +11,11 @@ export const GET = withAuth(async (_request, { user, params }) => {
   }
 
   const dbUser = assertFound(
-    await prisma.user.findUnique({
-      where: { id: params.id },
+    await prisma.user.findFirst({
+      where: {
+        id: params.id,
+        companyId: user.companyId,
+      },
       select: {
         id: true,
         name: true,
@@ -30,6 +33,14 @@ export const GET = withAuth(async (_request, { user, params }) => {
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
   assertAllowed(canManageUsers(user.role));
+
+  const target = await prisma.user.findFirst({
+    where: { id: params.id, companyId: user.companyId },
+    select: { id: true },
+  });
+  if (!target) {
+    return error("Пользователь не найден", 404);
+  }
 
   try {
     await deleteUser({ actorId: user.id, userId: params.id });

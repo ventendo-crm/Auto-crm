@@ -23,10 +23,10 @@ const reminderInclude = {
 
 async function dealAccessWhere(user: AuthUser): Promise<Prisma.DealWhereInput> {
   if (user.role === ROLES.MANAGER) {
-    return buildManagerDealsWhere(user);
+    return { AND: [{ companyId: user.companyId }, await buildManagerDealsWhere(user)] };
   }
   if (user.role === ROLES.ADMIN) {
-    return {};
+    return { companyId: user.companyId };
   }
   throw new Error("FORBIDDEN");
 }
@@ -73,8 +73,8 @@ function endOfDay(date: Date): Date {
 }
 
 export async function listDealReminders(user: AuthUser, dealId: string) {
-  const deal = await prisma.deal.findUnique({
-    where: { id: dealId },
+  const deal = await prisma.deal.findFirst({
+    where: { id: dealId, companyId: user.companyId },
     select: dealAccessSelect,
   });
 

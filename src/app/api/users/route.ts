@@ -11,7 +11,10 @@ export const GET = withAuth(async (_request, { user }) => {
   assertAllowed(isAdmin || canManageManagers(user.role));
 
   const users = await prisma.user.findMany({
-    where: isAdmin ? undefined : { role: { name: ROLES.MANAGER } },
+    where: {
+      companyId: user.companyId,
+      ...(isAdmin ? {} : { role: { name: ROLES.MANAGER } }),
+    },
     orderBy: { name: "asc" },
     select: userListSelect,
   });
@@ -37,6 +40,7 @@ export const POST = withAuth(async (request, { user }) => {
 
     const createdUser = await createUser({
       actorId: user.id,
+      companyId: user.companyId,
       name: payload.name,
       email: payload.email,
       password: payload.password,

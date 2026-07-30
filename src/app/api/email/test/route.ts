@@ -14,7 +14,7 @@ export const POST = withAuth(async (_request, { user }) => {
     return error("Тестовое письмо доступно для клиентского аккаунта", 403);
   }
 
-  const email = await formatTestEmail(user.name);
+  const email = await formatTestEmail(user.companyId, user.name);
   const result = await sendEmail({
     to: user.email,
     subject: email.subject,

@@ -9,7 +9,7 @@ import { serialize } from "@/lib/serialize";
 import { updateImportProcessEntrySchema } from "@/lib/validators/import-process";
 
 export const PATCH = withAuth(async (request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
   const body = updateImportProcessEntrySchema.parse(await request.json());
   const entry = await updateImportProcessEntry(
     user,
@@ -21,7 +21,7 @@ export const PATCH = withAuth(async (request, { user, params }) => {
 });
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
   await deleteImportProcessEntry(user, params.id, params.entryId);
   return noContent();
 });

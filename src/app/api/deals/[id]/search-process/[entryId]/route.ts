@@ -9,7 +9,7 @@ import { serialize } from "@/lib/serialize";
 import { updateSearchProcessEntrySchema } from "@/lib/validators/search-process";
 
 export const PATCH = withAuth(async (request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
   const body = updateSearchProcessEntrySchema.parse(await request.json());
   const entry = await updateSearchProcessEntry(
     user,
@@ -21,7 +21,7 @@ export const PATCH = withAuth(async (request, { user, params }) => {
 });
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
-  assertFound(await getDeal(params.id));
+  assertFound(await getDeal(params.id, user.companyId));
   await deleteSearchProcessEntry(user, params.id, params.entryId);
   return noContent();
 });
