@@ -181,6 +181,7 @@ export const api = {
           inviteUrl: string;
           botUsername: string;
           telegramLinked: boolean;
+          telegramChatId: string | null;
           expiresAt: string;
         } | null;
       }>(`/api/deals/${dealId}/client-account`, {
@@ -192,6 +193,7 @@ export const api = {
         inviteUrl: string;
         botUsername: string;
         telegramLinked: boolean;
+        telegramChatId: string | null;
         expiresAt: string;
       }>(`/api/deals/${dealId}/client-account/telegram-invite`),
     refreshTelegramInvite: (dealId: string) =>
@@ -199,6 +201,7 @@ export const api = {
         inviteUrl: string;
         botUsername: string;
         telegramLinked: boolean;
+        telegramChatId: string | null;
         expiresAt: string;
       }>(`/api/deals/${dealId}/client-account/telegram-invite`, {
         method: "POST",

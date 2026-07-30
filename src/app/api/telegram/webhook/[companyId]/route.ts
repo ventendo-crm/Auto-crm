@@ -14,6 +14,15 @@ interface TelegramUpdate {
   };
 }
 
+/** /start, /start payload, /start@BotName payload */
+function parseStartCommand(text: string): { isStart: boolean; payload: string } {
+  const match = text.match(/^\/start(?:@[A-Za-z0-9_]+)?(?:\s+([\s\S]+))?$/i);
+  if (!match) {
+    return { isStart: false, payload: "" };
+  }
+  return { isStart: true, payload: (match[1] ?? "").trim() };
+}
+
 export async function POST(
   request: NextRequest,
   context: { params: Promise<{ companyId: string }> },
@@ -54,8 +63,9 @@ export async function POST(
 
   const send = (body: string) => sendTelegramMessageWithToken(token, chatId, body);
 
-  if (text === "/start" || text.startsWith("/start ")) {
-    const payload = text === "/start" ? "" : text.slice("/start".length).trim();
+  const start = parseStartCommand(text);
+  if (start.isStart) {
+    const payload = start.payload;
 
     if (payload.startsWith("link_")) {
       const linkToken = payload.slice("link_".length).trim();
@@ -72,11 +82,24 @@ export async function POST(
         select: {
           id: true,
           name: true,
+          telegramChatId: true,
           telegramLinkTokenExpiresAt: true,
         },
       });
 
       if (!user) {
+        // Возможно, ссылка уже использована этим же чатом
+        const alreadyLinked = await prisma.user.findFirst({
+          where: { companyId: company.id, telegramChatId: chatId },
+          select: { id: true, name: true },
+        });
+        if (alreadyLinked) {
+          await send(
+            `✅ Аккаунт <b>${alreadyLinked.name}</b> уже привязан к этому Telegram.\nУведомления включены.`,
+          );
+          return NextResponse.json({ ok: true });
+        }
+
         await send("Ссылка приглашения недействительна. Попросите менеджера прислать новую.");
         return NextResponse.json({ ok: true });
       }
@@ -95,6 +118,15 @@ export async function POST(
         },
       });
 
+      console.info(
+        "[telegram-webhook] linked user",
+        user.id,
+        "chatId=",
+        chatId,
+        "companyId=",
+        company.id,
+      );
+
       await send(
         `✅ Аккаунт <b>${user.name}</b> привязан.\nУведомления по вашей сделке включены.`,
       );
@@ -105,7 +137,7 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
-  if (text === "/help") {
+  if (text === "/help" || text.startsWith("/help@")) {
     await send(
       [
         `<b>${company.telegramBotName || "Auto-CRM Bot"}</b>`,
@@ -120,8 +152,11 @@ export async function POST(
     return NextResponse.json({ ok: true });
   }
 
-  if (text === "/link" || text.startsWith("/link ")) {
-    const email = text.replace("/link", "").trim().toLowerCase();
+  if (text === "/link" || text.startsWith("/link ") || text.startsWith("/link@")) {
+    const email = text
+      .replace(/^\/link(?:@[A-Za-z0-9_]+)?/i, "")
+      .trim()
+      .toLowerCase();
 
     if (!email) {
       await send(

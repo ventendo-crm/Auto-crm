@@ -55,6 +55,7 @@ export async function getClientTelegramInvite(params: {
   inviteUrl: string;
   botUsername: string;
   telegramLinked: boolean;
+  telegramChatId: string | null;
   expiresAt: string;
 }> {
   const deal = await prisma.deal.findFirst({
@@ -87,6 +88,32 @@ export async function getClientTelegramInvite(params: {
     throw new Error("BOT_NOT_CONNECTED");
   }
 
+  const telegramChatId = deal.clientUser.telegramChatId?.trim() || null;
+  const telegramLinked = Boolean(telegramChatId);
+
+  // Если Telegram уже привязан и не просят новую ссылку — просто статус + Chat ID
+  if (telegramLinked && !params.refresh) {
+    const existingToken = deal.clientUser.telegramLinkToken;
+    const existingExpiry = deal.clientUser.telegramLinkTokenExpiresAt;
+    if (existingToken && existingExpiry && existingExpiry > new Date()) {
+      return {
+        inviteUrl: buildTelegramInviteUrl(botUsername, existingToken),
+        botUsername,
+        telegramLinked: true,
+        telegramChatId,
+        expiresAt: existingExpiry.toISOString(),
+      };
+    }
+
+    return {
+      inviteUrl: "",
+      botUsername,
+      telegramLinked: true,
+      telegramChatId,
+      expiresAt: new Date().toISOString(),
+    };
+  }
+
   const now = new Date();
   const tokenValid =
     Boolean(deal.clientUser.telegramLinkToken) &&
@@ -104,7 +131,8 @@ export async function getClientTelegramInvite(params: {
   return {
     inviteUrl: buildTelegramInviteUrl(botUsername, issued.token),
     botUsername,
-    telegramLinked: Boolean(deal.clientUser.telegramChatId),
+    telegramLinked,
+    telegramChatId,
     expiresAt: issued.expiresAt.toISOString(),
   };
 }

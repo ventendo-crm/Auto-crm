@@ -31,6 +31,14 @@ export function ProfilePanel() {
   const isClient = role === "CLIENT";
 
   useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  useEffect(() => {
+    setChatId(user?.telegramChatId ?? "");
+  }, [user?.telegramChatId]);
+
+  useEffect(() => {
     if (!isClient) return;
 
     void api.email

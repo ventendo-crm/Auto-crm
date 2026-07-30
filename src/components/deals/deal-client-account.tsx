@@ -30,6 +30,7 @@ interface TelegramInvite {
   inviteUrl: string;
   botUsername: string;
   telegramLinked: boolean;
+  telegramChatId: string | null;
   expiresAt: string;
 }
 
@@ -64,6 +65,23 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
   useEffect(() => {
     void loadInvite();
   }, [loadInvite]);
+
+  // Пока Telegram не привязан — периодически обновляем статус (клиент мог нажать Start)
+  useEffect(() => {
+    if (!deal.clientUser || !canManage) return;
+    if (invite?.telegramLinked || deal.clientUser.telegramChatId) return;
+
+    const timer = window.setInterval(() => {
+      void loadInvite();
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [
+    canManage,
+    deal.clientUser,
+    invite?.telegramLinked,
+    loadInvite,
+  ]);
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -137,7 +155,10 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
     }
   };
 
-  const telegramLinked = Boolean(deal.clientUser?.telegramChatId || invite?.telegramLinked);
+  const telegramLinked = Boolean(
+    deal.clientUser?.telegramChatId || invite?.telegramLinked || invite?.telegramChatId,
+  );
+  const linkedChatId = invite?.telegramChatId || deal.clientUser?.telegramChatId || null;
 
   return (
     <Card className="border-0 shadow-card">
@@ -167,6 +188,11 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
                   )}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{deal.clientUser.email}</p>
+                {linkedChatId && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Chat ID: <code className="rounded bg-muted px-1">{linkedChatId}</code>
+                  </p>
+                )}
                 <p className="mt-1 text-xs text-muted-foreground">
                   Создан: {formatDateTime(deal.clientUser.createdAt)}
                 </p>
@@ -209,35 +235,67 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
                   </div>
                 ) : invite ? (
                   <>
-                    <Input readOnly value={invite.inviteUrl} className="font-mono text-xs" />
-                    <div className="flex flex-wrap gap-2">
-                      <Button type="button" size="sm" variant="brand" onClick={() => void handleCopy()}>
-                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                        Копировать
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" asChild>
-                        <a href={invite.inviteUrl} target="_blank" rel="noreferrer">
-                          Открыть
-                        </a>
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        disabled={inviteLoading}
-                        onClick={() => void handleRefreshInvite()}
-                      >
-                        {inviteLoading ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
-                        )}
-                        Новая ссылка
-                      </Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Действует до {formatDateTime(invite.expiresAt)} · @{invite.botUsername}
-                    </p>
+                    {telegramLinked && linkedChatId ? (
+                      <p className="text-sm">
+                        Привязан Chat ID:{" "}
+                        <code className="rounded bg-muted px-1">{linkedChatId}</code>
+                      </p>
+                    ) : null}
+                    {invite.inviteUrl ? (
+                      <>
+                        <Input readOnly value={invite.inviteUrl} className="font-mono text-xs" />
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="brand"
+                            onClick={() => void handleCopy()}
+                          >
+                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                            Копировать
+                          </Button>
+                          <Button type="button" size="sm" variant="outline" asChild>
+                            <a href={invite.inviteUrl} target="_blank" rel="noreferrer">
+                              Открыть
+                            </a>
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={inviteLoading}
+                            onClick={() => void handleRefreshInvite()}
+                          >
+                            {inviteLoading ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-4 w-4" />
+                            )}
+                            Новая ссылка
+                          </Button>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Действует до {formatDateTime(invite.expiresAt)} · @{invite.botUsername}
+                        </p>
+                      </>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={inviteLoading}
+                          onClick={() => void handleRefreshInvite()}
+                        >
+                          {inviteLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                          Выпустить ссылку снова
+                        </Button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">
