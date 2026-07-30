@@ -12,6 +12,7 @@ import {
   COMMENT_AUTHOR_ROLE_LABELS,
   STAGE_LABELS,
 } from "@/lib/constants";
+import { getClientStageMessage } from "@/lib/services/client-stage-messages";
 import {
   formatClientStageNotificationMessage,
   formatCommentMessage,
@@ -174,7 +175,7 @@ async function notifyClientStageChange(params: {
     return;
   }
 
-  const body = CLIENT_STAGE_NOTIFICATIONS[params.toStage];
+  const body = await getClientStageMessage(params.toStage);
   const stageLabel = STAGE_LABELS[params.toStage];
   const carLabel = [params.carBrand, params.carModel].filter(Boolean).join(" ").trim() || null;
   const title = `Этап: ${stageLabel}`;

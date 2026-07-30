@@ -250,6 +250,14 @@ export interface TelegramTemplateItem {
   placeholders?: string[];
 }
 
+export interface ClientStageMessageItem {
+  stage: string;
+  label: string;
+  textBody: string;
+  updatedAt: string;
+  updatedById?: string | null;
+}
+
 export interface NotificationItem {
   id: string;
   dealId?: string | null;

@@ -9,6 +9,7 @@ import {
   DocumentItem,
   EmailTemplateItem,
   TelegramTemplateItem,
+  ClientStageMessageItem,
   MediaItem,
   NotificationItem,
   Paginated,
@@ -706,6 +707,13 @@ export const api = {
       request<TelegramTemplateItem>(`/api/telegram/templates/${key}`, {
         method: "PATCH",
         body: JSON.stringify(data),
+      }),
+    listStageMessages: () =>
+      request<ClientStageMessageItem[]>("/api/telegram/stage-messages"),
+    updateStageMessages: (messages: Array<{ stage: string; textBody: string }>) =>
+      request<ClientStageMessageItem[]>("/api/telegram/stage-messages", {
+        method: "PUT",
+        body: JSON.stringify({ messages }),
       }),
   },
 

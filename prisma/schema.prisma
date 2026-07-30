@@ -452,6 +452,15 @@ model TelegramTemplate {
   @@map("telegram_templates")
 }
 
+model ClientStageMessage {
+  stage       DealStageType @id
+  textBody    String        @db.Text
+  updatedAt   DateTime      @updatedAt
+  updatedById String?
+
+  @@map("client_stage_messages")
+}
+
 enum DealStageType {
   LEADS
   SEARCH
