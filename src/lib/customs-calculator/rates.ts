@@ -8,7 +8,7 @@ export type CarAge = "under3" | "from3to5" | "from5to7" | "over7";
 export type EngineType = "petrol" | "diesel" | "electric";
 export type CurrencyCode = "RUB" | "USD" | "CNY" | "KRW";
 export type DeliveryRoute = "ussuriysk" | "kazakhstan" | "vladivostok";
-export type OriginCountry = "china" | "korea";
+export type OriginCountry = "china" | "korea" | "kyrgyzstan";
 
 export interface ExchangeRates {
   USD: number;
@@ -98,3 +98,6 @@ export const DEFAULT_KOREA_PARKING_FEE_KRW = 440_000;
 export const DEFAULT_KOREA_DOCS_DELIVERY_KRW = 1_800_000;
 export const DEFAULT_KOREA_BROKER_FEE_RUB = 85_000;
 export const DEFAULT_KOREA_DELIVERY_RUB = 200_000;
+
+/** Доставка до города (Киргизия), USD. */
+export const DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD = 1_500;

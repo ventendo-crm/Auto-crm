@@ -7,7 +7,7 @@ import type {
   CustomsCalculatorResult,
 } from "@/lib/customs-calculator";
 
-function formatForeignNote(amount: number, code: "CNY" | "KRW"): string | undefined {
+function formatForeignNote(amount: number, code: "CNY" | "KRW" | "USD"): string | undefined {
   if (!Number.isFinite(amount) || amount <= 0) return undefined;
   return `${amount.toLocaleString("ru-RU", {
     maximumFractionDigits: 2,
@@ -17,7 +17,7 @@ function formatForeignNote(amount: number, code: "CNY" | "KRW"): string | undefi
 function priceToForeign(
   input: CustomsCalculatorInput,
   priceRub: number,
-  code: "CNY" | "KRW",
+  code: "CNY" | "KRW" | "USD",
 ): number {
   if (input.currency === code) return input.price;
   const rate = input.rates[code];
@@ -91,8 +91,10 @@ export function CustomsEstimateSnapshot({
 }) {
   const originCountry = result.originCountry ?? input.originCountry ?? "china";
   const isKorea = originCountry === "korea";
-  const rateCode = isKorea ? "KRW" : "CNY";
+  const isKyrgyzstan = originCountry === "kyrgyzstan";
+  const rateCode = isKorea ? "KRW" : isKyrgyzstan ? "USD" : "CNY";
   const rateValue = input.rates[rateCode];
+  const originLabel = isKorea ? "Корея" : isKyrgyzstan ? "Киргизия" : "Китай";
 
   return (
     <div className="space-y-4">
@@ -101,7 +103,7 @@ export function CustomsEstimateSnapshot({
           {[
             createdAt ? new Date(createdAt).toLocaleString("ru-RU") : null,
             createdByName,
-            isKorea ? "Корея" : "Китай",
+            originLabel,
             `Курс ${rateCode}: ${rateValue.toLocaleString("ru-RU", {
               maximumFractionDigits: 2,
               minimumFractionDigits: 2,
@@ -150,6 +152,20 @@ export function CustomsEstimateSnapshot({
               emphasize
             />
           </>
+        ) : isKyrgyzstan ? (
+          <>
+            <ResultRow
+              label="Доставка до города"
+              value={result.cityDeliveryRub ?? 0}
+              note={formatForeignNote(result.cityDeliveryUsd ?? 0, "USD")}
+            />
+            <ResultRow
+              label={result.firstPaymentLabel ?? "Итог с комиссией ВТБ"}
+              value={result.vtbTotalRub}
+              note={result.firstPaymentNote ?? "Авто + доставка до города + 2%"}
+              emphasize
+            />
+          </>
         ) : (
           <>
             <ResultRow
@@ -169,22 +185,32 @@ export function CustomsEstimateSnapshot({
 
       <ResultSection title="Расходы по России">
         <ResultRow label="Услуги брокера" value={result.brokerFeeRub} />
-        <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
-        <ResultRow
-          label="Таможенная пошлина (ТП)"
-          value={result.customsDuty}
-          note={result.customsDutyNote}
-        />
+        {!isKyrgyzstan && (
+          <>
+            <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
+            <ResultRow
+              label="Таможенная пошлина (ТП)"
+              value={result.customsDuty}
+              note={result.customsDutyNote}
+            />
+          </>
+        )}
         <ResultRow
           label="Утилизационный сбор (УС)"
           value={result.recyclingFee}
           note={result.recyclingNote}
         />
-        <ResultRow label="Акциз (А)" value={result.excise} />
-        <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
+        {!isKyrgyzstan && (
+          <>
+            <ResultRow label="Акциз (А)" value={result.excise} />
+            <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
+          </>
+        )}
       </ResultSection>
 
-      <ResultSection title="Доставка и доп. расходы">
+      <ResultSection
+        title={isKyrgyzstan ? "Доставка и услуги сопровождения" : "Доставка и доп. расходы"}
+      >
         <ResultRow
           label="Доставка"
           value={result.deliveryRub}

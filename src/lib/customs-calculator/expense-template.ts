@@ -5,6 +5,7 @@ import {
   DEFAULT_KOREA_DELIVERY_RUB,
   DEFAULT_KOREA_DOCS_DELIVERY_KRW,
   DEFAULT_KOREA_PARKING_FEE_KRW,
+  DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD,
   KAZAKHSTAN_DELIVERY_USD,
   OriginCountry,
 } from "@/lib/customs-calculator/rates";
@@ -15,6 +16,7 @@ const DEFAULT_DELIVERY_RUB = 200_000;
 const DEFAULT_ESCORT_RUB = 200_000;
 export const CALCULATOR_EXPENSE_ROLES = [
   "china_local",
+  "city_delivery",
   "korea_parking",
   "korea_docs",
   "broker",
@@ -26,7 +28,7 @@ export const CALCULATOR_EXPENSE_ROLES = [
 
 export type CalculatorExpenseRole = (typeof CALCULATOR_EXPENSE_ROLES)[number];
 
-export const CALCULATOR_EXPENSE_ORIGINS = ["all", "china", "korea"] as const;
+export const CALCULATOR_EXPENSE_ORIGINS = ["all", "china", "korea", "kyrgyzstan"] as const;
 export type CalculatorExpenseOrigin = (typeof CALCULATOR_EXPENSE_ORIGINS)[number];
 
 export const CALCULATOR_EXPENSE_CURRENCIES: CurrencyCode[] = ["RUB", "USD", "CNY", "KRW"];
@@ -55,6 +57,15 @@ export function getDefaultCompanyCalculatorExpenses(): CalculatorExpenseItem[] {
       origin: "china",
       role: "china_local",
       sortOrder: 10,
+    },
+    {
+      id: "sys-kyrgyzstan-city-delivery",
+      label: "Доставка до города",
+      defaultAmount: DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD,
+      currency: "USD",
+      origin: "kyrgyzstan",
+      role: "city_delivery",
+      sortOrder: 15,
     },
     {
       id: "sys-korea-parking",
@@ -93,6 +104,15 @@ export function getDefaultCompanyCalculatorExpenses(): CalculatorExpenseItem[] {
       sortOrder: 41,
     },
     {
+      id: "sys-broker-kyrgyzstan",
+      label: "Услуги брокера",
+      defaultAmount: DEFAULT_BROKER_FEE_RUB,
+      currency: "RUB",
+      origin: "kyrgyzstan",
+      role: "broker",
+      sortOrder: 42,
+    },
+    {
       id: "sys-delivery-china",
       label: "Доставка по РФ",
       defaultAmount: DEFAULT_DELIVERY_RUB,
@@ -118,6 +138,15 @@ export function getDefaultCompanyCalculatorExpenses(): CalculatorExpenseItem[] {
       origin: "china",
       role: "delivery_usd",
       sortOrder: 52,
+    },
+    {
+      id: "sys-delivery-kyrgyzstan",
+      label: "Доставка",
+      defaultAmount: DEFAULT_DELIVERY_RUB,
+      currency: "RUB",
+      origin: "kyrgyzstan",
+      role: "delivery",
+      sortOrder: 53,
     },
     {
       id: "sys-escort",
@@ -166,6 +195,7 @@ export function sortExpenseItems(items: CalculatorExpenseItem[]): CalculatorExpe
 
 export const EXPENSE_ROLE_LABELS: Record<CalculatorExpenseRole, string> = {
   china_local: "Расходы по Китаю (в 1-й платёж)",
+  city_delivery: "Доставка до города (Киргизия, в 1-й платёж)",
   korea_parking: "Стоянка (Корея, в 1-й платёж)",
   korea_docs: "Документы/доставка до РФ (Корея)",
   broker: "Брокер",
@@ -179,4 +209,5 @@ export const EXPENSE_ORIGIN_LABELS: Record<CalculatorExpenseOrigin, string> = {
   all: "Все страны",
   china: "Только Китай",
   korea: "Только Корея",
+  kyrgyzstan: "Только Киргизия",
 };

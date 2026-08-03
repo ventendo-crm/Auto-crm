@@ -14,8 +14,9 @@ export interface CompanyCalculatorSettingsDto {
 }
 
 function normalizeItems(value: Prisma.JsonValue | null | undefined): CalculatorExpenseItem[] {
+  const defaults = getDefaultCompanyCalculatorExpenses();
   if (!Array.isArray(value) || value.length === 0) {
-    return getDefaultCompanyCalculatorExpenses();
+    return defaults;
   }
 
   const items: CalculatorExpenseItem[] = [];
@@ -44,7 +45,19 @@ function normalizeItems(value: Prisma.JsonValue | null | undefined): CalculatorE
     });
   }
 
-  return items.length > 0 ? sortExpenseItems(items) : getDefaultCompanyCalculatorExpenses();
+  if (items.length === 0) {
+    return defaults;
+  }
+
+  // Подмешиваем новые системные пункты (например, Киргизия), не трогая уже сохранённые.
+  const existingIds = new Set(items.map((item) => item.id));
+  for (const item of defaults) {
+    if (!existingIds.has(item.id)) {
+      items.push(item);
+    }
+  }
+
+  return sortExpenseItems(items);
 }
 
 export async function ensureCompanyCalculatorSettings(
@@ -55,9 +68,17 @@ export async function ensureCompanyCalculatorSettings(
   });
 
   if (existing) {
+    const expenseItems = normalizeItems(existing.expenseItems);
+    const previousCount = Array.isArray(existing.expenseItems) ? existing.expenseItems.length : 0;
+    if (expenseItems.length > previousCount) {
+      await prisma.companyCalculatorSettings.update({
+        where: { companyId },
+        data: { expenseItems: expenseItems as unknown as Prisma.InputJsonValue },
+      });
+    }
     return {
       companyId,
-      expenseItems: normalizeItems(existing.expenseItems),
+      expenseItems,
       updatedAt: existing.updatedAt.toISOString(),
     };
   }

@@ -8,7 +8,7 @@ const exchangeRatesSchema = z.object({
 });
 
 export const customsEstimateInputSchema = z.object({
-  originCountry: z.enum(["china", "korea"]).optional(),
+  originCountry: z.enum(["china", "korea", "kyrgyzstan"]).optional(),
   importer: z.enum(["personal", "resale", "legal"]),
   age: z.enum(["under3", "from3to5", "from5to7", "over7"]),
   engine: z.enum(["petrol", "diesel", "electric"]),
@@ -18,6 +18,7 @@ export const customsEstimateInputSchema = z.object({
   currency: z.enum(["RUB", "USD", "CNY", "KRW"]),
   rates: exchangeRatesSchema,
   chinaExpensesCny: z.number().nonnegative().optional(),
+  cityDeliveryUsd: z.number().nonnegative().optional(),
   koreaDocsDeliveryKrw: z.number().nonnegative().optional(),
   parkingFeeKrw: z.number().nonnegative().optional(),
   brokerFeeRub: z.number().nonnegative().optional(),

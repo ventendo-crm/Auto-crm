@@ -5,9 +5,10 @@ export const calculatorExpenseItemSchema = z.object({
   label: z.string().trim().min(1, "Укажите название").max(120),
   defaultAmount: z.number().finite().min(0).max(1_000_000_000),
   currency: z.enum(["RUB", "USD", "CNY", "KRW"]),
-  origin: z.enum(["all", "china", "korea"]),
+  origin: z.enum(["all", "china", "korea", "kyrgyzstan"]),
   role: z.enum([
     "china_local",
+    "city_delivery",
     "korea_parking",
     "korea_docs",
     "broker",
