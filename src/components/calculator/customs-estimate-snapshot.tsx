@@ -184,7 +184,7 @@ export function CustomsEstimateSnapshot({
         <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
       </ResultSection>
 
-      <ResultSection title="Доставка">
+      <ResultSection title="Доставка и доп. расходы">
         <ResultRow
           label="Доставка"
           value={result.deliveryRub}
@@ -202,6 +202,9 @@ export function CustomsEstimateSnapshot({
           }
         />
         <ResultRow label="Услуги сопровождения" value={result.escortRub} />
+        {(result.extraExpenses ?? []).map((item) => (
+          <ResultRow key={item.id} label={item.label} value={item.amountRub} />
+        ))}
       </ResultSection>
     </div>
   );

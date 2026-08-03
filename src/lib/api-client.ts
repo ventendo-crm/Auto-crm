@@ -519,21 +519,28 @@ export const api = {
       }
       return json.data;
     },
-    deleteLogo: async () => {
-      const response = await fetch("/api/calculator/settings/logo", {
-        method: "DELETE",
-        credentials: "include",
-      });
-      const json = (await response.json()) as {
-        success: boolean;
-        data?: import("@/lib/services/calculator-settings").CalculatorSettingsDto;
-        error?: string;
-      };
-      if (!response.ok || !json.success || !json.data) {
-        throw new Error(json.error ?? "Не удалось удалить логотип");
-      }
-      return json.data;
-    },
+    deleteLogo: () =>
+      request<import("@/lib/services/calculator-settings").CalculatorSettingsDto>(
+        "/api/calculator/settings/logo",
+        { method: "DELETE" },
+      ),
+  },
+
+  calculatorExpenseTemplate: {
+    get: () =>
+      request<import("@/lib/services/company-calculator-settings").CompanyCalculatorSettingsDto>(
+        "/api/calculator/expense-template",
+      ),
+    save: (
+      expenseItems: import("@/lib/customs-calculator/expense-template").CalculatorExpenseItem[],
+    ) =>
+      request<import("@/lib/services/company-calculator-settings").CompanyCalculatorSettingsDto>(
+        "/api/calculator/expense-template",
+        {
+          method: "PUT",
+          body: JSON.stringify({ expenseItems }),
+        },
+      ),
   },
 
   quickSearch: {

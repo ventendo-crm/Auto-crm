@@ -194,6 +194,10 @@ export function canAccessCalculator(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
 
+export function canManageCompanyCalculator(role: RoleName): boolean {
+  return role === ROLES.ADMIN;
+}
+
 export function canCreateCustomsEstimates(
   role: RoleName,
   userId: string,

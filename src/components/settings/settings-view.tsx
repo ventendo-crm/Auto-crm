@@ -1,5 +1,6 @@
 "use client";
 
+import { CalculatorExpensesPanel } from "@/components/settings/calculator-expenses-panel";
 import { CompaniesPanel } from "@/components/settings/companies-panel";
 import { EmailTemplatesPanel } from "@/components/settings/email-templates-panel";
 import { TelegramBotSettingsCard } from "@/components/settings/telegram-bot-settings-card";
@@ -22,9 +23,9 @@ export function SettingsView() {
   const isPlatformAdmin = Boolean(user?.isPlatformAdmin);
 
   const subtitle = isPlatformAdmin
-    ? "Профиль, компании, письма, Telegram и пользователи"
+    ? "Профиль, компании, письма, Telegram, калькулятор и пользователи"
     : isAdmin
-      ? "Профиль, уведомления, письма, Telegram и пользователи"
+      ? "Профиль, уведомления, письма, Telegram, калькулятор и пользователи"
       : canManageManagersTab
         ? "Профиль, уведомления и менеджеры"
         : isClient
@@ -35,7 +36,7 @@ export function SettingsView() {
     <>
       <Header title="Настройки" subtitle={subtitle} />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <Tabs defaultValue="profile" className="max-w-3xl">
+        <Tabs defaultValue="profile" className="max-w-5xl">
           <div className="-mx-1 overflow-x-auto pb-1">
             <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
               <TabsTrigger value="profile">Профиль</TabsTrigger>
@@ -44,6 +45,7 @@ export function SettingsView() {
               {isAdmin && <TabsTrigger value="users">Пользователи</TabsTrigger>}
               {isAdmin && <TabsTrigger value="email">Письма</TabsTrigger>}
               {isAdmin && <TabsTrigger value="telegram">Telegram</TabsTrigger>}
+              {isAdmin && <TabsTrigger value="calculator">Калькулятор</TabsTrigger>}
               {isPlatformAdmin && <TabsTrigger value="companies">Компании</TabsTrigger>}
             </TabsList>
           </div>
@@ -78,6 +80,12 @@ export function SettingsView() {
             <TabsContent value="telegram" className="mt-4 space-y-4">
               <TelegramBotSettingsCard />
               <TelegramTemplatesPanel />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="calculator" className="mt-4">
+              <CalculatorExpensesPanel />
             </TabsContent>
           )}
 

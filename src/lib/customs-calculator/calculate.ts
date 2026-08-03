@@ -48,6 +48,16 @@ export interface CustomsCalculatorInput {
   deliveryUsd?: number;
   /** Услуги сопровождения, ₽ */
   escortRub?: number;
+  /**
+   * Дополнительные расходы компании (шаблон калькулятора).
+   * Конвертируются в ₽ и прибавляются к итогу.
+   */
+  extraExpenses?: Array<{
+    id: string;
+    label: string;
+    amount: number;
+    currency: CurrencyCode;
+  }>;
 }
 
 export interface CustomsCalculatorResult {
@@ -79,6 +89,8 @@ export interface CustomsCalculatorResult {
   deliveryRub: number;
   deliveryNote: string;
   escortRub: number;
+  extraExpenses: Array<{ id: string; label: string; amountRub: number }>;
+  extraExpensesRub: number;
   totalCustoms: number;
   /** Полный итог со всеми расходами */
   totalWithCar: number;
@@ -566,8 +578,19 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
 
   const escortRub = normalizeOptionalRub(input.escortRub, DEFAULT_ESCORT_RUB);
 
+  const extraExpenses = (input.extraExpenses ?? [])
+    .filter((item) => item.label.trim() && Number.isFinite(item.amount) && item.amount > 0)
+    .map((item) => ({
+      id: item.id,
+      label: item.label.trim(),
+      amountRub: roundMoney(toRub(item.amount, item.currency, input.rates)),
+    }));
+  const extraExpensesRub = roundMoney(
+    extraExpenses.reduce((sum, item) => sum + item.amountRub, 0),
+  );
+
   const totalWithCar =
-    vtbTotalRub + brokerFeeRub + totalCustoms + deliveryRub + escortRub;
+    vtbTotalRub + brokerFeeRub + totalCustoms + deliveryRub + escortRub + extraExpensesRub;
 
   return {
     originCountry,
@@ -594,6 +617,8 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
     deliveryRub: roundMoney(deliveryRub),
     deliveryNote,
     escortRub: roundMoney(escortRub),
+    extraExpenses,
+    extraExpensesRub,
     totalCustoms: roundMoney(totalCustoms),
     totalWithCar: roundMoney(totalWithCar),
   };
