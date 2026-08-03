@@ -1,9 +1,10 @@
 "use client";
 
-import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, RefreshCw, X } from "lucide-react";
+import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, Pencil, RefreshCw, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
+import { CalculatorExpenseEditor } from "@/components/calculator/calculator-expense-editor";
 import { CalculatorPresetsPanel } from "@/components/calculator/calculator-presets-panel";
 import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-to-deal-button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
 import {
   calculateCustoms,
@@ -57,6 +59,7 @@ import {
   type CalculatorExpenseItem,
 } from "@/lib/customs-calculator";
 import type { CalculatorPresetInput } from "@/lib/validators/calculator-settings";
+import { canManageCompanyCalculator, getClientRoleName } from "@/lib/permissions";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const STORAGE_KEY = "autocrm-customs-calculator";
@@ -516,22 +519,27 @@ function FormSection({
   subtitle,
   open,
   onToggle,
+  actions,
   children,
 }: {
   title: string;
   subtitle?: string;
   open: boolean;
   onToggle: () => void;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <div className="rounded-xl border bg-muted/10">
-      <CollapsibleTrigger open={open} onToggle={onToggle} className="px-4 py-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium">{title}</p>
-          {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
-        </div>
-      </CollapsibleTrigger>
+      <div className="flex items-start gap-2 px-4 py-3">
+        <CollapsibleTrigger open={open} onToggle={onToggle} className="min-w-0 flex-1 px-0 py-0">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium">{title}</p>
+            {subtitle && <p className="mt-0.5 text-xs text-muted-foreground">{subtitle}</p>}
+          </div>
+        </CollapsibleTrigger>
+        {actions}
+      </div>
       <CollapsiblePanel open={open}>
         <div className="space-y-4 px-4 pb-4">{children}</div>
       </CollapsiblePanel>
@@ -618,6 +626,9 @@ async function saveResultAsPdf(element: HTMLElement) {
 }
 
 export function CustomsCalculator() {
+  const { user } = useAuth();
+  const role = getClientRoleName(user);
+  const canEditExpenseTemplate = role ? canManageCompanyCalculator(role) : false;
   const router = useRouter();
   const searchParams = useSearchParams();
   const [originCountry, setOriginCountry] = useState<OriginCountry>(DEFAULT_STATE.originCountry);
@@ -642,6 +653,7 @@ export function CustomsCalculator() {
     getDefaultCompanyCalculatorExpenses,
   );
   const [extraAmounts, setExtraAmounts] = useState<Record<string, string>>({});
+  const [editingExpenses, setEditingExpenses] = useState(false);
   const [rates, setRates] = useState<ExchangeRates>(DEFAULT_STATE.rates);
   const [submitted, setSubmitted] = useState(DEFAULT_STATE.submitted);
   const [hydrated, setHydrated] = useState(false);
@@ -1024,6 +1036,42 @@ export function CustomsCalculator() {
         window.setTimeout(() => setDetailsOpen(false), 200);
       }
     }
+  };
+
+  const handleExpenseTemplateSaved = (items: CalculatorExpenseItem[]) => {
+    setExpenseTemplate(items);
+    setExtraAmounts((prev) => {
+      const next = { ...prev };
+      for (const item of items.filter((row) => row.role === "extra")) {
+        if (next[item.id] === undefined) {
+          next[item.id] = String(item.defaultAmount);
+        }
+      }
+      return next;
+    });
+
+    const broker = findExpenseByRole(items, "broker", originCountry);
+    const delivery = findExpenseByRole(items, "delivery", originCountry);
+    const deliveryUsdItem = findExpenseByRole(items, "delivery_usd", originCountry);
+    const escort = findExpenseByRole(items, "escort", originCountry);
+    const chinaLocal = findExpenseByRole(items, "china_local", originCountry);
+    const koreaParking = findExpenseByRole(items, "korea_parking", originCountry);
+    const koreaDocs = findExpenseByRole(items, "korea_docs", originCountry);
+
+    if (broker) setBrokerFeeRub(String(broker.defaultAmount));
+    if (delivery) setDeliveryRub(String(delivery.defaultAmount));
+    if (deliveryUsdItem) setDeliveryUsd(String(deliveryUsdItem.defaultAmount));
+    if (escort) setEscortRub(String(escort.defaultAmount));
+    if (originCountry === "china" && chinaLocal) {
+      setChinaExpensesCny(chinaExpensesForAge(age));
+    }
+    if (originCountry === "korea") {
+      if (koreaParking) setParkingFeeKrw(String(koreaParking.defaultAmount));
+      if (koreaDocs) setKoreaDocsDeliveryKrw(String(koreaDocs.defaultAmount));
+    }
+
+    setEditingExpenses(false);
+    setExpensesOpen(true);
   };
 
   const handleAgeChange = (next: CarAge) => {
@@ -1524,13 +1572,43 @@ export function CustomsCalculator() {
           <FormSection
             title="2. Расходы"
             subtitle={
-              isKorea
-                ? "Стоянка, документы, брокер, доставка и доп. расходы компании"
-                : "Китай, брокер, доставка и доп. расходы компании"
+              editingExpenses
+                ? "Редактирование шаблона компании: добавление и удаление полей"
+                : isKorea
+                  ? "Стоянка, документы, брокер, доставка и доп. расходы компании"
+                  : "Китай, брокер, доставка и доп. расходы компании"
             }
             open={expensesOpen}
             onToggle={() => setExpensesOpen((value) => !value)}
+            actions={
+              canEditExpenseTemplate ? (
+                <Button
+                  type="button"
+                  variant={editingExpenses ? "secondary" : "outline"}
+                  size="sm"
+                  className="shrink-0"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    setExpensesOpen(true);
+                    setEditingExpenses((value) => !value);
+                  }}
+                >
+                  <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                  {editingExpenses ? "К расчёту" : "Редактировать"}
+                </Button>
+              ) : undefined
+            }
           >
+            {editingExpenses ? (
+              <CalculatorExpenseEditor
+                embedded
+                initialItems={expenseTemplate}
+                onSaved={handleExpenseTemplateSaved}
+                onCancel={() => setEditingExpenses(false)}
+              />
+            ) : (
+              <>
             {isKorea ? (
               <>
                 {expenseRoles.koreaParking && (
@@ -1768,6 +1846,8 @@ export function CustomsCalculator() {
                 />
               </div>
             ))}
+              </>
+            )}
           </FormSection>
 
           <FormSection
