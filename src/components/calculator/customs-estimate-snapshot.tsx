@@ -209,24 +209,26 @@ export function CustomsEstimateSnapshot({
       </ResultSection>
 
       <ResultSection
-        title={isKyrgyzstan ? "Доставка и услуги сопровождения" : "Доставка и доп. расходы"}
+        title={isKyrgyzstan ? "Услуги сопровождения" : "Доставка и доп. расходы"}
       >
-        <ResultRow
-          label="Доставка"
-          value={result.deliveryRub}
-          note={
-            result.deliveryNote ??
-            (input.deliveryRoute === "kazakhstan"
-              ? `через Казахстан · ${(input.deliveryUsd ?? 1500).toLocaleString("ru-RU", {
-                  maximumFractionDigits: 2,
-                })} USD`
-              : input.deliveryRoute === "vladivostok"
-                ? "из Владивостока"
-                : input.deliveryRoute === "ussuriysk"
-                  ? "через Уссурийск"
-                  : undefined)
-          }
-        />
+        {!isKyrgyzstan && (
+          <ResultRow
+            label="Доставка"
+            value={result.deliveryRub}
+            note={
+              result.deliveryNote ??
+              (input.deliveryRoute === "kazakhstan"
+                ? `через Казахстан · ${(input.deliveryUsd ?? 1500).toLocaleString("ru-RU", {
+                    maximumFractionDigits: 2,
+                  })} USD`
+                : input.deliveryRoute === "vladivostok"
+                  ? "из Владивостока"
+                  : input.deliveryRoute === "ussuriysk"
+                    ? "через Уссурийск"
+                    : undefined)
+            }
+          />
+        )}
         <ResultRow label="Услуги сопровождения" value={result.escortRub} />
         {(result.extraExpenses ?? []).map((item) => (
           <ResultRow key={item.id} label={item.label} value={item.amountRub} />

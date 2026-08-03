@@ -594,9 +594,10 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
     deliveryRub = normalizeOptionalRub(input.deliveryRub, DEFAULT_KOREA_DELIVERY_RUB);
     deliveryNote = "из Владивостока";
   } else if (originCountry === "kyrgyzstan") {
+    // Для Киргизии доставка только «до города» (USD) в первом платеже ВТБ.
     deliveryRoute = "ussuriysk";
-    deliveryRub = normalizeOptionalRub(input.deliveryRub, DEFAULT_DELIVERY_RUB);
-    deliveryNote = "по РФ";
+    deliveryRub = 0;
+    deliveryNote = "";
   } else {
     deliveryRoute = input.deliveryRoute === "kazakhstan" ? "kazakhstan" : "ussuriysk";
     const resolved = resolveDelivery(

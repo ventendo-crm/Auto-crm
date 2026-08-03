@@ -1137,7 +1137,7 @@ export function CustomsCalculator() {
       setCurrency("USD");
       setBrokerFeeRub(String(broker?.defaultAmount ?? 0));
       setDeliveryRoute("ussuriysk");
-      setDeliveryRub(String(delivery?.defaultAmount ?? 0));
+      setDeliveryRub("0");
       setCityDeliveryUsd(String(cityDelivery?.defaultAmount ?? DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD));
     } else {
       setCurrency("CNY");
@@ -1621,7 +1621,7 @@ export function CustomsCalculator() {
                 : isKorea
                   ? "Стоянка, документы, брокер, доставка и доп. расходы компании"
                   : isKyrgyzstan
-                    ? "Доставка до города, брокер, доставка и доп. расходы компании"
+                    ? "Доставка до города, брокер, сопровождение и доп. расходы компании"
                     : "Китай, брокер, доставка и доп. расходы компании"
             }
             open={expensesOpen}
@@ -1758,7 +1758,7 @@ export function CustomsCalculator() {
               </div>
             )}
 
-            {isKorea || isKyrgyzstan ? (
+            {isKorea ? (
               <div className="grid gap-4 sm:grid-cols-2">
                 {expenseRoles.delivery && (
                   <div className="space-y-2">
@@ -1796,6 +1796,22 @@ export function CustomsCalculator() {
                   </div>
                 )}
               </div>
+            ) : isKyrgyzstan ? (
+              expenseRoles.escort && (
+                <div className="space-y-2">
+                  <Label htmlFor="escort-rub">
+                    {expenseRoles.escort.label}, {expenseRoles.escort.currency}
+                  </Label>
+                  <Input
+                    id="escort-rub"
+                    type="number"
+                    min={0}
+                    step="1"
+                    value={escortRub}
+                    onChange={(event) => setEscortRub(event.target.value)}
+                  />
+                </div>
+              )
             ) : (
               <>
                 {(expenseRoles.delivery || expenseRoles.deliveryUsd) && (
@@ -2139,7 +2155,7 @@ export function CustomsCalculator() {
                       {isKorea
                         ? "Инвойс, таможня, доставка"
                         : isKyrgyzstan
-                          ? "ВТБ, утильсбор, доставка"
+                          ? "ВТБ, утильсбор, сопровождение"
                           : "ВТБ, таможня, доставка"}
                     </p>
                   </div>
@@ -2308,11 +2324,11 @@ export function CustomsCalculator() {
                       compact
                       title={
                         isKyrgyzstan
-                          ? "Доставка и услуги сопровождения"
+                          ? "Услуги сопровождения"
                           : "Доставка и доп. расходы"
                       }
                     >
-                      {result.deliveryRub > 0 && (
+                      {!isKyrgyzstan && result.deliveryRub > 0 && (
                         <ResultRow
                           compact
                           label={

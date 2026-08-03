@@ -49,15 +49,19 @@ function normalizeItems(value: Prisma.JsonValue | null | undefined): CalculatorE
     return defaults;
   }
 
+  // Устаревшие системные пункты (например, рублёвая доставка Киргизии).
+  const removedSystemIds = new Set(["sys-delivery-kyrgyzstan"]);
+  const kept = items.filter((item) => !removedSystemIds.has(item.id));
+
   // Подмешиваем новые системные пункты (например, Киргизия), не трогая уже сохранённые.
-  const existingIds = new Set(items.map((item) => item.id));
+  const existingIds = new Set(kept.map((item) => item.id));
   for (const item of defaults) {
     if (!existingIds.has(item.id)) {
-      items.push(item);
+      kept.push(item);
     }
   }
 
-  return sortExpenseItems(items);
+  return sortExpenseItems(kept);
 }
 
 export async function ensureCompanyCalculatorSettings(
@@ -70,7 +74,7 @@ export async function ensureCompanyCalculatorSettings(
   if (existing) {
     const expenseItems = normalizeItems(existing.expenseItems);
     const previousCount = Array.isArray(existing.expenseItems) ? existing.expenseItems.length : 0;
-    if (expenseItems.length > previousCount) {
+    if (expenseItems.length !== previousCount) {
       await prisma.companyCalculatorSettings.update({
         where: { companyId },
         data: { expenseItems: expenseItems as unknown as Prisma.InputJsonValue },

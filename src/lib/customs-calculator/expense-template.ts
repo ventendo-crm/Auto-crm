@@ -140,15 +140,6 @@ export function getDefaultCompanyCalculatorExpenses(): CalculatorExpenseItem[] {
       sortOrder: 52,
     },
     {
-      id: "sys-delivery-kyrgyzstan",
-      label: "Доставка",
-      defaultAmount: DEFAULT_DELIVERY_RUB,
-      currency: "RUB",
-      origin: "kyrgyzstan",
-      role: "delivery",
-      sortOrder: 53,
-    },
-    {
       id: "sys-escort",
       label: "Услуги сопровождения",
       defaultAmount: DEFAULT_ESCORT_RUB,
