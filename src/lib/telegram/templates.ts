@@ -13,6 +13,11 @@ export const TELEGRAM_TEMPLATE_PLACEHOLDERS = {
   ],
   CLIENT_STAGE: ["stageLabel", "body", "carLine", "vinLine"],
   COMMENT: ["clientName", "vin", "authorName", "authorRole", "commentText"],
+  TRACKING_POINT: [
+    "pointTitle",
+    "pointDescription",
+    "recordedAt",
+  ],
   TEST: ["userName"],
 } as const;
 
@@ -117,6 +122,33 @@ export async function formatCommentMessage(params: {
     authorRole: params.authorRole,
     commentText: preview,
   });
+}
+
+export async function formatCarCarrierTrackingPointMessage(params: {
+  companyId: string;
+  pointTitle?: string | null;
+  pointDescription?: string | null;
+  recordedAt?: Date | string | null;
+}): Promise<string> {
+  const template = await getTelegramTemplateRecord(params.companyId, "TRACKING_POINT");
+  const recordedAt = params.recordedAt
+    ? new Intl.DateTimeFormat("ru-RU", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(params.recordedAt))
+    : "";
+
+  const title = params.pointTitle?.trim() || "Новая точка маршрута";
+  const description = params.pointDescription?.trim() || "";
+
+  return renderTemplateString(template.textBody, {
+    pointTitle: escapeHtml(title),
+    pointDescription: description ? escapeHtml(description) : "",
+    recordedAt: escapeHtml(recordedAt),
+  }).trim();
 }
 
 export async function formatTestNotificationMessage(

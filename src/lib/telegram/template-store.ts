@@ -60,6 +60,22 @@ const DEFAULT_TEMPLATES: Record<
     description:
       "Уведомление о комментарии. Переменные: {{clientName}}, {{vin}}, {{authorName}}, {{authorRole}}, {{commentText}}.",
   },
+  TRACKING_POINT: {
+    key: "TRACKING_POINT",
+    name: "Точка маршрута автовоза (клиент)",
+    textBody: `🚚 <b>Обновление маршрута автовоза</b>
+
+Ваш автомобиль на новой точке маршрута.
+
+<b>{{pointTitle}}</b>
+{{pointDescription}}
+
+<b>Дата:</b> {{recordedAt}}
+
+Подробности — в личном кабинете Auto-CRM.`,
+    description:
+      "Уведомление клиенту при добавлении точки в «Отслеживание автовоза». Переменные: {{pointTitle}}, {{pointDescription}}, {{recordedAt}}.",
+  },
   TEST: {
     key: "TEST",
     name: "Тестовое сообщение",

@@ -14,6 +14,7 @@ import {
 } from "@/lib/constants";
 import { getClientStageMessage } from "@/lib/services/client-stage-messages";
 import {
+  formatCarCarrierTrackingPointMessage,
   formatClientStageNotificationMessage,
   formatCommentMessage,
   formatStageChangeMessage,
@@ -343,6 +344,54 @@ export async function notifyClientInvoiceUploaded(params: {
     dealId: params.dealId,
     clientUserId: deal.clientUserId,
     vin: deal.vin,
+  });
+}
+
+/** Уведомляет клиента о новой точке в «Отслеживание автовоза». */
+export async function notifyClientCarCarrierTrackingPointAdded(params: {
+  dealId: string;
+  pointTitle?: string | null;
+  pointDescription?: string | null;
+  recordedAt?: Date | string | null;
+}): Promise<void> {
+  const deal = await prisma.deal.findUnique({
+    where: { id: params.dealId },
+    select: {
+      companyId: true,
+      clientUserId: true,
+    },
+  });
+
+  if (!deal?.clientUserId) {
+    return;
+  }
+
+  const pointTitle = params.pointTitle?.trim() || "Новая точка маршрута";
+  const pointDescription = params.pointDescription?.trim() || "";
+
+  const title = "Обновление маршрута автовоза";
+  const message = [pointTitle, ...(pointDescription ? [pointDescription] : [])].join("\n");
+
+  await createNotification({
+    userId: deal.clientUserId,
+    dealId: params.dealId,
+    title,
+    message,
+    type: NotificationType.SYSTEM,
+  });
+
+  const telegramText = await formatCarCarrierTrackingPointMessage({
+    companyId: deal.companyId,
+    pointTitle,
+    pointDescription,
+    recordedAt: params.recordedAt,
+  });
+
+  await dispatchTelegramToUsers({
+    companyId: deal.companyId,
+    userIds: [deal.clientUserId],
+    text: telegramText,
+    includeDefaultChatIds: false,
   });
 }
 

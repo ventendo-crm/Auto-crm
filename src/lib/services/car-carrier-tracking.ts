@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { AuthUser } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
+import { notifyClientCarCarrierTrackingPointAdded } from "@/lib/services/notifications";
 import {
   assertDealMediaAccess,
   deleteMedia,
@@ -144,6 +145,15 @@ export async function createCarCarrierTrackingPoint(
       title: point.title,
       sortOrder: point.sortOrder,
     },
+  });
+
+  void notifyClientCarCarrierTrackingPointAdded({
+    dealId,
+    pointTitle: point.title,
+    pointDescription: point.description,
+    recordedAt: point.recordedAt,
+  }).catch((error) => {
+    console.error("[car-carrier-tracking] client telegram notify failed:", error);
   });
 
   return serializePoint(point);

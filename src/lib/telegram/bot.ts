@@ -11,6 +11,7 @@ import {
 } from "@/lib/storage/local-uploads";
 
 export {
+  formatCarCarrierTrackingPointMessage,
   formatCommentMessage,
   formatClientStageNotificationMessage,
   formatStageChangeMessage,
