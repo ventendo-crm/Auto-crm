@@ -16,7 +16,8 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Pencil, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { CalculatorPresetInput } from "@/lib/validators/calculator-settings";
 import { cn } from "@/lib/utils";
+
+const PRESETS_OPEN_STORAGE_KEY = "autocrm-customs-calculator-presets-open";
 
 interface CalculatorPresetsPanelProps {
   presets: CalculatorPresetInput[];
@@ -105,6 +108,18 @@ function SortablePresetRow({
   );
 }
 
+function loadPresetsOpen(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = window.localStorage.getItem(PRESETS_OPEN_STORAGE_KEY);
+    if (raw === "0") return false;
+    if (raw === "1") return true;
+  } catch {
+    // ignore
+  }
+  return true;
+}
+
 export function CalculatorPresetsPanel({
   presets,
   saving = false,
@@ -112,11 +127,27 @@ export function CalculatorPresetsPanel({
   onChange,
   onSaveCurrent,
 }: CalculatorPresetsPanelProps) {
+  const [open, setOpen] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
 
   const renaming = presets.find((item) => item.id === renameId) ?? null;
+
+  useEffect(() => {
+    setOpen(loadPresetsOpen());
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      window.localStorage.setItem(PRESETS_OPEN_STORAGE_KEY, open ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [hydrated, open]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -138,60 +169,97 @@ export function CalculatorPresetsPanel({
   };
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <p className="text-sm font-medium">Пресеты</p>
-          <p className="text-xs text-muted-foreground">Сохраняются в вашем аккаунте</p>
-        </div>
-        <Button type="button" variant="outline" size="sm" disabled={saving} onClick={onSaveCurrent}>
+    <div className="rounded-xl border bg-muted/10">
+      <div className="flex items-start gap-2 px-4 py-3">
+        <CollapsibleTrigger
+          open={open}
+          onToggle={() => setOpen((value) => !value)}
+          className="min-w-0 flex-1 px-0 py-0"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium">Пресеты</p>
+              {presets.length > 0 && (
+                <span className="rounded-md border bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground tabular-nums">
+                  {presets.length}
+                </span>
+              )}
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              {open ? "Сохраняются в вашем аккаунте" : "Нажмите, чтобы развернуть"}
+            </p>
+          </div>
+        </CollapsibleTrigger>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="shrink-0"
+          disabled={saving}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onSaveCurrent();
+          }}
+        >
           Сохранить пресет
         </Button>
       </div>
 
-      {presets.length > 0 ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={presets.map((item) => item.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
-              {presets.map((preset) => (
-                <SortablePresetRow
-                  key={preset.id}
-                  preset={preset}
-                  onApply={() => onApply(preset)}
-                  onRename={() => {
-                    setRenameId(preset.id);
-                    setRenameValue(preset.name);
-                  }}
-                  onDelete={() => onChange(presets.filter((item) => item.id !== preset.id))}
-                />
-              ))}
-            </div>
-          </SortableContext>
-        </DndContext>
-      ) : (
-        <p className="text-xs text-muted-foreground">
-          Сохраните текущие параметры расчёта — они будут доступны с любого устройства.
-        </p>
-      )}
+      <CollapsiblePanel open={open}>
+        <div className="space-y-3 px-4 pb-4">
+          {presets.length > 0 ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={presets.map((item) => item.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div className="space-y-2">
+                  {presets.map((preset) => (
+                    <SortablePresetRow
+                      key={preset.id}
+                      preset={preset}
+                      onApply={() => onApply(preset)}
+                      onRename={() => {
+                        setRenameId(preset.id);
+                        setRenameValue(preset.name);
+                      }}
+                      onDelete={() => onChange(presets.filter((item) => item.id !== preset.id))}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Сохраните текущие параметры расчёта — они будут доступны с любого устройства.
+            </p>
+          )}
 
-      {presets.length > 0 && (
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
-            onClick={() => onChange([])}
-          >
-            Очистить все
-          </Button>
+          {presets.length > 0 && (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+                onClick={() => onChange([])}
+              >
+                Очистить все
+              </Button>
+            </div>
+          )}
         </div>
-      )}
+      </CollapsiblePanel>
 
       <Dialog
         open={Boolean(renaming)}
-        onOpenChange={(open) => {
-          if (!open) {
+        onOpenChange={(openDialog) => {
+          if (!openDialog) {
             setRenameId(null);
             setRenameValue("");
           }
