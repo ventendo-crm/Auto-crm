@@ -1,4 +1,4 @@
-import { DealStageType, DocumentType, NotificationType } from "@prisma/client";
+import { DealStageType, DocumentType, MediaType, NotificationType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendEmailToClientUser } from "@/lib/email/send";
 import {
@@ -22,7 +22,9 @@ import {
   getDefaultTelegramChatIds,
   isCompanyTelegramConfigured,
   sendCompanyTelegramDocument,
+  sendCompanyTelegramMedia,
   sendCompanyTelegramMessages,
+  type CompanyTelegramMediaItem,
 } from "@/lib/telegram/bot";
 import { displayStoredFileName } from "@/lib/storage/local-uploads";
 
@@ -262,36 +264,6 @@ export async function sendClientInvoiceDocumentIfReady(params: {
   clientUserId: string;
   vin?: string | null;
 }): Promise<boolean> {
-  const [client, invoice] = await Promise.all([
-    prisma.user.findUnique({
-      where: { id: params.clientUserId },
-      select: { telegramChatId: true, name: true },
-    }),
-    prisma.document.findUnique({
-      where: {
-        dealId_type: { dealId: params.dealId, type: DocumentType.INVOICE },
-      },
-      select: { fileUrl: true },
-    }),
-  ]);
-
-  if (!client?.telegramChatId?.trim()) {
-    console.warn(
-      "[notifications] Invoice Telegram skipped: client has no telegramChatId",
-      params.clientUserId,
-    );
-    return false;
-  }
-
-  if (!invoice?.fileUrl) {
-    console.warn(
-      "[notifications] Invoice Telegram skipped: INVOICE file missing for deal",
-      params.dealId,
-    );
-    return false;
-  }
-
-  const fileName = displayStoredFileName(invoice.fileUrl.split("/").pop() || "invoice.pdf");
   const caption = [
     "📄 <b>Инвойс по вашей сделке</b>",
     params.vin?.trim() ? `VIN: <code>${params.vin.trim()}</code>` : "",
@@ -301,17 +273,71 @@ export async function sendClientInvoiceDocumentIfReady(params: {
     .filter(Boolean)
     .join("\n");
 
+  return sendClientDealDocument({
+    companyId: params.companyId,
+    dealId: params.dealId,
+    clientUserId: params.clientUserId,
+    type: DocumentType.INVOICE,
+    caption,
+    defaultFileName: "invoice.pdf",
+  });
+}
+
+async function sendClientDealDocument(params: {
+  companyId: string;
+  dealId: string;
+  clientUserId: string;
+  type: DocumentType;
+  caption: string;
+  defaultFileName: string;
+}): Promise<boolean> {
+  const [client, document] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: params.clientUserId },
+      select: { telegramChatId: true },
+    }),
+    prisma.document.findUnique({
+      where: {
+        dealId_type: { dealId: params.dealId, type: params.type },
+      },
+      select: { fileUrl: true },
+    }),
+  ]);
+
+  if (!client?.telegramChatId?.trim()) {
+    console.warn(
+      "[notifications] Document Telegram skipped: client has no telegramChatId",
+      params.type,
+      params.clientUserId,
+    );
+    return false;
+  }
+
+  if (!document?.fileUrl) {
+    console.warn(
+      "[notifications] Document Telegram skipped: file missing",
+      params.type,
+      params.dealId,
+    );
+    return false;
+  }
+
+  const fileName = displayStoredFileName(
+    document.fileUrl.split("/").pop() || params.defaultFileName,
+  );
+
   const result = await sendCompanyTelegramDocument({
     companyId: params.companyId,
     chatId: client.telegramChatId.trim(),
-    fileUrl: invoice.fileUrl,
-    caption,
+    fileUrl: document.fileUrl,
+    caption: params.caption,
     displayName: fileName,
   });
 
   if (!result.ok) {
     console.error(
-      "[notifications] Invoice Telegram document failed:",
+      "[notifications] Document Telegram failed:",
+      params.type,
       result.chatId,
       result.error,
     );
@@ -344,6 +370,259 @@ export async function notifyClientInvoiceUploaded(params: {
     dealId: params.dealId,
     clientUserId: deal.clientUserId,
     vin: deal.vin,
+  });
+}
+
+/** Уведомляет клиента о загруженном ЭПТС и отправляет файл в Telegram. */
+export async function notifyClientEptsUploaded(params: {
+  dealId: string;
+  companyId: string;
+}): Promise<void> {
+  const deal = await prisma.deal.findFirst({
+    where: { id: params.dealId, companyId: params.companyId },
+    select: { clientUserId: true },
+  });
+
+  if (!deal?.clientUserId) {
+    return;
+  }
+
+  await createNotification({
+    userId: deal.clientUserId,
+    dealId: params.dealId,
+    title: "ЭПТС загружен",
+    message: "Документ ЭПТС доступен в личном кабинете.",
+    type: NotificationType.SYSTEM,
+  });
+
+  await sendClientDealDocument({
+    companyId: params.companyId,
+    dealId: params.dealId,
+    clientUserId: deal.clientUserId,
+    type: DocumentType.EPTS,
+    caption: ["📄 <b>ЭПТС по вашей сделке</b>", "", "Документ во вложении."].join("\n"),
+    defaultFileName: "epts.pdf",
+  });
+}
+
+async function resolveClientTelegramTarget(dealId: string): Promise<{
+  companyId: string;
+  clientUserId: string;
+  chatId: string;
+} | null> {
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: {
+      companyId: true,
+      clientUserId: true,
+      clientUser: { select: { telegramChatId: true } },
+    },
+  });
+
+  const chatId = deal?.clientUser?.telegramChatId?.trim();
+  if (!deal?.clientUserId || !chatId) {
+    return null;
+  }
+
+  return {
+    companyId: deal.companyId,
+    clientUserId: deal.clientUserId,
+    chatId,
+  };
+}
+
+async function notifyClientWithMedia(params: {
+  dealId: string;
+  title: string;
+  message: string;
+  caption: string;
+  media: CompanyTelegramMediaItem[];
+}): Promise<void> {
+  const deal = await prisma.deal.findUnique({
+    where: { id: params.dealId },
+    select: { companyId: true, clientUserId: true },
+  });
+
+  if (!deal?.clientUserId) {
+    return;
+  }
+
+  await createNotification({
+    userId: deal.clientUserId,
+    dealId: params.dealId,
+    title: params.title,
+    message: params.message,
+    type: NotificationType.SYSTEM,
+  });
+
+  const target = await resolveClientTelegramTarget(params.dealId);
+  if (!target) {
+    console.warn(
+      "[notifications] Media Telegram skipped: no telegramChatId",
+      params.dealId,
+    );
+    return;
+  }
+
+  if (params.media.length === 0) {
+    await dispatchTelegramToUsers({
+      companyId: target.companyId,
+      userIds: [target.clientUserId],
+      text: params.caption,
+      includeDefaultChatIds: false,
+    });
+    return;
+  }
+
+  const result = await sendCompanyTelegramMedia({
+    companyId: target.companyId,
+    chatId: target.chatId,
+    items: params.media,
+    caption: params.caption,
+  });
+
+  if (!result.ok) {
+    console.error(
+      "[notifications] Media Telegram failed:",
+      result.chatId,
+      result.error,
+    );
+    await dispatchTelegramToUsers({
+      companyId: target.companyId,
+      userIds: [target.clientUserId],
+      text: params.caption,
+      includeDefaultChatIds: false,
+    });
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function toTelegramMediaItems(
+  media: Array<{ fileKey: string; fileName: string; type: MediaType }>,
+): CompanyTelegramMediaItem[] {
+  return media
+    .filter((item) => item.fileKey?.trim() && item.fileName?.trim())
+    .map((item) => ({
+      fileUrl: item.fileKey,
+      fileName: item.fileName,
+      type: item.type,
+    }));
+}
+
+/** Фото/видео нового варианта в «Процессе поиска». */
+export async function notifyClientSearchProcessMediaUploaded(params: {
+  dealId: string;
+  entryId: string;
+  media: Array<{ fileKey: string; fileName: string; type: MediaType }>;
+}): Promise<void> {
+  const items = toTelegramMediaItems(params.media);
+  if (items.length === 0) {
+    return;
+  }
+
+  const entry = await prisma.searchProcessEntry.findFirst({
+    where: { id: params.entryId, dealId: params.dealId },
+    select: { description: true, sortOrder: true },
+  });
+
+  if (!entry) {
+    return;
+  }
+
+  const variantNumber = entry.sortOrder + 1;
+  const description = entry.description.trim();
+  const title = `Новый вариант автомобиля №${variantNumber}`;
+  const message = description || "Добавлены фото по варианту в поиске.";
+  const caption = [
+    `🚗 <b>Новый вариант автомобиля</b>`,
+    "",
+    `<b>Вариант №${variantNumber}</b>`,
+    description ? escapeHtml(description) : "",
+  ]
+    .filter((line, index, lines) => line.length > 0 || (index > 0 && lines[index - 1]?.length > 0))
+    .join("\n")
+    .trim();
+
+  await notifyClientWithMedia({
+    dealId: params.dealId,
+    title,
+    message,
+    caption,
+    media: items,
+  });
+}
+
+/** Фото/видео к точке маршрута автовоза. */
+export async function notifyClientTrackingPointMediaUploaded(params: {
+  dealId: string;
+  pointId: string;
+  media: Array<{ fileKey: string; fileName: string; type: MediaType }>;
+}): Promise<void> {
+  const items = toTelegramMediaItems(params.media);
+  if (items.length === 0) {
+    return;
+  }
+
+  const point = await prisma.carCarrierTrackingPoint.findFirst({
+    where: { id: params.pointId, dealId: params.dealId },
+    select: { title: true, description: true },
+  });
+
+  if (!point) {
+    return;
+  }
+
+  const pointTitle = point.title.trim() || "Точка маршрута";
+  const pointDescription = point.description.trim();
+  const title = "Фото с маршрута автовоза";
+  const message = [pointTitle, ...(pointDescription ? [pointDescription] : [])].join("\n");
+  const caption = [
+    "🚚 <b>Фото с маршрута автовоза</b>",
+    "",
+    `<b>${escapeHtml(pointTitle)}</b>`,
+    pointDescription ? escapeHtml(pointDescription) : "",
+  ]
+    .filter((line, index, lines) => line.length > 0 || (index > 0 && lines[index - 1]?.length > 0))
+    .join("\n")
+    .trim();
+
+  await notifyClientWithMedia({
+    dealId: params.dealId,
+    title,
+    message,
+    caption,
+    media: items,
+  });
+}
+
+/** Новые фото/видео в галерее сделки. */
+export async function notifyClientGalleryMediaUploaded(params: {
+  dealId: string;
+  media: Array<{ fileKey: string; fileName: string; type: MediaType }>;
+}): Promise<void> {
+  const items = toTelegramMediaItems(params.media);
+  if (items.length === 0) {
+    return;
+  }
+
+  const hasVideo = items.some((item) => item.type === MediaType.VIDEO);
+  const title = hasVideo ? "Новые медиа по сделке" : "Новые фото по сделке";
+  const message = "Материалы доступны в личном кабинете.";
+  const caption = [
+    hasVideo ? "🖼 <b>Новые медиа по вашей сделке</b>" : "🖼 <b>Новые фото по вашей сделке</b>",
+    "",
+    "Смотрите вложения. Подробности — в личном кабинете.",
+  ].join("\n");
+
+  await notifyClientWithMedia({
+    dealId: params.dealId,
+    title,
+    message,
+    caption,
+    media: items,
   });
 }
 

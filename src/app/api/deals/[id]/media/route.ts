@@ -2,6 +2,7 @@ import { withAuth, assertFound } from "@/lib/api-handler";
 import { created, error, ok } from "@/lib/api-response";
 import { getDeal } from "@/lib/services/deals";
 import { listDealMedia, uploadDealMedia } from "@/lib/services/media";
+import { notifyClientGalleryMediaUploaded } from "@/lib/services/notifications";
 import { serialize } from "@/lib/serialize";
 
 export const runtime = "nodejs";
@@ -34,6 +35,17 @@ export const POST = withAuth(async (request, { user, params }) => {
   for (const file of files) {
     uploaded.push(await uploadDealMedia(user, params.id, file));
   }
+
+  void notifyClientGalleryMediaUploaded({
+    dealId: params.id,
+    media: uploaded.map((item) => ({
+      fileKey: item.fileKey,
+      fileName: item.fileName,
+      type: item.type,
+    })),
+  }).catch((err) => {
+    console.error("[media] client telegram gallery notify failed:", err);
+  });
 
   return created(serialize(uploaded.length === 1 ? uploaded[0] : uploaded));
 });

@@ -7,7 +7,7 @@ import { canUploadDealDocuments } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { getDeal } from "@/lib/services/deals";
-import { notifyClientInvoiceUploaded } from "@/lib/services/notifications";
+import { notifyClientEptsUploaded, notifyClientInvoiceUploaded } from "@/lib/services/notifications";
 import { serialize } from "@/lib/serialize";
 import { z } from "zod";
 
@@ -95,6 +95,15 @@ export const POST = withAuth(async (request, { user }) => {
       companyId: user.companyId,
     }).catch((error) => {
       console.error("[documents] invoice telegram notify failed:", error);
+    });
+  }
+
+  if (type === DocumentType.EPTS) {
+    void notifyClientEptsUploaded({
+      dealId,
+      companyId: user.companyId,
+    }).catch((error) => {
+      console.error("[documents] epts telegram notify failed:", error);
     });
   }
 

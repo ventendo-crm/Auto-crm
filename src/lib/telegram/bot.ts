@@ -1,3 +1,4 @@
+import { MediaType } from "@prisma/client";
 import { randomBytes } from "crypto";
 import { readFile } from "fs/promises";
 import { callTelegramApi, callTelegramApiForm } from "@/lib/telegram/http";
@@ -9,6 +10,7 @@ import {
   isLocalUploadUrl,
   localUploadFilePath,
 } from "@/lib/storage/local-uploads";
+import { openStoredMediaFile } from "@/lib/storage/media-storage";
 
 export {
   formatCarCarrierTrackingPointMessage,
@@ -23,6 +25,12 @@ export interface TelegramSendResult {
   ok: boolean;
   chatId: string;
   error?: string;
+}
+
+export interface CompanyTelegramMediaItem {
+  fileUrl: string;
+  fileName: string;
+  type: MediaType;
 }
 
 export interface CompanyTelegramConfig {
@@ -165,7 +173,7 @@ export async function sendTelegramDocumentWithToken(params: {
     form.append("chat_id", params.chatId);
     form.append(
       "document",
-      new Blob([bytes], {
+      new Blob([bufferToBlobPart(bytes)], {
         type: params.contentType || guessUploadContentType(params.fileName),
       }),
       params.fileName,
@@ -185,7 +193,7 @@ export async function sendTelegramDocumentWithToken(params: {
         plainForm.append("chat_id", params.chatId);
         plainForm.append(
           "document",
-          new Blob([bytes], {
+          new Blob([bufferToBlobPart(bytes)], {
             type: params.contentType || guessUploadContentType(params.fileName),
           }),
           params.fileName,
@@ -226,12 +234,13 @@ export async function sendCompanyTelegramDocument(params: {
     return {
       ok: false,
       chatId: params.chatId,
-      error: "Поддерживается только локально загруженный файл инвойса",
+      error: "Поддерживается только локально загруженный файл",
     };
   }
 
   const fileName =
-    params.displayName?.trim() || displayStoredFileName(params.fileUrl.split("/").pop() || "invoice");
+    params.displayName?.trim() ||
+    displayStoredFileName(params.fileUrl.split("/").pop() || "document");
 
   return sendTelegramDocumentWithToken({
     token: config.token,
@@ -241,6 +250,235 @@ export async function sendCompanyTelegramDocument(params: {
     caption: params.caption,
     contentType: guessUploadContentType(fileName),
   });
+}
+
+function truncateTelegramCaption(caption: string): string {
+  return caption.length > 1024 ? `${caption.slice(0, 1020).trim()}…` : caption;
+}
+
+function bufferToBlobPart(bytes: Buffer): BlobPart {
+  return Uint8Array.from(bytes);
+}
+
+function isPhotoMediaType(type: MediaType): boolean {
+  return type === MediaType.PHOTO;
+}
+
+async function loadTelegramMediaBytes(item: CompanyTelegramMediaItem): Promise<{
+  bytes: Buffer;
+  fileName: string;
+  contentType: string;
+  kind: "photo" | "video";
+}> {
+  const fileName = item.fileName.trim() || "file";
+  const kind = isPhotoMediaType(item.type) ? "photo" : "video";
+  const opened = await openStoredMediaFile(item.fileUrl, fileName);
+  const bytes = Buffer.from(await new Response(opened.stream).arrayBuffer());
+  return {
+    bytes,
+    fileName: opened.fileName || fileName,
+    contentType: opened.contentType || guessUploadContentType(fileName),
+    kind,
+  };
+}
+
+export async function sendTelegramPhotoWithToken(params: {
+  token: string;
+  chatId: string;
+  bytes: Buffer;
+  fileName: string;
+  contentType?: string;
+  caption?: string;
+}): Promise<TelegramSendResult> {
+  const form = new FormData();
+  form.append("chat_id", params.chatId);
+  form.append(
+    "photo",
+    new Blob([bufferToBlobPart(params.bytes)], {
+      type: params.contentType || guessUploadContentType(params.fileName),
+    }),
+    params.fileName,
+  );
+  if (params.caption?.trim()) {
+    form.append("caption", truncateTelegramCaption(params.caption));
+    form.append("parse_mode", "HTML");
+  }
+
+  const result = await callTelegramApiForm(params.token, "sendPhoto", form);
+  if (!result.ok) {
+    if (result.error?.includes("can't parse entities") && params.caption) {
+      const plainForm = new FormData();
+      plainForm.append("chat_id", params.chatId);
+      plainForm.append(
+        "photo",
+        new Blob([bufferToBlobPart(params.bytes)], {
+          type: params.contentType || guessUploadContentType(params.fileName),
+        }),
+        params.fileName,
+      );
+      plainForm.append("caption", params.caption.replace(/<[^>]+>/g, "").slice(0, 1024));
+      const plain = await callTelegramApiForm(params.token, "sendPhoto", plainForm);
+      if (!plain.ok) {
+        return { ok: false, chatId: params.chatId, error: plain.error };
+      }
+      return { ok: true, chatId: params.chatId };
+    }
+    return { ok: false, chatId: params.chatId, error: result.error };
+  }
+
+  return { ok: true, chatId: params.chatId };
+}
+
+export async function sendTelegramVideoWithToken(params: {
+  token: string;
+  chatId: string;
+  bytes: Buffer;
+  fileName: string;
+  contentType?: string;
+  caption?: string;
+}): Promise<TelegramSendResult> {
+  const form = new FormData();
+  form.append("chat_id", params.chatId);
+  form.append(
+    "video",
+    new Blob([bufferToBlobPart(params.bytes)], {
+      type: params.contentType || guessUploadContentType(params.fileName),
+    }),
+    params.fileName,
+  );
+  if (params.caption?.trim()) {
+    form.append("caption", truncateTelegramCaption(params.caption));
+    form.append("parse_mode", "HTML");
+  }
+
+  const result = await callTelegramApiForm(params.token, "sendVideo", form);
+  if (!result.ok) {
+    return { ok: false, chatId: params.chatId, error: result.error };
+  }
+
+  return { ok: true, chatId: params.chatId };
+}
+
+export async function sendTelegramMediaGroupWithToken(params: {
+  token: string;
+  chatId: string;
+  items: Array<{
+    bytes: Buffer;
+    fileName: string;
+    contentType: string;
+    kind: "photo" | "video";
+  }>;
+  caption?: string;
+}): Promise<TelegramSendResult> {
+  const form = new FormData();
+  form.append("chat_id", params.chatId);
+
+  const media = params.items.slice(0, 10).map((item, index) => {
+    const attachName = `file${index}`;
+    form.append(
+      attachName,
+      new Blob([bufferToBlobPart(item.bytes)], { type: item.contentType }),
+      item.fileName,
+    );
+
+    const entry: Record<string, string> = {
+      type: item.kind,
+      media: `attach://${attachName}`,
+    };
+
+    if (index === 0 && params.caption?.trim()) {
+      entry.caption = truncateTelegramCaption(params.caption);
+      entry.parse_mode = "HTML";
+    }
+
+    return entry;
+  });
+
+  form.append("media", JSON.stringify(media));
+
+  const result = await callTelegramApiForm(params.token, "sendMediaGroup", form);
+  if (!result.ok) {
+    return { ok: false, chatId: params.chatId, error: result.error };
+  }
+
+  return { ok: true, chatId: params.chatId };
+}
+
+/** Отправляет клиенту фото/видео (одно вложение или альбом до 10 шт.). */
+export async function sendCompanyTelegramMedia(params: {
+  companyId: string;
+  chatId: string;
+  items: CompanyTelegramMediaItem[];
+  caption?: string;
+}): Promise<TelegramSendResult> {
+  const config = await getCompanyTelegramConfig(params.companyId);
+  if (!config.token) {
+    return { ok: false, chatId: params.chatId, error: "Telegram-бот компании не настроен" };
+  }
+
+  if (params.items.length === 0) {
+    return { ok: false, chatId: params.chatId, error: "Нет медиа для отправки" };
+  }
+
+  const loaded: Array<{
+    bytes: Buffer;
+    fileName: string;
+    contentType: string;
+    kind: "photo" | "video";
+  }> = [];
+
+  for (const item of params.items.slice(0, 10)) {
+    try {
+      loaded.push(await loadTelegramMediaBytes(item));
+    } catch (error) {
+      console.error(
+        "[telegram] media load failed:",
+        item.fileUrl,
+        error instanceof Error ? error.message : error,
+      );
+    }
+  }
+
+  if (loaded.length === 0) {
+    return { ok: false, chatId: params.chatId, error: "Не удалось прочитать медиафайлы" };
+  }
+
+  try {
+    if (loaded.length === 1) {
+      const item = loaded[0];
+      if (item.kind === "photo") {
+        return sendTelegramPhotoWithToken({
+          token: config.token,
+          chatId: params.chatId,
+          bytes: item.bytes,
+          fileName: item.fileName,
+          contentType: item.contentType,
+          caption: params.caption,
+        });
+      }
+      return sendTelegramVideoWithToken({
+        token: config.token,
+        chatId: params.chatId,
+        bytes: item.bytes,
+        fileName: item.fileName,
+        contentType: item.contentType,
+        caption: params.caption,
+      });
+    }
+
+    return sendTelegramMediaGroupWithToken({
+      token: config.token,
+      items: loaded,
+      chatId: params.chatId,
+      caption: params.caption,
+    });
+  } catch (error) {
+    return {
+      ok: false,
+      chatId: params.chatId,
+      error: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export function formatWelcomeMessage(chatId: number | string, botName?: string | null): string {

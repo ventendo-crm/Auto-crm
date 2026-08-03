@@ -1,6 +1,7 @@
 import { withAuth } from "@/lib/api-handler";
 import { created, error } from "@/lib/api-response";
 import { uploadCarCarrierTrackingMedia } from "@/lib/services/car-carrier-tracking";
+import { notifyClientTrackingPointMediaUploaded } from "@/lib/services/notifications";
 import { MAX_TRACKING_POINT_MEDIA } from "@/lib/constants";
 import { serialize } from "@/lib/serialize";
 
@@ -50,6 +51,18 @@ export const POST = withAuth(async (request, { user, params }) => {
     const message = err instanceof Error ? err.message : "Ошибка загрузки";
     return error(message, 400);
   }
+
+  void notifyClientTrackingPointMediaUploaded({
+    dealId: params.id,
+    pointId: params.pointId,
+    media: uploaded.map((item) => ({
+      fileKey: item.fileKey,
+      fileName: item.fileName,
+      type: item.type,
+    })),
+  }).catch((err) => {
+    console.error("[car-carrier-tracking] client telegram media notify failed:", err);
+  });
 
   return created(serialize(uploaded.length === 1 ? uploaded[0] : uploaded));
 });
