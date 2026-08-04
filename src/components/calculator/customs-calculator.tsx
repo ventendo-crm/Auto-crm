@@ -743,7 +743,7 @@ export function CustomsCalculator() {
             const migrated = await api.calculatorSettings.savePresets(localPresets);
             presets = migrated.presets;
             clearLocalPresetsCache();
-            toast.success("Пресеты перенесены в аккаунт");
+            toast.success("Шаблоны перенесены в аккаунт");
           }
         } else {
           clearLocalPresetsCache();
@@ -758,7 +758,7 @@ export function CustomsCalculator() {
         if (!cancelled) {
           setUserPresets(loadUserPresets());
           setPresetsLoaded(true);
-          toast.error("Не удалось загрузить пресеты аккаунта");
+          toast.error("Не удалось загрузить шаблоны аккаунта");
         }
       });
 
@@ -1183,7 +1183,7 @@ export function CustomsCalculator() {
   const applyUserPreset = (preset: UserPreset) => {
     applyScenario(preset);
     setRates(preset.rates);
-    toast.success(`Пресет «${preset.name}» применён`);
+    toast.success(`Шаблон «${preset.name}» применён`);
   };
 
   const persistPresets = async (next: UserPreset[], successMessage?: string) => {
@@ -1194,7 +1194,7 @@ export function CustomsCalculator() {
       setUserPresets(saved.presets);
       if (successMessage) toast.success(successMessage);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить пресеты");
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить шаблоны");
       try {
         const fresh = await api.calculatorSettings.get();
         setUserPresets(fresh.presets);
@@ -1210,7 +1210,7 @@ export function CustomsCalculator() {
   const handleSavePreset = () => {
     const name = presetName.trim();
     if (!name) {
-      toast.error("Введите название пресета");
+      toast.error("Введите название шаблона");
       return;
     }
 
@@ -1244,7 +1244,7 @@ export function CustomsCalculator() {
     );
     setPresetDialogOpen(false);
     setPresetName("");
-    void persistPresets(next, "Пресет сохранён в аккаунт");
+    void persistPresets(next, "Шаблон сохранён в аккаунт");
   };
 
   const handleDeleteHistoryItem = (historyId: string) => {
@@ -1420,9 +1420,9 @@ export function CustomsCalculator() {
           <Dialog open={presetDialogOpen} onOpenChange={setPresetDialogOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Сохранить пресет</DialogTitle>
+                <DialogTitle>Сохранить шаблон</DialogTitle>
                 <DialogDescription>
-                  Сохранятся текущие параметры расчёта. Пресет будет доступен в вашем аккаунте на
+                  Сохранятся текущие параметры расчёта. Шаблон будет доступен в вашем аккаунте на
                   любом устройстве.
                 </DialogDescription>
               </DialogHeader>

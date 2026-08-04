@@ -71,7 +71,7 @@ function SortablePresetRow({
       <button
         type="button"
         className="flex h-9 w-8 shrink-0 cursor-grab items-center justify-center text-muted-foreground active:cursor-grabbing"
-        aria-label="Перетащить пресет"
+        aria-label="Перетащить шаблон"
         {...attributes}
         {...listeners}
       >
@@ -178,7 +178,7 @@ export function CalculatorPresetsPanel({
         >
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-medium">Пресеты</p>
+              <p className="text-sm font-medium">Шаблоны</p>
               {presets.length > 0 && (
                 <span className="rounded-md border bg-background px-1.5 py-0.5 text-[11px] text-muted-foreground tabular-nums">
                   {presets.length}
@@ -202,7 +202,7 @@ export function CalculatorPresetsPanel({
             onSaveCurrent();
           }}
         >
-          Сохранить пресет
+          Сохранить шаблон
         </Button>
       </div>
 
@@ -267,7 +267,7 @@ export function CalculatorPresetsPanel({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Переименовать пресет</DialogTitle>
+            <DialogTitle>Переименовать шаблон</DialogTitle>
             <DialogDescription>Новое название сохранится в аккаунте.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
