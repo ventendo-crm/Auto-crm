@@ -44,10 +44,10 @@ export function CompaniesPanel() {
     setSaving(true);
     try {
       const created = await api.companies.create({
-        name: form.name,
-        slug: form.slug || undefined,
-        adminName: form.adminName,
-        adminEmail: form.adminEmail,
+        name: form.name.trim(),
+        slug: form.slug.trim().toLowerCase() || undefined,
+        adminName: form.adminName.trim(),
+        adminEmail: form.adminEmail.trim(),
         adminPassword: form.adminPassword,
       });
       setCompanies((current) => [...current, created]);

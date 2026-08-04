@@ -43,7 +43,12 @@ function handleError(err: unknown): NextResponse {
   }
 
   if (err instanceof ZodError) {
-    return error("Validation failed", 422, err.flatten());
+    const flat = err.flatten();
+    const fieldMessage = Object.values(flat.fieldErrors).find(
+      (messages): messages is string[] => Array.isArray(messages) && messages.length > 0,
+    )?.[0];
+    const message = fieldMessage ?? flat.formErrors[0] ?? "Ошибка валидации";
+    return error(message, 422, flat);
   }
 
   if (err instanceof Error) {
