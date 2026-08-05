@@ -2,19 +2,20 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calculator, Car, Kanban, LayoutDashboard, PanelLeft, PanelLeftClose, Settings } from "lucide-react";
+import { BookOpen, Calculator, Car, Kanban, LayoutDashboard, PanelLeft, PanelLeftClose, Settings } from "lucide-react";
 import { AppLogo } from "@/components/layout/app-logo";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { useAuth } from "@/hooks/use-auth";
-import { canAccessCalculator, getClientRoleName, ROLES } from "@/lib/permissions";
+import { canAccessCalculator, canAccessHelp, getClientRoleName, ROLES } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
 const staffNavItems = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
   { href: "/kanban", label: "Канбан", icon: Kanban },
   { href: "/calculator", label: "Калькулятор", icon: Calculator },
+  { href: "/help", label: "Помощь", icon: BookOpen },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 
@@ -31,9 +32,16 @@ export function Sidebar() {
   const navItems =
     role === ROLES.CLIENT
       ? clientNavItems
-      : staffNavItems.filter(
-          (item) => item.href !== "/calculator" || (role ? canAccessCalculator(role) : false),
-        );
+      : staffNavItems.filter((item) => {
+          if (item.href === "/calculator") {
+            return role ? canAccessCalculator(role) : false;
+          }
+          if (item.href === "/help") {
+            return role ? canAccessHelp(role) : false;
+          }
+          return true;
+        });
+
 
   if (!isOpen && !isMobile) {
     return null;
