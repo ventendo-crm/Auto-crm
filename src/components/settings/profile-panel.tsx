@@ -29,6 +29,7 @@ export function ProfilePanel() {
 
   const role = getClientRoleName(user);
   const isClient = role === "CLIENT";
+  const canTestEmail = role === "CLIENT" || role === "ADMIN" || role === "MANAGER";
 
   useEffect(() => {
     void refresh();
@@ -39,13 +40,13 @@ export function ProfilePanel() {
   }, [user?.telegramChatId]);
 
   useEffect(() => {
-    if (!isClient) return;
+    if (!canTestEmail) return;
 
     void api.email
       .status()
       .then((status) => setEmailConfigured(status.configured))
       .catch(() => setEmailConfigured(false));
-  }, [isClient]);
+  }, [canTestEmail]);
 
   if (!user) return null;
 
@@ -345,15 +346,26 @@ export function ProfilePanel() {
           </div>
         </div>
 
-        {isClient && (
+        {canTestEmail && (
           <>
             <Separator />
             <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
               <div>
-                <p className="text-sm font-medium">Уведомления на email</p>
+                <p className="text-sm font-medium">
+                  {isClient ? "Уведомления на email" : "Почта сервера (SMTP)"}
+                </p>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  На адрес <span className="font-medium text-foreground">{user.email}</span> приходят
-                  письма о смене этапа сделки и комментариях менеджера.
+                  {isClient ? (
+                    <>
+                      На адрес <span className="font-medium text-foreground">{user.email}</span>{" "}
+                      приходят письма о смене этапа сделки и комментариях менеджера.
+                    </>
+                  ) : (
+                    <>
+                      Проверка отправки через SMTP. Тестовое письмо уйдёт на{" "}
+                      <span className="font-medium text-foreground">{user.email}</span>.
+                    </>
+                  )}
                 </p>
               </div>
 

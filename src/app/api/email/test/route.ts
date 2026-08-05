@@ -10,8 +10,9 @@ export const POST = withAuth(async (_request, { user }) => {
     return error("Email-уведомления не настроены на сервере", 503);
   }
 
-  if (user.role !== ROLES.CLIENT) {
-    return error("Тестовое письмо доступно для клиентского аккаунта", 403);
+  // Тест доступен клиенту и сотрудникам (кроме наблюдателя).
+  if (user.role === ROLES.VIEWER) {
+    return error("Forbidden", 403);
   }
 
   const email = await formatTestEmail(user.companyId, user.name);
