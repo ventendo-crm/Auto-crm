@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { AppIconMark } from "@/components/brand/app-icon-mark";
@@ -66,6 +67,14 @@ export function LoginForm() {
                 autoComplete="current-password"
                 required
               />
+            </div>
+            <div className="text-right">
+              <Link
+                href="/forgot-password"
+                className="text-sm text-muted-foreground underline-offset-4 hover:text-brand hover:underline"
+              >
+                Забыли пароль?
+              </Link>
             </div>
             <Button type="submit" variant="brand" className="w-full" disabled={loading}>
               {loading && <Loader2 className="animate-spin" />}

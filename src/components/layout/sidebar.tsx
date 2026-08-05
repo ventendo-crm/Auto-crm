@@ -15,7 +15,6 @@ const staffNavItems = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
   { href: "/kanban", label: "Канбан", icon: Kanban },
   { href: "/calculator", label: "Калькулятор", icon: Calculator },
-  { href: "/help", label: "Помощь", icon: BookOpen },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 
@@ -29,6 +28,7 @@ export function Sidebar() {
   const { isOpen, isMobile, close } = useSidebar();
   const { user } = useAuth();
   const role = getClientRoleName(user);
+  const showHelp = role ? canAccessHelp(role) : false;
   const navItems =
     role === ROLES.CLIENT
       ? clientNavItems
@@ -36,12 +36,10 @@ export function Sidebar() {
           if (item.href === "/calculator") {
             return role ? canAccessCalculator(role) : false;
           }
-          if (item.href === "/help") {
-            return role ? canAccessHelp(role) : false;
-          }
           return true;
         });
 
+  const helpActive = pathname === "/help" || pathname.startsWith("/help/");
 
   if (!isOpen && !isMobile) {
     return null;
@@ -102,7 +100,24 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="mt-auto border-t p-3">
+        <div className="mt-auto space-y-1 border-t p-3">
+          {showHelp && (
+            <Link
+              href="/help"
+              onClick={() => {
+                if (isMobile) close();
+              }}
+              className={cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                helpActive
+                  ? "bg-brand-muted text-brand"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground",
+              )}
+            >
+              <BookOpen className="h-4 w-4 shrink-0" />
+              Помощь
+            </Link>
+          )}
           <ThemeToggle />
         </div>
       </aside>

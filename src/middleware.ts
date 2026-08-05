@@ -2,8 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { isRoleName, RoleName, ROLES } from "@/lib/permissions";
 
-const PUBLIC_API_PATHS = ["/api/auth/login", "/api/auth/logout", "/api/telegram/webhook"];
-const PUBLIC_PAGE_PATHS = ["/login"];
+const PUBLIC_API_PATHS = [
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/auth/password-reset",
+  "/api/telegram/webhook",
+];
+const PUBLIC_PAGE_PATHS = ["/login", "/forgot-password", "/reset-password"];
 
 const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals", "/calculator"];
 const CLIENT_PAGE_PREFIXES = ["/my-deal"];
@@ -76,7 +81,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  if (authenticated && pathname === "/login") {
+  if (authenticated && (pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password")) {
     const target = role === ROLES.CLIENT ? "/my-deal" : "/dashboard";
     return NextResponse.redirect(new URL(target, request.url));
   }

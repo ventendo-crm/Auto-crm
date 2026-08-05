@@ -51,6 +51,8 @@ model User {
   telegramChatId    String?
   telegramLinkToken String?        @unique
   telegramLinkTokenExpiresAt DateTime?
+  passwordResetTokenHash     String?   @unique
+  passwordResetTokenExpiresAt DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
   company           Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)

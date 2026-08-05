@@ -33,6 +33,17 @@ import { DealActivityItem } from "@/lib/services/deal-activity";
 import { AdditionalOptionGroupState } from "@/lib/services/additional-options";
 import { DealExpenseItem } from "@/lib/services/deal-expenses";
 
+export class ApiRequestError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public data?: unknown,
+  ) {
+    super(message);
+    this.name = "ApiRequestError";
+  }
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch(path, {
     ...options,
@@ -43,10 +54,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     },
   });
 
-  const json = (await response.json()) as ApiResponse<T>;
+  const json = (await response.json()) as ApiResponse<T> & { data?: unknown };
 
   if (!response.ok || !json.success) {
-    throw new Error(json.error ?? `Request failed: ${response.status}`);
+    throw new ApiRequestError(
+      json.error ?? `Request failed: ${response.status}`,
+      response.status,
+      "data" in json ? json.data : undefined,
+    );
   }
 
   return json.data as T;
@@ -81,6 +96,16 @@ export const api = {
       request<{ message: string }>("/api/auth/password", {
         method: "PATCH",
         body: JSON.stringify({ currentPassword, newPassword }),
+      }),
+    requestPasswordReset: (email: string, companySlug?: string) =>
+      request<{ message: string }>("/api/auth/password-reset/request", {
+        method: "POST",
+        body: JSON.stringify({ email, ...(companySlug ? { companySlug } : {}) }),
+      }),
+    confirmPasswordReset: (token: string, password: string) =>
+      request<{ message: string }>("/api/auth/password-reset/confirm", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
       }),
   },
 
@@ -755,6 +780,18 @@ export const api = {
     ) =>
       request<EmailTemplateItem>(`/api/email/templates/${key}`, {
         method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+  },
+
+  help: {
+    feedbackStatus: () => request<{ configured: boolean }>("/api/help/feedback"),
+    sendFeedback: (data: {
+      topic: "question" | "bug" | "idea" | "other";
+      message: string;
+    }) =>
+      request<{ message: string }>("/api/help/feedback", {
+        method: "POST",
         body: JSON.stringify(data),
       }),
   },

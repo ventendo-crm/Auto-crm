@@ -24,6 +24,12 @@ if [ -f ./prisma/ensure-telegram-link-token.sql ]; then
     || echo "[auto-crm] Telegram link token ensure failed — continuing"
 fi
 
+echo "[auto-crm] Ensuring password reset token columns..."
+if [ -f ./prisma/ensure-password-reset-token.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-password-reset-token.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Password reset token ensure failed — continuing"
+fi
+
 echo "[auto-crm] Ensuring company calculator settings table..."
 if [ -f ./prisma/ensure-company-calculator-settings.sql ]; then
   run_as_nextjs npx prisma db execute --file ./prisma/ensure-company-calculator-settings.sql --schema ./prisma/schema.prisma \

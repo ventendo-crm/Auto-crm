@@ -94,6 +94,7 @@ services:
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       EMAIL_FROM: ${EMAIL_FROM:-}
       EMAIL_FROM_NAME: ${EMAIL_FROM_NAME:-ImportCRM}
+      FEEDBACK_TO: ${FEEDBACK_TO:-}
       APP_URL: ${APP_URL:-https://importcrm.ru}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-${APP_URL:-https://importcrm.ru}}
       TAVILY_API_KEY: ${TAVILY_API_KEY:-}

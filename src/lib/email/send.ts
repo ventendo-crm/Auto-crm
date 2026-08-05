@@ -40,6 +40,7 @@ export async function sendEmail(params: {
   subject: string;
   text: string;
   html: string;
+  replyTo?: string;
 }): Promise<EmailSendResult> {
   const to = params.to.trim().toLowerCase();
   const transport = getTransporter();
@@ -55,6 +56,7 @@ export async function sendEmail(params: {
     await transport.sendMail({
       from: `"${from.name}" <${from.address}>`,
       to,
+      replyTo: params.replyTo?.trim() || undefined,
       subject: params.subject,
       text: params.text,
       html: params.html,
