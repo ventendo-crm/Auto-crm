@@ -71,10 +71,15 @@ export function normalizeDashboardLayout(
 }
 
 export function sortDashboardLayout(items: DashboardLayoutItem[]): DashboardLayoutItem[] {
-  return [...items]
-    .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id))
-    .map((item, index) => ({
-      ...item,
-      sortOrder: (index + 1) * 10,
-    }));
+  return reindexDashboardLayout(
+    [...items].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)),
+  );
+}
+
+/** Keep current array order and rewrite sortOrder (for drag-and-drop). */
+export function reindexDashboardLayout(items: DashboardLayoutItem[]): DashboardLayoutItem[] {
+  return items.map((item, index) => ({
+    ...item,
+    sortOrder: (index + 1) * 10,
+  }));
 }

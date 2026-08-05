@@ -7,7 +7,7 @@ export const helpFeedbackSchema = z.object({
   message: z
     .string()
     .trim()
-    .min(10, "Опишите подробнее — минимум 10 символов")
+    .min(1, "Введите сообщение")
     .max(4000, "Слишком длинное сообщение"),
 });
 

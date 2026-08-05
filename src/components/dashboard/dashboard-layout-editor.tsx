@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import {
   DASHBOARD_WIDGET_LABELS,
   getDefaultDashboardLayout,
+  reindexDashboardLayout,
   sortDashboardLayout,
   type DashboardLayoutItem,
   type DashboardWidgetId,
@@ -97,12 +98,12 @@ export function DashboardLayoutEditor({
     const oldIndex = items.findIndex((item) => item.id === active.id);
     const newIndex = items.findIndex((item) => item.id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
-    setItems(sortDashboardLayout(arrayMove(items, oldIndex, newIndex)));
+    setItems(reindexDashboardLayout(arrayMove(items, oldIndex, newIndex)));
   };
 
   const toggle = (id: DashboardWidgetId) => {
     setItems((current) =>
-      sortDashboardLayout(
+      reindexDashboardLayout(
         current.map((item) =>
           item.id === id ? { ...item, enabled: !item.enabled } : item,
         ),
@@ -138,7 +139,7 @@ export function DashboardLayoutEditor({
             variant="brand"
             size="sm"
             disabled={saving}
-            onClick={() => onSave(sortDashboardLayout(items))}
+            onClick={() => onSave(reindexDashboardLayout(items))}
           >
             <Save className="mr-1.5 h-3.5 w-3.5" />
             Сохранить

@@ -49,8 +49,8 @@ export function HelpFeedbackForm() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (message.trim().length < 10) {
-      toast.error("Опишите подробнее — минимум 10 символов");
+    if (!message.trim()) {
+      toast.error("Введите сообщение");
       return;
     }
     setSending(true);
