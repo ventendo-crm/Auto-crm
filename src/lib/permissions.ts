@@ -198,6 +198,14 @@ export function canAccessHelp(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
 
+export function canAccessDashboard(role: RoleName): boolean {
+  return role === ROLES.ADMIN || role === ROLES.MANAGER || role === ROLES.VIEWER;
+}
+
+export function canManageCompanyDashboard(role: RoleName): boolean {
+  return role === ROLES.ADMIN;
+}
+
 export function canManageCompanyCalculator(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }

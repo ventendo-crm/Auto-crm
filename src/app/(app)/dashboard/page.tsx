@@ -1,18 +1,27 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, Settings2 } from "lucide-react";
 import { toast } from "sonner";
 import { DashboardCharts } from "@/components/dashboard/charts";
 import { ArrivalCalendar } from "@/components/dashboard/arrival-calendar";
+import { DashboardLayoutEditor } from "@/components/dashboard/dashboard-layout-editor";
 import { ManagerStatsOverview } from "@/components/dashboard/manager-stats-overview";
 import { RecentDeals } from "@/components/dashboard/recent-deals";
 import { StatsCards } from "@/components/dashboard/stats-cards";
 import { TodayReminders } from "@/components/dashboard/today-reminders";
 import { Header } from "@/components/layout/header";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
+import {
+  isDashboardWidgetId,
+  type DashboardLayoutItem,
+  type DashboardWidgetId,
+} from "@/lib/dashboard/widgets";
+import { canManageCompanyDashboard, getClientRoleName, ROLES } from "@/lib/permissions";
 import { DashboardData, User } from "@/lib/types";
 
 const ALL_MANAGERS = "all";
@@ -22,10 +31,36 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [managers, setManagers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [layoutLoading, setLayoutLoading] = useState(true);
+  const [layoutSaving, setLayoutSaving] = useState(false);
+  const [layout, setLayout] = useState<DashboardLayoutItem[]>([]);
+  const [editingLayout, setEditingLayout] = useState(false);
   const [selectedManagerId, setSelectedManagerId] = useState(ALL_MANAGERS);
 
-  const isAdmin = user?.role.name === "ADMIN";
-  const isStaff = user?.role.name === "ADMIN" || user?.role.name === "MANAGER";
+  const role = getClientRoleName(user);
+  const isAdmin = role === ROLES.ADMIN;
+  const isStaff = role === ROLES.ADMIN || role === ROLES.MANAGER;
+  const canEditLayout = role ? canManageCompanyDashboard(role) : false;
+
+  const loadLayout = useCallback(async () => {
+    setLayoutLoading(true);
+    try {
+      const result = await api.dashboard.getLayout();
+      setLayout(
+        result.layout
+          .filter((item) => isDashboardWidgetId(item.id))
+          .map((item) => ({
+            id: item.id as DashboardWidgetId,
+            enabled: Boolean(item.enabled),
+            sortOrder: Number(item.sortOrder) || 0,
+          })),
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось загрузить layout дашборда");
+    } finally {
+      setLayoutLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async (managerId: string) => {
     setLoading(true);
@@ -42,6 +77,10 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
+    void loadLayout();
+  }, [loadLayout]);
+
+  useEffect(() => {
     if (!isAdmin) return;
 
     void api.users
@@ -56,6 +95,59 @@ export default function DashboardPage() {
     void load(selectedManagerId);
   }, [load, selectedManagerId]);
 
+  const enabledWidgets = useMemo(
+    () =>
+      [...layout]
+        .filter((item) => item.enabled)
+        .sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id)),
+    [layout],
+  );
+
+  const handleSaveLayout = async (next: DashboardLayoutItem[]) => {
+    setLayoutSaving(true);
+    try {
+      const saved = await api.dashboard.saveLayout(next);
+      setLayout(
+        saved.layout
+          .filter((item) => isDashboardWidgetId(item.id))
+          .map((item) => ({
+            id: item.id as DashboardWidgetId,
+            enabled: Boolean(item.enabled),
+            sortOrder: Number(item.sortOrder) || 0,
+          })),
+      );
+      setEditingLayout(false);
+      toast.success("Дашборд компании сохранён");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось сохранить layout");
+    } finally {
+      setLayoutSaving(false);
+    }
+  };
+
+  const renderWidget = (id: DashboardWidgetId) => {
+    if (!data) return null;
+
+    switch (id) {
+      case "arrival_calendar":
+        return <ArrivalCalendar key={id} events={data.arrivalEvents} />;
+      case "today_reminders":
+        return isStaff ? <TodayReminders key={id} /> : null;
+      case "recent_deals":
+        return <RecentDeals key={id} deals={data.recentDeals} />;
+      case "manager_stats":
+        return data.managerStats && data.managerStats.length > 0 ? (
+          <ManagerStatsOverview key={id} managerStats={data.managerStats} />
+        ) : null;
+      case "charts":
+        return <DashboardCharts key={id} charts={data.charts} />;
+      case "stats_cards":
+        return <StatsCards key={id} stats={data.stats} />;
+      default:
+        return null;
+    }
+  };
+
   const subtitle =
     selectedManagerId === ALL_MANAGERS
       ? "Обзор сделок и таможни"
@@ -67,22 +159,53 @@ export default function DashboardPage() {
     <>
       <Header title="Дашборд" subtitle={subtitle} />
       <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
-        {isAdmin && managers.length > 0 && (
-          <Tabs value={selectedManagerId} onValueChange={setSelectedManagerId}>
-            <div className="-mx-1 overflow-x-auto pb-1">
-              <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
-                <TabsTrigger value={ALL_MANAGERS}>Все менеджеры</TabsTrigger>
-                {managers.map((manager) => (
-                  <TabsTrigger key={manager.id} value={manager.id}>
-                    {manager.name}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-          </Tabs>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {isAdmin && managers.length > 0 ? (
+            <Tabs value={selectedManagerId} onValueChange={setSelectedManagerId}>
+              <div className="-mx-1 overflow-x-auto pb-1">
+                <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
+                  <TabsTrigger value={ALL_MANAGERS}>Все менеджеры</TabsTrigger>
+                  {managers.map((manager) => (
+                    <TabsTrigger key={manager.id} value={manager.id}>
+                      {manager.name}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+            </Tabs>
+          ) : (
+            <div />
+          )}
+
+          {canEditLayout && !editingLayout && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              disabled={layoutLoading}
+              onClick={() => setEditingLayout(true)}
+            >
+              {layoutLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Settings2 className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Настроить
+            </Button>
+          )}
+        </div>
+
+        {editingLayout && (
+          <DashboardLayoutEditor
+            initialLayout={layout}
+            saving={layoutSaving}
+            onSave={(next) => void handleSaveLayout(next)}
+            onCancel={() => setEditingLayout(false)}
+          />
         )}
 
-        {loading ? (
+        {loading || layoutLoading ? (
           <>
             <Skeleton className="h-[28rem] rounded-xl" />
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -97,16 +220,7 @@ export default function DashboardPage() {
             </div>
           </>
         ) : data ? (
-          <>
-            <ArrivalCalendar events={data.arrivalEvents} />
-            {isStaff && <TodayReminders />}
-            <RecentDeals deals={data.recentDeals} />
-            {data.managerStats && data.managerStats.length > 0 && (
-              <ManagerStatsOverview managerStats={data.managerStats} />
-            )}
-            <DashboardCharts charts={data.charts} />
-            <StatsCards stats={data.stats} />
-          </>
+          enabledWidgets.map((item) => renderWidget(item.id))
         ) : null}
       </div>
     </>

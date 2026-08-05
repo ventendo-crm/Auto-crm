@@ -36,6 +36,12 @@ if [ -f ./prisma/ensure-company-calculator-settings.sql ]; then
     || echo "[auto-crm] Company calculator settings ensure failed — continuing"
 fi
 
+echo "[auto-crm] Ensuring company dashboard settings table..."
+if [ -f ./prisma/ensure-company-dashboard-settings.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-company-dashboard-settings.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Company dashboard settings ensure failed — continuing"
+fi
+
 echo "[auto-crm] Applying database schema..."
 if command -v npx >/dev/null 2>&1; then
   # Non-interactive: do not hang/fail the whole container on drift prompts.

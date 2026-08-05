@@ -28,6 +28,7 @@ model Company {
   telegramTemplates      TelegramTemplate[]
   clientStageMessages    ClientStageMessage[]
   calculatorSettings     CompanyCalculatorSettings?
+  dashboardSettings      CompanyDashboardSettings?
 
   @@map("companies")
 }
@@ -335,6 +336,15 @@ model CompanyCalculatorSettings {
   company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("company_calculator_settings")
+}
+
+model CompanyDashboardSettings {
+  companyId String   @id
+  layout    Json     @default("[]")
+  updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_dashboard_settings")
 }
 
 model Document {

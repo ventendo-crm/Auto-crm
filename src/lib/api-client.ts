@@ -129,6 +129,23 @@ export const api = {
       const query = managerId ? `?managerId=${encodeURIComponent(managerId)}` : "";
       return request<DashboardData>(`/api/dashboard/stats${query}`);
     },
+    getLayout: () =>
+      request<{
+        companyId: string;
+        layout: Array<{ id: string; enabled: boolean; sortOrder: number }>;
+        updatedAt: string | null;
+      }>("/api/dashboard/layout"),
+    saveLayout: (
+      layout: Array<{ id: string; enabled: boolean; sortOrder: number }>,
+    ) =>
+      request<{
+        companyId: string;
+        layout: Array<{ id: string; enabled: boolean; sortOrder: number }>;
+        updatedAt: string | null;
+      }>("/api/dashboard/layout", {
+        method: "PUT",
+        body: JSON.stringify({ layout }),
+      }),
   },
 
   deals: {
