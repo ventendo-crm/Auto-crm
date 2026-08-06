@@ -8,7 +8,7 @@ const PUBLIC_API_PATHS = [
   "/api/auth/password-reset",
   "/api/telegram/webhook",
 ];
-const PUBLIC_PAGE_PATHS = ["/login", "/forgot-password", "/reset-password"];
+const PUBLIC_PAGE_PATHS = ["/login", "/forgot-password", "/reset-password", "/landing"];
 
 const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals", "/calculator"];
 const CLIENT_PAGE_PREFIXES = ["/my-deal"];

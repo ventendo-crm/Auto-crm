@@ -1,0 +1,74 @@
+.landingRoot {
+  --landing-ink: #16181d;
+  --landing-muted: #5c6370;
+  --landing-line: rgba(22, 24, 29, 0.1);
+  --landing-brand: hsl(14 100% 55%);
+  --landing-brand-deep: hsl(14 90% 42%);
+  --landing-surface: #fff7f2;
+  --landing-wash: #f3f5f8;
+  min-height: 100vh;
+  color: var(--landing-ink);
+  background:
+    radial-gradient(120% 80% at 10% -10%, rgba(255, 107, 53, 0.16), transparent 55%),
+    radial-gradient(90% 60% at 100% 0%, rgba(56, 120, 160, 0.1), transparent 50%),
+    linear-gradient(180deg, #fffaf7 0%, var(--landing-wash) 42%, #eef1f5 100%);
+  font-family: var(--font-landing-body), system-ui, sans-serif;
+}
+
+.fontDisplay {
+  font-family: var(--font-landing-display), var(--font-landing-body), sans-serif;
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition:
+    opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.revealIn {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@keyframes landingHeroIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.heroAnim {
+  animation: landingHeroIn 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.heroAnimD1 {
+  animation-delay: 0.08s;
+}
+
+.heroAnimD2 {
+  animation-delay: 0.18s;
+}
+
+.heroAnimD3 {
+  animation-delay: 0.3s;
+}
+
+.heroAnimD4 {
+  animation-delay: 0.42s;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal,
+  .heroAnim {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

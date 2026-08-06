@@ -80,6 +80,14 @@ export function LoginForm() {
               {loading && <Loader2 className="animate-spin" />}
               Войти
             </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              <Link
+                href="/landing"
+                className="underline-offset-4 hover:text-brand hover:underline"
+              >
+                О продукте
+              </Link>
+            </p>
           </form>
         </CardContent>
       </Card>
