@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppIconMark } from "@/components/brand/app-icon-mark";
+import { LandingCalculatorVisual } from "@/components/landing/landing-calculator-visual";
 import { LandingClientVisual } from "@/components/landing/landing-client-visual";
 import { LandingHeroVisual } from "@/components/landing/landing-hero-visual";
+import { LandingTelegramVisual } from "@/components/landing/landing-telegram-visual";
 import styles from "@/components/landing/landing.module.css";
 
 const TELEGRAM_URL = "https://t.me/pavsem";
@@ -18,7 +20,7 @@ const FEATURES = [
   },
   {
     title: "Калькулятор растаможки",
-    text: "Считайте авто из Китая, Кореи и Киргизии. Встроенный быстрый поиск по объявлениям, расчёт можно сразу привязать к карточке клиента.",
+    text: "Считайте авто из Китая, Кореи и Киргизии. Встроенный быстрый поиск информации про авто, расчёт можно сразу привязать к карточке клиента.",
   },
   {
     title: "Кабинет клиента",
@@ -26,7 +28,7 @@ const FEATURES = [
   },
   {
     title: "Telegram и команда",
-    text: "Уведомления в Telegram, роли сотрудников и несколько компаний на одной платформе.",
+    text: "Уведомления в Telegram клиенту о всех этапах сделки, отслеживание автовоза и отправка готового ПТС лично клиенту. Плюс роли сотрудников и несколько компаний на одной платформе.",
   },
 ] as const;
 
@@ -187,9 +189,14 @@ export function LandingPage() {
               Калькулятор под импорт
             </h2>
             <p className="mt-3 max-w-2xl text-[var(--landing-muted)]">
-              Не отдельная таблица — расчёт внутри CRM, с поиском объявлений и сохранением в сделку
-              клиента.
+              Не отдельная таблица — расчёт внутри CRM, с формированием готового коммерческого
+              предложения и сохранением в сделку клиента.
             </p>
+          </Reveal>
+          <Reveal delayMs={80}>
+            <div className="mt-10">
+              <LandingCalculatorVisual />
+            </div>
           </Reveal>
           <div className="mt-12 space-y-0 divide-y divide-[var(--landing-line)] border-y border-[var(--landing-line)]">
             <Reveal>
@@ -222,8 +229,8 @@ export function LandingPage() {
                   Поиск в калькуляторе
                 </h3>
                 <p className="text-base leading-relaxed text-[var(--landing-muted)] sm:pt-1">
-                  Встроенный быстрый поиск помогает найти ориентир по машине прямо из калькулятора —
-                  и сразу подставить данные для расчёта.
+                  Встроенный быстрый поиск подтягивает информацию про авто прямо из калькулятора —
+                  характеристики и ориентиры для расчёта утильсбора и пошлин.
                 </p>
               </div>
             </Reveal>
@@ -265,6 +272,28 @@ export function LandingPage() {
               виден в карточке сделки у вашей команды.
             </p>
           </Reveal>
+        </div>
+      </section>
+
+      <section className="border-y border-[var(--landing-line)] bg-[var(--landing-wash)]/80">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+          <div className="grid items-center gap-12 lg:grid-cols-[minmax(0,0.55fr)_minmax(0,0.45fr)] lg:gap-16">
+            <div>
+              <Reveal>
+                <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
+                  Telegram и команда
+                </h2>
+                <p className="mt-3 text-[var(--landing-muted)]">
+                  Уведомления в Telegram клиенту о всех этапах сделки, отслеживание автовоза и
+                  отправка готового ПТС лично клиенту. Роли сотрудников и несколько компаний — на
+                  одной платформе.
+                </p>
+              </Reveal>
+            </div>
+            <Reveal delayMs={100}>
+              <LandingTelegramVisual />
+            </Reveal>
+          </div>
         </div>
       </section>
 
