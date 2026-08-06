@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppIconMark } from "@/components/brand/app-icon-mark";
+import { LandingClientVisual } from "@/components/landing/landing-client-visual";
 import { LandingHeroVisual } from "@/components/landing/landing-hero-visual";
 import styles from "@/components/landing/landing.module.css";
 
@@ -17,11 +18,11 @@ const FEATURES = [
   },
   {
     title: "Калькулятор растаможки",
-    text: "Считайте пошлины и расходы прямо в CRM. Сохраняйте расчёт в карточку сделки.",
+    text: "Считайте авто из Китая, Кореи и Киргизии. Встроенный быстрый поиск по объявлениям, расчёт можно сразу привязать к карточке клиента.",
   },
   {
     title: "Кабинет клиента",
-    text: "Клиент видит статус своей машины и документы — меньше звонков «ну что там?»",
+    text: "Клиент видит прогресс сделки, отслеживает автовоз на карте и сам выбирает доп. услуги — меньше звонков «ну что там?»",
   },
   {
     title: "Telegram и команда",
@@ -33,7 +34,7 @@ const STEPS = [
   { n: "01", title: "Создаёте сделку", text: "Клиент, VIN, маршрут и менеджер — в одной карточке." },
   { n: "02", title: "Ведете по этапам", text: "Поиск, оплата, таможня, доставка — канбан показывает, где машина." },
   { n: "03", title: "Клиент смотрит прогресс", text: "Личный кабинет и сообщения по стадии без ручной переписки." },
-  { n: "04", title: "Считаете и закрываете", text: "Калькулятор, расходы и документы остаются в сделке." },
+  { n: "04", title: "Считаете и закрываете", text: "Расчёт из калькулятора привязываете к клиенту — вместе с расходами и документами." },
 ] as const;
 
 const AUDIENCE = [
@@ -127,7 +128,7 @@ export function LandingPage() {
             className={`${styles.heroAnim} ${styles.heroAnimD3} mt-4 max-w-lg text-base leading-relaxed text-[var(--landing-muted)] sm:text-lg`}
           >
             Канбан сделок, калькулятор растаможки и кабинет клиента — чтобы команда и клиент всегда
-            видели, где машина.
+            видели, где машина. Первые 30 дней — бесплатно.
           </p>
           <div
             className={`${styles.heroAnim} ${styles.heroAnimD4} mt-8 flex flex-wrap items-center gap-3 sm:gap-4`}
@@ -138,7 +139,7 @@ export function LandingPage() {
               rel="noopener noreferrer"
               className="inline-flex h-11 items-center justify-center bg-[var(--landing-brand)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-brand-deep)]"
             >
-              Написать в Telegram
+              Попробовать 30 дней бесплатно
             </a>
             <a
               href={PHONE_HREF}
@@ -176,6 +177,94 @@ export function LandingPage() {
               </div>
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      <section className="border-y border-[var(--landing-line)] bg-white/50">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+          <Reveal>
+            <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
+              Калькулятор под импорт
+            </h2>
+            <p className="mt-3 max-w-2xl text-[var(--landing-muted)]">
+              Не отдельная таблица — расчёт внутри CRM, с поиском объявлений и сохранением в сделку
+              клиента.
+            </p>
+          </Reveal>
+          <div className="mt-12 space-y-0 divide-y divide-[var(--landing-line)] border-y border-[var(--landing-line)]">
+            <Reveal>
+              <div className="grid gap-3 py-8 sm:grid-cols-[minmax(0,0.38fr)_minmax(0,0.62fr)] sm:gap-10 sm:py-10">
+                <h3 className={`${styles.fontDisplay} text-xl font-semibold tracking-tight sm:text-2xl`}>
+                  Разные страны
+                </h3>
+                <p className="text-base leading-relaxed text-[var(--landing-muted)] sm:pt-1">
+                  Считайте автомобили из <strong className="font-semibold text-[var(--landing-ink)]">Китая</strong>,{" "}
+                  <strong className="font-semibold text-[var(--landing-ink)]">Кореи</strong> и{" "}
+                  <strong className="font-semibold text-[var(--landing-ink)]">Киргизии</strong> — с учётом
+                  пошлин, утильсбора и расходов по выбранной стране.
+                </p>
+              </div>
+            </Reveal>
+            <Reveal delayMs={70}>
+              <div className="grid gap-3 py-8 sm:grid-cols-[minmax(0,0.38fr)_minmax(0,0.62fr)] sm:gap-10 sm:py-10">
+                <h3 className={`${styles.fontDisplay} text-xl font-semibold tracking-tight sm:text-2xl`}>
+                  Привязка к клиенту
+                </h3>
+                <p className="text-base leading-relaxed text-[var(--landing-muted)] sm:pt-1">
+                  Готовый расчёт сохраняете в карточку сделки: клиент и менеджер видят одну и ту же
+                  смету, без пересылки скринов в мессенджерах.
+                </p>
+              </div>
+            </Reveal>
+            <Reveal delayMs={140}>
+              <div className="grid gap-3 py-8 sm:grid-cols-[minmax(0,0.38fr)_minmax(0,0.62fr)] sm:gap-10 sm:py-10">
+                <h3 className={`${styles.fontDisplay} text-xl font-semibold tracking-tight sm:text-2xl`}>
+                  Поиск в калькуляторе
+                </h3>
+                <p className="text-base leading-relaxed text-[var(--landing-muted)] sm:pt-1">
+                  Встроенный быстрый поиск помогает найти ориентир по машине прямо из калькулятора —
+                  и сразу подставить данные для расчёта.
+                </p>
+              </div>
+            </Reveal>
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+        <Reveal>
+          <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
+            Личный кабинет клиента
+          </h2>
+          <p className="mt-3 max-w-2xl text-[var(--landing-muted)]">
+            Клиент заходит в свой кабинет и сам видит прогресс сделки: где машина на автовозе и какие
+            доп. услуги он выбрал.
+          </p>
+        </Reveal>
+        <Reveal delayMs={100}>
+          <div className="mt-10">
+            <LandingClientVisual />
+          </div>
+        </Reveal>
+        <div className="mt-10 grid gap-8 sm:grid-cols-2">
+          <Reveal delayMs={120}>
+            <h3 className={`${styles.fontDisplay} text-lg font-semibold tracking-tight`}>
+              Отслеживание автовоза
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--landing-muted)]">
+              На вкладке «Доставка» — карта маршрута и города по пути. Клиент видит точки и дату
+              назначения, без звонков менеджеру.
+            </p>
+          </Reveal>
+          <Reveal delayMs={180}>
+            <h3 className={`${styles.fontDisplay} text-lg font-semibold tracking-tight`}>
+              Выбор доп. услуг
+            </h3>
+            <p className="mt-2 text-sm leading-relaxed text-[var(--landing-muted)]">
+              Антикор, плёнка, диагностика и другое — клиент отмечает нужное галочками. Выбор сразу
+              виден в карточке сделки у вашей команды.
+            </p>
+          </Reveal>
         </div>
       </section>
 
@@ -234,10 +323,11 @@ export function LandingPage() {
         <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-24">
           <Reveal>
             <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
-              Готовы посмотреть ImportCRM?
+              30 дней бесплатно — посмотрите сами
             </h2>
             <p className="mt-4 max-w-lg text-base text-white/70">
-              Напишите в Telegram или позвоните — расскажем, как подключить вашу компанию.
+              Подключим вашу компанию и дадим полный доступ на месяц без оплаты. Напишите в Telegram
+              или позвоните.
             </p>
             <div className="mt-8 flex flex-wrap gap-3 sm:gap-4">
               <a

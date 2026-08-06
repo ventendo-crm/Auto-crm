@@ -17,7 +17,7 @@ const body = Manrope({
 export const metadata: Metadata = {
   title: "ImportCRM — CRM для импорта автомобилей",
   description:
-    "ImportCRM — CRM для компаний, которые возят авто из-за рубежа: сделки, этапы, калькулятор растаможки, кабинет клиента и Telegram.",
+    "ImportCRM — CRM для импорта авто: калькулятор для Китая, Кореи и Киргизии с поиском и привязкой к клиенту, кабинет с автовозом. 30 дней бесплатно.",
 };
 
 export default function LandingRoutePage() {
