@@ -2,6 +2,7 @@
 
 import { Toaster } from "@/components/ui/sonner";
 import { AuthProvider } from "@/hooks/use-auth";
+import { CompanyAppearanceProvider } from "@/hooks/use-company-appearance";
 import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 
 function ThemedToaster() {
@@ -13,8 +14,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
       <AuthProvider>
-        {children}
-        <ThemedToaster />
+        <CompanyAppearanceProvider>
+          {children}
+          <ThemedToaster />
+        </CompanyAppearanceProvider>
       </AuthProvider>
     </ThemeProvider>
   );

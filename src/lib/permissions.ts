@@ -206,6 +206,10 @@ export function canManageCompanyDashboard(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }
 
+export function canManageCompanyAppearance(role: RoleName): boolean {
+  return role === ROLES.ADMIN;
+}
+
 export function canManageCompanyCalculator(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }

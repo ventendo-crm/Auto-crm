@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/permissions";
 import { ensureClientStageMessages } from "@/lib/services/client-stage-messages";
 import { ensureCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
+import { ensureCompanyAppearanceSettings } from "@/lib/services/company-appearance";
 import { ensureCompanyDashboardSettings } from "@/lib/services/company-dashboard-settings";
 import { ensureEmailTemplates } from "@/lib/email/template-store";
 import { ensureTelegramTemplates } from "@/lib/telegram/template-store";
@@ -120,6 +121,7 @@ export async function createCompanyWithAdmin(params: {
     ensureClientStageMessages(company.id),
     ensureCompanyCalculatorSettings(company.id),
     ensureCompanyDashboardSettings(company.id),
+    ensureCompanyAppearanceSettings(company.id),
   ]);
 
   return prisma.company.findUniqueOrThrow({

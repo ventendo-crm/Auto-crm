@@ -29,6 +29,7 @@ model Company {
   clientStageMessages    ClientStageMessage[]
   calculatorSettings     CompanyCalculatorSettings?
   dashboardSettings      CompanyDashboardSettings?
+  appearanceSettings     CompanyAppearanceSettings?
 
   @@map("companies")
 }
@@ -345,6 +346,17 @@ model CompanyDashboardSettings {
   company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("company_dashboard_settings")
+}
+
+model CompanyAppearanceSettings {
+  companyId      String   @id
+  presetId       String   @default("classic")
+  customBrandHsl String?
+  logoUrl        String?
+  updatedAt      DateTime @updatedAt
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_appearance_settings")
 }
 
 model Document {

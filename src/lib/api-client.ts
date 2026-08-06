@@ -148,6 +148,44 @@ export const api = {
       }),
   },
 
+  companyAppearance: {
+    get: () =>
+      request<import("@/lib/services/company-appearance").CompanyAppearanceDto>(
+        "/api/company/appearance",
+      ),
+    save: (data: { presetId: string; customBrandHsl?: string | null }) =>
+      request<import("@/lib/services/company-appearance").CompanyAppearanceDto>(
+        "/api/company/appearance",
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
+        },
+      ),
+    uploadLogo: async (file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      const response = await fetch("/api/company/appearance/logo", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const json = (await response.json()) as {
+        success: boolean;
+        data?: import("@/lib/services/company-appearance").CompanyAppearanceDto;
+        error?: string;
+      };
+      if (!response.ok || !json.success || !json.data) {
+        throw new Error(json.error ?? "Не удалось загрузить логотип");
+      }
+      return json.data;
+    },
+    clearLogo: () =>
+      request<import("@/lib/services/company-appearance").CompanyAppearanceDto>(
+        "/api/company/appearance/logo",
+        { method: "DELETE" },
+      ),
+  },
+
   deals: {
     list: (params?: {
       stage?: DealStageType;

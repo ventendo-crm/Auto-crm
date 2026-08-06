@@ -1,5 +1,6 @@
 "use client";
 
+import { AppearancePanel } from "@/components/settings/appearance-panel";
 import { CalculatorExpensesPanel } from "@/components/settings/calculator-expenses-panel";
 import { CompaniesPanel } from "@/components/settings/companies-panel";
 import { EmailTemplatesPanel } from "@/components/settings/email-templates-panel";
@@ -25,7 +26,7 @@ export function SettingsView() {
   const subtitle = isPlatformAdmin
     ? "Профиль, компании, письма, Telegram, калькулятор и пользователи"
     : isAdmin
-      ? "Профиль, уведомления, письма, Telegram, калькулятор и пользователи"
+      ? "Профиль, оформление, уведомления, письма, Telegram, калькулятор и пользователи"
       : canManageManagersTab
         ? "Профиль, уведомления и менеджеры"
         : isClient
@@ -41,6 +42,7 @@ export function SettingsView() {
             <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
               <TabsTrigger value="profile">Профиль</TabsTrigger>
               <TabsTrigger value="notifications">Уведомления</TabsTrigger>
+              {isAdmin && <TabsTrigger value="appearance">Оформление</TabsTrigger>}
               {canManageManagersTab && <TabsTrigger value="managers">Менеджеры</TabsTrigger>}
               {isAdmin && <TabsTrigger value="users">Пользователи</TabsTrigger>}
               {isAdmin && <TabsTrigger value="email">Письма</TabsTrigger>}
@@ -57,6 +59,12 @@ export function SettingsView() {
           <TabsContent value="notifications" className="mt-4">
             <NotificationsPanel />
           </TabsContent>
+
+          {isAdmin && (
+            <TabsContent value="appearance" className="mt-4">
+              <AppearancePanel />
+            </TabsContent>
+          )}
 
           {canManageManagersTab && (
             <TabsContent value="managers" className="mt-4">
