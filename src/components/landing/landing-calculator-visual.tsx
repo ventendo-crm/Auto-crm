@@ -25,7 +25,7 @@ export function LandingCalculatorVisual() {
         <div className="grid lg:grid-cols-2">
           <div className="border-b border-[var(--landing-line)] p-4 sm:p-5 lg:border-b-0 lg:border-r">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
-              Быстрый поиск · информация про авто
+              Быстрый поиск · ИИ · информация про авто
             </p>
             <div className="mt-3 flex gap-2 border border-[var(--landing-line)] bg-[var(--landing-wash)]/80 px-3 py-2.5">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
