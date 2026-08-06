@@ -113,22 +113,25 @@ export function LandingClientVisual() {
               </p>
             </div>
             <ul className="mt-3 space-y-2">
-              {ROUTE_POINTS.map((point) => (
-                <li
-                  key={point.city}
-                  className={`flex items-start justify-between gap-3 border-l-2 py-1 pl-3 ${
-                    point.destination
-                      ? "border-emerald-500 bg-emerald-50/80"
-                      : "border-[var(--landing-brand)]/50"
-                  }`}
-                >
-                  <div>
-                    <p className="text-xs font-semibold text-[var(--landing-ink)]">{point.city}</p>
-                    <p className="text-[10px] text-[var(--landing-muted)]">{point.note}</p>
-                  </div>
-                  <p className="shrink-0 text-[10px] text-[var(--landing-muted)]">{point.date}</p>
-                </li>
-              ))}
+              {ROUTE_POINTS.map((point) => {
+                const isDestination = "destination" in point && point.destination;
+                return (
+                  <li
+                    key={point.city}
+                    className={`flex items-start justify-between gap-3 border-l-2 py-1 pl-3 ${
+                      isDestination
+                        ? "border-emerald-500 bg-emerald-50/80"
+                        : "border-[var(--landing-brand)]/50"
+                    }`}
+                  >
+                    <div>
+                      <p className="text-xs font-semibold text-[var(--landing-ink)]">{point.city}</p>
+                      <p className="text-[10px] text-[var(--landing-muted)]">{point.note}</p>
+                    </div>
+                    <p className="shrink-0 text-[10px] text-[var(--landing-muted)]">{point.date}</p>
+                  </li>
+                );
+              })}
             </ul>
           </div>
 
