@@ -613,13 +613,30 @@ export const api = {
       ),
     save: (
       expenseItems: import("@/lib/customs-calculator/expense-template").CalculatorExpenseItem[],
+      customOrigins?: import("@/lib/customs-calculator/custom-origins").CustomCalculatorOrigin[],
     ) =>
       request<import("@/lib/services/company-calculator-settings").CompanyCalculatorSettingsDto>(
         "/api/calculator/expense-template",
         {
           method: "PUT",
-          body: JSON.stringify({ expenseItems }),
+          body: JSON.stringify({
+            expenseItems,
+            ...(customOrigins ? { customOrigins } : {}),
+          }),
         },
+      ),
+    addOrigin: (label: string) =>
+      request<import("@/lib/services/company-calculator-settings").CompanyCalculatorSettingsDto>(
+        "/api/calculator/expense-template",
+        {
+          method: "POST",
+          body: JSON.stringify({ label }),
+        },
+      ),
+    removeOrigin: (originId: string) =>
+      request<import("@/lib/services/company-calculator-settings").CompanyCalculatorSettingsDto>(
+        `/api/calculator/expense-template/origins/${encodeURIComponent(originId)}`,
+        { method: "DELETE" },
       ),
   },
 

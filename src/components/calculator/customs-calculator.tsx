@@ -49,6 +49,8 @@ import {
   findExpenseByRole,
   getDefaultCompanyCalculatorExpenses,
   ImporterType,
+  isChinaLikeOrigin,
+  isCustomOriginId,
   KAZAKHSTAN_DELIVERY_USD,
   listExtraExpenses,
   OriginCountry,
@@ -57,7 +59,9 @@ import {
   PREFERENTIAL_MAX_VOLUME_CC,
   roundExchangeRate,
   roundExchangeRates,
+  buildOriginOptions,
   type CalculatorExpenseItem,
+  type CustomCalculatorOrigin,
 } from "@/lib/customs-calculator";
 import type { CalculatorPresetInput } from "@/lib/validators/calculator-settings";
 import { canManageCompanyCalculator, getClientRoleName } from "@/lib/permissions";
@@ -155,7 +159,13 @@ function isDeliveryRoute(value: unknown): value is DeliveryRoute {
 }
 
 function isOriginCountry(value: unknown): value is OriginCountry {
-  return value === "china" || value === "korea" || value === "kyrgyzstan";
+  return (
+    typeof value === "string" &&
+    (value === "china" ||
+      value === "korea" ||
+      value === "kyrgyzstan" ||
+      isCustomOriginId(value))
+  );
 }
 
 function loadPersistedState(): CalculatorPersistedState {
@@ -342,12 +352,6 @@ const ENGINE_OPTIONS: Array<{ value: EngineType; label: string }> = [
   { value: "electric", label: "Электро и последовательный гибрид" },
 ];
 
-const ORIGIN_OPTIONS: Array<{ value: OriginCountry; label: string }> = [
-  { value: "china", label: "Китай" },
-  { value: "korea", label: "Корея" },
-  { value: "kyrgyzstan", label: "Киргизия" },
-];
-
 const CURRENCY_OPTIONS: Array<{ value: CurrencyCode; label: string }> = [
   { value: "RUB", label: "Рубль" },
   { value: "USD", label: "Доллар США" },
@@ -422,10 +426,14 @@ function inputToCalculatorState(input: CustomsCalculatorInput): CalculatorPersis
   };
 }
 
-function originCountryLabel(origin: OriginCountry): string {
+function originCountryLabel(
+  origin: OriginCountry,
+  customOrigins: CustomCalculatorOrigin[] = [],
+): string {
   if (origin === "korea") return "Корея";
   if (origin === "kyrgyzstan") return "Киргизия";
-  return "Китай";
+  if (origin === "china") return "Китай";
+  return customOrigins.find((item) => item.id === origin)?.label ?? origin;
 }
 
 function formatForeignNote(amount: number, code: "CNY" | "KRW" | "USD"): string | undefined {
@@ -682,6 +690,7 @@ export function CustomsCalculator() {
   const [expenseTemplate, setExpenseTemplate] = useState<CalculatorExpenseItem[]>(
     getDefaultCompanyCalculatorExpenses,
   );
+  const [customOrigins, setCustomOrigins] = useState<CustomCalculatorOrigin[]>([]);
   const [extraAmounts, setExtraAmounts] = useState<Record<string, string>>({});
   const [editingExpenses, setEditingExpenses] = useState(false);
   const [rates, setRates] = useState<ExchangeRates>(DEFAULT_STATE.rates);
@@ -783,6 +792,7 @@ export function CustomsCalculator() {
       .then((settings) => {
         if (cancelled) return;
         setExpenseTemplate(settings.expenseItems);
+        setCustomOrigins(settings.customOrigins ?? []);
         setExtraAmounts((prev) => {
           const next = { ...prev };
           for (const item of settings.expenseItems.filter((row) => row.role === "extra")) {
@@ -796,6 +806,7 @@ export function CustomsCalculator() {
       .catch(() => {
         if (!cancelled) {
           setExpenseTemplate(getDefaultCompanyCalculatorExpenses());
+          setCustomOrigins([]);
         }
       });
 
@@ -1077,8 +1088,20 @@ export function CustomsCalculator() {
     }
   };
 
-  const handleExpenseTemplateSaved = (items: CalculatorExpenseItem[]) => {
+  const handleExpenseTemplateSaved = (
+    items: CalculatorExpenseItem[],
+    nextCustomOrigins?: CustomCalculatorOrigin[],
+  ) => {
     setExpenseTemplate(items);
+    if (nextCustomOrigins) {
+      setCustomOrigins(nextCustomOrigins);
+      if (
+        isCustomOriginId(originCountry) &&
+        !nextCustomOrigins.some((origin) => origin.id === originCountry)
+      ) {
+        setOriginCountry("china");
+      }
+    }
     setExtraAmounts((prev) => {
       const next = { ...prev };
       for (const item of items.filter((row) => row.role === "extra")) {
@@ -1103,7 +1126,7 @@ export function CustomsCalculator() {
     if (deliveryUsdItem) setDeliveryUsd(String(deliveryUsdItem.defaultAmount));
     if (escort) setEscortRub(String(escort.defaultAmount));
     if (cityDelivery) setCityDeliveryUsd(String(cityDelivery.defaultAmount));
-    if (originCountry === "china" && chinaLocal) {
+    if (isChinaLikeOrigin(originCountry) && chinaLocal) {
       setChinaExpensesCny(chinaExpensesForAge(age));
     }
     if (originCountry === "korea") {
@@ -1117,7 +1140,7 @@ export function CustomsCalculator() {
 
   const handleAgeChange = (next: CarAge) => {
     setAge(next);
-    if (originCountry === "china" && expenseRoles.chinaLocal) {
+    if (isChinaLikeOrigin(originCountry) && expenseRoles.chinaLocal) {
       setChinaExpensesCny(chinaExpensesForAge(next));
     }
   };
@@ -1350,7 +1373,8 @@ export function CustomsCalculator() {
   const isElectric = normalizeEngine(engine) === "electric";
   const isKorea = originCountry === "korea";
   const isKyrgyzstan = originCountry === "kyrgyzstan";
-  const isChina = originCountry === "china";
+  const isChina = isChinaLikeOrigin(originCountry);
+  const originOptions = useMemo(() => buildOriginOptions(customOrigins), [customOrigins]);
   const showsCommercialRecyclingHint =
     importer === "personal" &&
     Number.isFinite(powerHpNumber) &&
@@ -1480,7 +1504,7 @@ export function CustomsCalculator() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ORIGIN_OPTIONS.map((option) => (
+                  {originOptions.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -1657,8 +1681,15 @@ export function CustomsCalculator() {
               <CalculatorExpenseEditor
                 embedded
                 initialItems={expenseTemplate}
-                initialOrigin={originCountry}
-                onSaved={handleExpenseTemplateSaved}
+                initialCustomOrigins={customOrigins}
+                initialOrigin={
+                  originCountry === "korea" || originCountry === "kyrgyzstan"
+                    ? originCountry
+                    : isCustomOriginId(originCountry)
+                      ? originCountry
+                      : "china"
+                }
+                onSaved={(items, nextOrigins) => handleExpenseTemplateSaved(items, nextOrigins)}
                 onCancel={() => setEditingExpenses(false)}
               />
             ) : (
@@ -2002,10 +2033,10 @@ export function CustomsCalculator() {
               ? "Все суммы в рублях. Первый платёж по инвойсу = авто + стоянка + документы/доставка до РФ."
               : isKyrgyzstan
                 ? "Все суммы в рублях. Итог с комиссией ВТБ = (авто + доставка до города) + 2%. Таможенная пошлина и сбор не считаются — только утилизационный сбор."
-                : "Все суммы в рублях. Итог с комиссией ВТБ = (авто + расходы по Китаю) + 2%."}
+                : "Все суммы в рублях. Итог с комиссией ВТБ = (авто + расходы страны) + 2%."}
           </p>
           <div className="flex flex-wrap gap-2 pt-2">
-            <Badge variant="brand">{originCountryLabel(originCountry)}</Badge>
+            <Badge variant="brand">{originCountryLabel(originCountry, customOrigins)}</Badge>
             <Badge variant="outline">
               Курс{" "}
               {isKorea
@@ -2182,7 +2213,7 @@ export function CustomsCalculator() {
                     )}
                     <div className="border-b border-border/40 pb-1.5">
                       <p className="text-sm font-semibold">
-                        Расчёт растаможки · {originCountryLabel(originCountry)}
+                        Расчёт растаможки · {originCountryLabel(originCountry, customOrigins)}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
                         Курс{" "}
@@ -2419,7 +2450,7 @@ export function CustomsCalculator() {
                           >
                             <div className="min-w-0">
                               <p className="text-sm font-medium">
-                                {originCountryLabel(item.originCountry)} ·{" "}
+                                {originCountryLabel(item.originCountry, customOrigins)} ·{" "}
                                 {item.engine === "electric" ? "электро" : "ДВС"}
                               </p>
                               <p className="text-xs text-muted-foreground">

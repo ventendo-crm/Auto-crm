@@ -8,7 +8,33 @@ export type CarAge = "new" | "under3" | "from3to5" | "from5to7" | "over7";
 export type EngineType = "petrol" | "diesel" | "electric";
 export type CurrencyCode = "RUB" | "USD" | "CNY" | "KRW";
 export type DeliveryRoute = "ussuriysk" | "kazakhstan" | "vladivostok";
-export type OriginCountry = "china" | "korea" | "kyrgyzstan";
+
+/** Системные страны происхождения. */
+export const SYSTEM_ORIGIN_COUNTRIES = ["china", "korea", "kyrgyzstan"] as const;
+export type SystemOriginCountry = (typeof SYSTEM_ORIGIN_COUNTRIES)[number];
+
+/**
+ * Страна происхождения: системная или кастомная компании (`custom_...`).
+ * Кастомные считают как Китай (полная таможня).
+ */
+export type OriginCountry = SystemOriginCountry | (string & {});
+
+export function isSystemOriginCountry(value: string): value is SystemOriginCountry {
+  return (SYSTEM_ORIGIN_COUNTRIES as readonly string[]).includes(value);
+}
+
+export function isKoreaOrigin(origin: string): boolean {
+  return origin === "korea";
+}
+
+export function isKyrgyzstanOrigin(origin: string): boolean {
+  return origin === "kyrgyzstan";
+}
+
+/** Китай и кастомные страны компании (`custom_...`). */
+export function isChinaLikeOrigin(origin: string): boolean {
+  return origin === "china" || /^custom_[a-z0-9_]{1,48}$/.test(origin);
+}
 
 export interface ExchangeRates {
   USD: number;

@@ -29,7 +29,8 @@ export const CALCULATOR_EXPENSE_ROLES = [
 export type CalculatorExpenseRole = (typeof CALCULATOR_EXPENSE_ROLES)[number];
 
 export const CALCULATOR_EXPENSE_ORIGINS = ["all", "china", "korea", "kyrgyzstan"] as const;
-export type CalculatorExpenseOrigin = (typeof CALCULATOR_EXPENSE_ORIGINS)[number];
+/** Системный origin или кастомный id компании (`custom_...`). */
+export type CalculatorExpenseOrigin = (typeof CALCULATOR_EXPENSE_ORIGINS)[number] | (string & {});
 
 export const CALCULATOR_EXPENSE_CURRENCIES: CurrencyCode[] = ["RUB", "USD", "CNY", "KRW"];
 
@@ -196,7 +197,7 @@ export const EXPENSE_ROLE_LABELS: Record<CalculatorExpenseRole, string> = {
   extra: "Доп. расход (в итог)",
 };
 
-export const EXPENSE_ORIGIN_LABELS: Record<CalculatorExpenseOrigin, string> = {
+export const EXPENSE_ORIGIN_LABELS: Record<string, string> = {
   all: "Все страны",
   china: "Только Китай",
   korea: "Только Корея",

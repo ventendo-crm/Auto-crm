@@ -331,10 +331,11 @@ model UserCalculatorSettings {
 }
 
 model CompanyCalculatorSettings {
-  companyId    String   @id
-  expenseItems Json     @default("[]")
-  updatedAt    DateTime @updatedAt
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  companyId     String   @id
+  expenseItems  Json     @default("[]")
+  customOrigins Json     @default("[]")
+  updatedAt     DateTime @updatedAt
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   @@map("company_calculator_settings")
 }

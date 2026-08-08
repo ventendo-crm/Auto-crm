@@ -15,6 +15,10 @@ import {
 } from "@/components/ui/select";
 import { api } from "@/lib/api-client";
 import {
+  type CustomCalculatorOrigin,
+  isCustomOriginId,
+} from "@/lib/customs-calculator/custom-origins";
+import {
   CalculatorExpenseItem,
   CalculatorExpenseOrigin,
   CALCULATOR_EXPENSE_CURRENCIES,
@@ -33,11 +37,10 @@ function cloneItems(items: CalculatorExpenseItem[]): CalculatorExpenseItem[] {
   return items.map((item) => ({ ...item }));
 }
 
-const COUNTRY_TABS: Array<{ value: CalculatorExpenseOrigin; label: string }> = [
+const SYSTEM_COUNTRY_TABS: Array<{ value: CalculatorExpenseOrigin; label: string }> = [
   { value: "china", label: "Китай" },
   { value: "korea", label: "Корея" },
   { value: "kyrgyzstan", label: "Киргизия" },
-  { value: "all", label: "Общие" },
 ];
 
 function itemsForOrigin(
@@ -64,19 +67,32 @@ function defaultsForOrigin(origin: CalculatorExpenseOrigin): CalculatorExpenseIt
   return cloneDefaults().filter((item) => item.origin === origin);
 }
 
+function tabLabel(
+  origin: CalculatorExpenseOrigin,
+  customOrigins: CustomCalculatorOrigin[],
+): string {
+  const system = SYSTEM_COUNTRY_TABS.find((tab) => tab.value === origin);
+  if (system) return system.label;
+  if (origin === "all") return "Общие";
+  return customOrigins.find((item) => item.id === origin)?.label ?? origin;
+}
+
 interface CalculatorExpenseEditorProps {
   /** Начальный список (если уже загружен в родителе). */
   initialItems?: CalculatorExpenseItem[];
+  /** Кастомные страны компании (если уже загружены). */
+  initialCustomOrigins?: CustomCalculatorOrigin[];
   /** Стартовая страна фильтра (из калькулятора). */
   initialOrigin?: CalculatorExpenseOrigin;
   /** Компактный режим внутри калькулятора. */
   embedded?: boolean;
-  onSaved?: (items: CalculatorExpenseItem[]) => void;
+  onSaved?: (items: CalculatorExpenseItem[], customOrigins: CustomCalculatorOrigin[]) => void;
   onCancel?: () => void;
 }
 
 export function CalculatorExpenseEditor({
   initialItems,
+  initialCustomOrigins,
   initialOrigin = "china",
   embedded = false,
   onSaved,
@@ -85,13 +101,25 @@ export function CalculatorExpenseEditor({
   const [items, setItems] = useState<CalculatorExpenseItem[]>(() =>
     initialItems ? cloneItems(initialItems) : cloneDefaults(),
   );
+  const [customOrigins, setCustomOrigins] = useState<CustomCalculatorOrigin[]>(
+    () => initialCustomOrigins ?? [],
+  );
   const [selectedOrigin, setSelectedOrigin] = useState<CalculatorExpenseOrigin>(initialOrigin);
   const [loading, setLoading] = useState(!initialItems);
   const [saving, setSaving] = useState(false);
+  const [addingCountry, setAddingCountry] = useState(false);
+  const [newCountryLabel, setNewCountryLabel] = useState("");
+  const [originBusy, setOriginBusy] = useState(false);
 
   useEffect(() => {
     setSelectedOrigin(initialOrigin);
   }, [initialOrigin]);
+
+  useEffect(() => {
+    if (initialCustomOrigins) {
+      setCustomOrigins(initialCustomOrigins);
+    }
+  }, [initialCustomOrigins]);
 
   useEffect(() => {
     if (initialItems) {
@@ -105,7 +133,10 @@ export function CalculatorExpenseEditor({
     void api.calculatorExpenseTemplate
       .get()
       .then((data) => {
-        if (!cancelled) setItems(cloneItems(data.expenseItems));
+        if (!cancelled) {
+          setItems(cloneItems(data.expenseItems));
+          setCustomOrigins(data.customOrigins ?? []);
+        }
       })
       .catch((error) => {
         if (!cancelled) {
@@ -122,10 +153,21 @@ export function CalculatorExpenseEditor({
     };
   }, [initialItems]);
 
+  const countryTabs = useMemo(
+    () => [
+      ...SYSTEM_COUNTRY_TABS,
+      ...customOrigins.map((origin) => ({ value: origin.id, label: origin.label })),
+      { value: "all" as const, label: "Общие" },
+    ],
+    [customOrigins],
+  );
+
   const visibleItems = useMemo(
     () => itemsForOrigin(items, selectedOrigin),
     [items, selectedOrigin],
   );
+
+  const selectedIsCustom = isCustomOriginId(String(selectedOrigin));
 
   const updateItem = (id: string, patch: Partial<CalculatorExpenseItem>) => {
     setItems((current) =>
@@ -161,13 +203,15 @@ export function CalculatorExpenseEditor({
     setSaving(true);
     try {
       const payload = mergeOriginSlice(items, selectedOrigin, visibleItems);
-      const saved = await api.calculatorExpenseTemplate.save(payload);
-      const next = cloneItems(saved.expenseItems);
-      setItems(next);
+      const saved = await api.calculatorExpenseTemplate.save(payload, customOrigins);
+      const nextItems = cloneItems(saved.expenseItems);
+      const nextOrigins = saved.customOrigins ?? [];
+      setItems(nextItems);
+      setCustomOrigins(nextOrigins);
       toast.success(
-        `Шаблон расходов сохранён (${COUNTRY_TABS.find((tab) => tab.value === selectedOrigin)?.label ?? selectedOrigin})`,
+        `Шаблон расходов сохранён (${tabLabel(selectedOrigin, nextOrigins)})`,
       );
-      onSaved?.(next);
+      onSaved?.(nextItems, nextOrigins);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
     } finally {
@@ -176,12 +220,72 @@ export function CalculatorExpenseEditor({
   };
 
   const handleReset = () => {
+    if (selectedIsCustom) {
+      setItems((current) => mergeOriginSlice(current, selectedOrigin, []));
+      toast.message(
+        `Поля «${tabLabel(selectedOrigin, customOrigins)}» очищены — нажмите «Сохранить»`,
+      );
+      return;
+    }
     setItems((current) =>
       mergeOriginSlice(current, selectedOrigin, defaultsForOrigin(selectedOrigin)),
     );
     toast.message(
-      `Восстановлены стандартные пункты для «${COUNTRY_TABS.find((tab) => tab.value === selectedOrigin)?.label}» — нажмите «Сохранить»`,
+      `Восстановлены стандартные пункты для «${tabLabel(selectedOrigin, customOrigins)}» — нажмите «Сохранить»`,
     );
+  };
+
+  const handleAddCountry = async () => {
+    const label = newCountryLabel.trim();
+    if (!label) {
+      toast.error("Укажите название страны");
+      return;
+    }
+    setOriginBusy(true);
+    try {
+      const saved = await api.calculatorExpenseTemplate.addOrigin(label);
+      const nextItems = cloneItems(saved.expenseItems);
+      const nextOrigins = saved.customOrigins ?? [];
+      setItems(nextItems);
+      setCustomOrigins(nextOrigins);
+      const created = nextOrigins[nextOrigins.length - 1];
+      if (created) setSelectedOrigin(created.id);
+      setNewCountryLabel("");
+      setAddingCountry(false);
+      toast.success(`Страна «${label}» добавлена (расчёт как Китай)`);
+      onSaved?.(nextItems, nextOrigins);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось добавить страну");
+    } finally {
+      setOriginBusy(false);
+    }
+  };
+
+  const handleRemoveCountry = async () => {
+    if (!selectedIsCustom) return;
+    const label = tabLabel(selectedOrigin, customOrigins);
+    if (
+      !window.confirm(
+        `Удалить страну «${label}» и все её поля расходов? Это нельзя отменить.`,
+      )
+    ) {
+      return;
+    }
+    setOriginBusy(true);
+    try {
+      const saved = await api.calculatorExpenseTemplate.removeOrigin(String(selectedOrigin));
+      const nextItems = cloneItems(saved.expenseItems);
+      const nextOrigins = saved.customOrigins ?? [];
+      setItems(nextItems);
+      setCustomOrigins(nextOrigins);
+      setSelectedOrigin("china");
+      toast.success(`Страна «${label}» удалена`);
+      onSaved?.(nextItems, nextOrigins);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить страну");
+    } finally {
+      setOriginBusy(false);
+    }
   };
 
   if (loading) {
@@ -198,7 +302,7 @@ export function CalculatorExpenseEditor({
       <div className="space-y-2">
         <Label className="text-xs text-muted-foreground">Страна для настройки</Label>
         <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
-          {COUNTRY_TABS.map((tab) => {
+          {countryTabs.map((tab) => {
             const active = selectedOrigin === tab.value;
             return (
               <button
@@ -219,6 +323,7 @@ export function CalculatorExpenseEditor({
         </div>
         <p className="text-xs text-muted-foreground">
           Редактируете только поля выбранной страны. Остальные страны при сохранении не меняются.
+          Свои страны считают как Китай (полная таможня и ВТБ при роли расходов).
         </p>
       </div>
 
@@ -227,6 +332,33 @@ export function CalculatorExpenseEditor({
           <Plus className="mr-1.5 h-3.5 w-3.5" />
           Добавить поле
         </Button>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={originBusy}
+          onClick={() => setAddingCountry((open) => !open)}
+        >
+          <Plus className="mr-1.5 h-3.5 w-3.5" />
+          Добавить страну
+        </Button>
+        {selectedIsCustom && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={originBusy}
+            className="text-destructive hover:text-destructive"
+            onClick={() => void handleRemoveCountry()}
+          >
+            {originBusy ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+            )}
+            Удалить страну
+          </Button>
+        )}
         <Button type="button" variant="ghost" size="sm" onClick={handleReset}>
           <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
           Сбросить
@@ -235,7 +367,7 @@ export function CalculatorExpenseEditor({
           type="button"
           variant="brand"
           size="sm"
-          disabled={saving}
+          disabled={saving || originBusy}
           onClick={() => void handleSave()}
         >
           {saving ? (
@@ -252,6 +384,49 @@ export function CalculatorExpenseEditor({
           </Button>
         )}
       </div>
+
+      {addingCountry && (
+        <div className="flex flex-wrap items-end gap-2 rounded-xl border bg-muted/10 p-3">
+          <div className="min-w-[12rem] flex-1 space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Название страны</Label>
+            <Input
+              value={newCountryLabel}
+              placeholder="Например, ОАЭ"
+              maxLength={80}
+              disabled={originBusy}
+              onChange={(event) => setNewCountryLabel(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  void handleAddCountry();
+                }
+              }}
+            />
+          </div>
+          <Button
+            type="button"
+            variant="brand"
+            size="sm"
+            disabled={originBusy}
+            onClick={() => void handleAddCountry()}
+          >
+            {originBusy ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : null}
+            Создать
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={originBusy}
+            onClick={() => {
+              setAddingCountry(false);
+              setNewCountryLabel("");
+            }}
+          >
+            Отмена
+          </Button>
+        </div>
+      )}
 
       {!embedded && (
         <p className="text-xs text-muted-foreground">

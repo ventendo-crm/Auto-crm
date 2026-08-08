@@ -13,6 +13,9 @@ import {
   ExchangeRates,
   hpToKw,
   ImporterType,
+  isChinaLikeOrigin,
+  isKoreaOrigin,
+  isKyrgyzstanOrigin,
   isYoungerThan3,
   KAZAKHSTAN_DELIVERY_USD,
   OriginCountry,
@@ -494,13 +497,8 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const priceEur = toEur(priceRub, input.rates);
   const eurRate = input.rates.EUR;
 
-  const originCountry: OriginCountry =
-    input.originCountry === "korea"
-      ? "korea"
-      : input.originCountry === "kyrgyzstan"
-        ? "kyrgyzstan"
-        : "china";
-  const skipFullCustoms = originCountry === "kyrgyzstan";
+  const originCountry: OriginCountry = input.originCountry?.trim() || "china";
+  const skipFullCustoms = isKyrgyzstanOrigin(originCountry);
 
   const customsFee = skipFullCustoms ? 0 : calcCustomsFee(priceRub);
   const dutyResult = skipFullCustoms
@@ -539,7 +537,7 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
     : customsFee + customsDuty + excise + vat + recyclingFee;
 
   const chinaExpensesCny =
-    originCountry === "china" &&
+    isChinaLikeOrigin(originCountry) &&
     Number.isFinite(input.chinaExpensesCny) &&
     (input.chinaExpensesCny ?? 0) > 0
       ? (input.chinaExpensesCny as number)
@@ -547,19 +545,19 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const chinaExpensesRub = toRub(chinaExpensesCny, "CNY", input.rates);
 
   const cityDeliveryUsd =
-    originCountry === "kyrgyzstan"
+    isKyrgyzstanOrigin(originCountry)
       ? normalizeOptionalRub(input.cityDeliveryUsd, DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD)
       : 0;
   const cityDeliveryRub = toRub(cityDeliveryUsd, "USD", input.rates);
 
   const koreaDocsDeliveryKrw =
-    originCountry === "korea"
+    isKoreaOrigin(originCountry)
       ? normalizeOptionalRub(input.koreaDocsDeliveryKrw, DEFAULT_KOREA_DOCS_DELIVERY_KRW)
       : 0;
   const koreaDocsDeliveryRub = toRub(koreaDocsDeliveryKrw, "KRW", input.rates);
 
   const parkingFeeKrw =
-    originCountry === "korea"
+    isKoreaOrigin(originCountry)
       ? normalizeOptionalRub(input.parkingFeeKrw, DEFAULT_KOREA_PARKING_FEE_KRW)
       : 0;
   const parkingFeeRub = toRub(parkingFeeKrw, "KRW", input.rates);
@@ -567,33 +565,33 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   let vtbTotalRub: number;
   let firstPaymentLabel: string;
   let firstPaymentNote: string;
-  if (originCountry === "korea") {
+  if (isKoreaOrigin(originCountry)) {
     vtbTotalRub = priceRub + parkingFeeRub + koreaDocsDeliveryRub;
     firstPaymentLabel = "Первый платёж по инвойсу";
     firstPaymentNote = "Авто + комиссия стоянки + документы и доставка до РФ";
-  } else if (originCountry === "kyrgyzstan") {
+  } else if (isKyrgyzstanOrigin(originCountry)) {
     vtbTotalRub = (priceRub + cityDeliveryRub) * (1 + VTB_COMMISSION_RATE);
     firstPaymentLabel = "Итог с комиссией ВТБ";
     firstPaymentNote = "Авто + доставка до города + 2%";
   } else {
     vtbTotalRub = (priceRub + chinaExpensesRub) * (1 + VTB_COMMISSION_RATE);
     firstPaymentLabel = "Итог с комиссией ВТБ";
-    firstPaymentNote = "Авто + расходы по Китаю + 2%";
+    firstPaymentNote = "Авто + расходы по стране + 2%";
   }
 
   const brokerFeeRub = normalizeOptionalRub(
     input.brokerFeeRub,
-    originCountry === "korea" ? DEFAULT_KOREA_BROKER_FEE_RUB : DEFAULT_BROKER_FEE_RUB,
+    isKoreaOrigin(originCountry) ? DEFAULT_KOREA_BROKER_FEE_RUB : DEFAULT_BROKER_FEE_RUB,
   );
 
   let deliveryRoute: DeliveryRoute;
   let deliveryRub: number;
   let deliveryNote: string;
-  if (originCountry === "korea") {
+  if (isKoreaOrigin(originCountry)) {
     deliveryRoute = "vladivostok";
     deliveryRub = normalizeOptionalRub(input.deliveryRub, DEFAULT_KOREA_DELIVERY_RUB);
     deliveryNote = "из Владивостока";
-  } else if (originCountry === "kyrgyzstan") {
+  } else if (isKyrgyzstanOrigin(originCountry)) {
     // Для Киргизии доставка только «до города» (USD) в первом платеже ВТБ.
     deliveryRoute = "ussuriysk";
     deliveryRub = 0;

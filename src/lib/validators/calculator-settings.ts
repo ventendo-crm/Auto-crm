@@ -11,7 +11,7 @@ export const calculatorPresetSchema = z.object({
   id: z.string().min(1).max(64),
   name: z.string().trim().min(1).max(60),
   savedAt: z.string().min(1).max(40),
-  originCountry: z.enum(["china", "korea", "kyrgyzstan"]),
+  originCountry: z.string().trim().min(1).max(64),
   importer: z.enum(["personal", "resale", "legal"]),
   age: z.enum(["new", "under3", "from3to5", "from5to7", "over7"]),
   engine: z.enum(["petrol", "diesel", "electric"]),
