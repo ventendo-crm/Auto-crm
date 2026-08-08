@@ -14,7 +14,7 @@ import {
   type CollisionDetection,
 } from "@dnd-kit/core";
 import { DealStageType } from "@prisma/client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { DealCard } from "@/components/kanban/deal-card";
 import { ALL_MANAGERS, ALL_ORIGINS, KanbanFilters } from "@/components/kanban/kanban-filters";
@@ -35,6 +35,51 @@ import { DealListItem, User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const COMPACT_VIEW_STORAGE_KEY = "kanban-compact-view";
+const KANBAN_SCROLL_STORAGE_KEY = "kanban-scroll-left";
+const KANBAN_FILTERS_STORAGE_KEY = "kanban-filters";
+
+type KanbanFiltersState = {
+  searchInput: string;
+  appliedSearch: string;
+  selectedManagerId: string;
+  selectedOriginId: string;
+};
+
+function readKanbanFilters(): KanbanFiltersState | null {
+  try {
+    const raw = sessionStorage.getItem(KANBAN_FILTERS_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<KanbanFiltersState>;
+    return {
+      searchInput: typeof parsed.searchInput === "string" ? parsed.searchInput : "",
+      appliedSearch: typeof parsed.appliedSearch === "string" ? parsed.appliedSearch : "",
+      selectedManagerId:
+        typeof parsed.selectedManagerId === "string" ? parsed.selectedManagerId : ALL_MANAGERS,
+      selectedOriginId:
+        typeof parsed.selectedOriginId === "string" ? parsed.selectedOriginId : ALL_ORIGINS,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readKanbanScrollLeft(): number {
+  try {
+    const raw = sessionStorage.getItem(KANBAN_SCROLL_STORAGE_KEY);
+    const value = raw ? Number(raw) : 0;
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function writeKanbanScrollLeft(value: number) {
+  try {
+    sessionStorage.setItem(KANBAN_SCROLL_STORAGE_KEY, String(Math.max(0, Math.round(value))));
+  } catch {
+    // sessionStorage недоступен
+  }
+}
 
 const collisionDetection: CollisionDetection = (args) => {
   const pointerCollisions = pointerWithin(args);
@@ -55,9 +100,11 @@ export function KanbanBoard() {
   const isAndroidApp = useIsAndroidWebView();
   const isMobile = useIsMobile();
   const dragEnabled = !isMobile;
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [managers, setManagers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filtersReady, setFiltersReady] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const [appliedSearch, setAppliedSearch] = useState("");
   const [selectedManagerId, setSelectedManagerId] = useState(ALL_MANAGERS);
@@ -76,7 +123,31 @@ export function KanbanBoard() {
     } catch {
       // localStorage недоступен
     }
+
+    const savedFilters = readKanbanFilters();
+    if (savedFilters) {
+      setSearchInput(savedFilters.searchInput);
+      setAppliedSearch(savedFilters.appliedSearch);
+      setSelectedManagerId(savedFilters.selectedManagerId);
+      setSelectedOriginId(savedFilters.selectedOriginId);
+    }
+    setFiltersReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+    try {
+      const payload: KanbanFiltersState = {
+        searchInput,
+        appliedSearch,
+        selectedManagerId,
+        selectedOriginId,
+      };
+      sessionStorage.setItem(KANBAN_FILTERS_STORAGE_KEY, JSON.stringify(payload));
+    } catch {
+      // sessionStorage недоступен
+    }
+  }, [filtersReady, searchInput, appliedSearch, selectedManagerId, selectedOriginId]);
 
   const handleCompactViewChange = useCallback((value: boolean) => {
     setCompactView(value);
@@ -99,6 +170,13 @@ export function KanbanBoard() {
 
     return map;
   }, [deals]);
+
+  const isSearchActive = appliedSearch.trim().length > 0;
+
+  const visibleStages = useMemo(() => {
+    if (!isSearchActive) return STAGE_ORDER;
+    return STAGE_ORDER.filter((stage) => dealsByStage[stage].length > 0);
+  }, [dealsByStage, isSearchActive]);
 
   const currentQuery = useMemo<KanbanQuery>(
     () => ({
@@ -139,8 +217,36 @@ export function KanbanBoard() {
   }, [isAdmin]);
 
   useEffect(() => {
+    if (!filtersReady) return;
     void loadDeals(currentQuery);
-  }, [currentQuery, loadDeals]);
+  }, [currentQuery, loadDeals, filtersReady]);
+
+  useEffect(() => {
+    if (loading || !filtersReady) return;
+    const el = scrollRef.current;
+    if (!el) return;
+
+    if (isSearchActive) {
+      el.scrollLeft = 0;
+      writeKanbanScrollLeft(0);
+      return;
+    }
+
+    const left = readKanbanScrollLeft();
+    if (left <= 0) return;
+    const restore = () => {
+      el.scrollLeft = left;
+    };
+    restore();
+    const frame = window.requestAnimationFrame(restore);
+    return () => window.cancelAnimationFrame(frame);
+  }, [loading, filtersReady, deals.length, compactView, isSearchActive]);
+
+  const handleBoardScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    writeKanbanScrollLeft(el.scrollLeft);
+  };
 
   useEffect(() => {
     if (!isAndroidApp) return;
@@ -148,6 +254,20 @@ export function KanbanBoard() {
     androidBridge.setPullToRefreshEnabled(false);
     return () => androidBridge.setPullToRefreshEnabled(true);
   }, [isAndroidApp]);
+
+  useEffect(() => {
+    const persistScroll = () => {
+      if (scrollRef.current) {
+        writeKanbanScrollLeft(scrollRef.current.scrollLeft);
+      }
+    };
+    window.addEventListener("pagehide", persistScroll);
+    document.addEventListener("visibilitychange", persistScroll);
+    return () => {
+      window.removeEventListener("pagehide", persistScroll);
+      document.removeEventListener("visibilitychange", persistScroll);
+    };
+  }, []);
 
   const releaseHorizontalGesture = useCallback(() => {
     androidBridge.setHorizontalGestureLock(false);
@@ -280,28 +400,36 @@ export function KanbanBoard() {
         onDragCancel={handleDragCancel}
       >
         <div
+          ref={scrollRef}
           className={cn(
             "flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:gap-4 sm:p-6",
             isAndroidApp && "kanban-android-scroll",
           )}
+          onScroll={handleBoardScroll}
           onTouchStart={isAndroidApp ? lockHorizontalGesture : undefined}
           onTouchEnd={isAndroidApp ? releaseHorizontalGesture : undefined}
           onTouchCancel={isAndroidApp ? releaseHorizontalGesture : undefined}
         >
-          {STAGE_ORDER.map((stage) => (
-            <KanbanColumn
-              key={stage}
-              stage={stage}
-              deals={dealsByStage[stage]}
-              compact={compactView}
-              isOver={overStage === stage}
-              dragEnabled={dragEnabled}
-              canDrag={(deal) =>
-                dragEnabled && canDragDeal(user?.role.name, user?.id, deal.managerIds)
-              }
-              savingDealId={savingDealId}
-            />
-          ))}
+          {isSearchActive && visibleStages.length === 0 ? (
+            <div className="flex min-h-[12rem] w-full items-center justify-center rounded-xl border border-dashed bg-muted/20 px-6 text-center text-sm text-muted-foreground">
+              По запросу «{appliedSearch.trim()}» ничего не найдено
+            </div>
+          ) : (
+            visibleStages.map((stage) => (
+              <KanbanColumn
+                key={stage}
+                stage={stage}
+                deals={dealsByStage[stage]}
+                compact={compactView}
+                isOver={overStage === stage}
+                dragEnabled={dragEnabled}
+                canDrag={(deal) =>
+                  dragEnabled && canDragDeal(user?.role.name, user?.id, deal.managerIds)
+                }
+                savingDealId={savingDealId}
+              />
+            ))
+          )}
         </div>
 
         <DragOverlay dropAnimation={{ duration: 200, easing: "ease" }}>
