@@ -35,6 +35,7 @@ export const changeStageSchema = z.object({
 export const listDealsSchema = z.object({
   stage: z.nativeEnum(DealStageType).optional(),
   managerId: z.string().cuid().optional(),
+  destinationCountry: z.string().trim().min(1).max(100).optional(),
   search: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),

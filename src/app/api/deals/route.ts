@@ -10,6 +10,7 @@ export const GET = withAuth(async (request, { user }) => {
   const filters = listDealsSchema.parse({
     stage: searchParams.get("stage") ?? undefined,
     managerId: searchParams.get("managerId") ?? undefined,
+    destinationCountry: searchParams.get("destinationCountry") ?? undefined,
     search: searchParams.get("search") ?? undefined,
     page: searchParams.get("page") ?? undefined,
     limit: searchParams.get("limit") ?? undefined,

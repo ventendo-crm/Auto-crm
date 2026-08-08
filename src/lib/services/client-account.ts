@@ -9,6 +9,8 @@ import { enrichMediaRecord, SEARCH_PROCESS_MEDIA_INCLUDE } from "@/lib/services/
 import { getRoleByName, ensureDefaultRoles } from "@/lib/services/roles";
 import { deleteUser } from "@/lib/services/users";
 import { serialize } from "@/lib/serialize";
+import { resolveOriginLabel } from "@/lib/customs-calculator/custom-origins";
+import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
 
 const clientUserSelect = {
   id: true,
@@ -260,6 +262,12 @@ export async function getClientPortalDeal(clientUserId: string) {
 
   const media = await Promise.all(deal.media.map(enrichMediaRecord));
 
+  const calculatorSettings = await getCompanyCalculatorSettings(deal.companyId);
+  const destinationCountryLabel = resolveOriginLabel(
+    deal.destinationCountry,
+    calculatorSettings.customOrigins,
+  );
+
   return serialize({
     id: deal.id,
     clientName: deal.clientName,
@@ -268,7 +276,7 @@ export async function getClientPortalDeal(clientUserId: string) {
     carModel: deal.carModel,
     carYear: deal.carYear,
     destinationCity: deal.destinationCity,
-    destinationCountry: deal.destinationCountry,
+    destinationCountry: destinationCountryLabel,
     currentStage: deal.currentStage,
     stageLabel: STAGE_LABELS[deal.currentStage],
     expectedArrival: deal.expectedArrival,

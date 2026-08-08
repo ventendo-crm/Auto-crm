@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { ManagersMultiSelect } from "@/components/deals/managers-multi-select";
+import { ExportOriginSelect } from "@/components/deals/export-origin-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -36,7 +37,7 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
     carBrand: "",
     carModel: "",
     destinationCity: "",
-    destinationCountry: "Россия",
+    destinationCountry: "china",
     prepayment: "",
     balance: "",
     managerIds: [] as string[],
@@ -49,7 +50,7 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
       carBrand: "",
       carModel: "",
       destinationCity: "",
-      destinationCountry: "Россия",
+      destinationCountry: "china",
       prepayment: "",
       balance: "",
       managerIds: [],
@@ -145,11 +146,12 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
               />
             </div>
             <div className="space-y-2">
-              <Label>Страна</Label>
-              <Input
+              <Label>Страна экспорта</Label>
+              <ExportOriginSelect
                 value={form.destinationCountry}
-                onChange={(e) => setForm({ ...form, destinationCountry: e.target.value })}
-                required
+                onValueChange={(destinationCountry) =>
+                  setForm({ ...form, destinationCountry })
+                }
               />
             </div>
             <div className="space-y-2">

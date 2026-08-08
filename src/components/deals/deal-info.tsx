@@ -1,9 +1,10 @@
 "use client";
 
 import { Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DealExportCountryLabel } from "@/components/deals/deal-export-country-label";
 import { EditDealDialog } from "@/components/deals/edit-deal-dialog";
 import { Input } from "@/components/ui/input";
 import { formatDealManagersLabel } from "@/lib/deal-managers";
@@ -18,7 +19,7 @@ type DealInfoField =
       kind: "static";
       label: string;
       requiresFinances?: boolean;
-      value: (deal: DealDetail) => string;
+      value: (deal: DealDetail) => ReactNode;
     }
   | {
       kind: "editable";
@@ -83,7 +84,11 @@ const dealInfoFields: DealInfoField[] = [
       d.actualArrival ? new Date(d.actualArrival).toISOString().split("T")[0] : "",
     displayValue: (d) => formatDate(d.actualArrival),
   },
-  { kind: "static", label: "Страна", value: (d) => d.destinationCountry },
+  {
+    kind: "static",
+    label: "Страна экспорта",
+    value: (d) => <DealExportCountryLabel value={d.destinationCountry} />,
+  },
   { kind: "static", label: "Город", value: (d) => d.destinationCity },
 ];
 

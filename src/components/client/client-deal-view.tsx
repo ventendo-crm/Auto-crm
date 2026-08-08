@@ -137,7 +137,7 @@ export function ClientDealView() {
               </p>
             </div>
             <div>
-              <p className="text-field-label">Направление</p>
+              <p className="text-field-label">Город / страна экспорта</p>
               <p className="text-field-value">
                 {deal.destinationCity}, {deal.destinationCountry}
               </p>

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Loader2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { ManagersMultiSelect } from "@/components/deals/managers-multi-select";
+import { ExportOriginSelect } from "@/components/deals/export-origin-select";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -226,14 +227,13 @@ export function EditDealDialog({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="edit-destinationCountry">Страна</Label>
-              <Input
+              <Label htmlFor="edit-destinationCountry">Страна экспорта</Label>
+              <ExportOriginSelect
                 id="edit-destinationCountry"
                 value={form.destinationCountry}
-                onChange={(e) =>
-                  setForm({ ...form, destinationCountry: e.target.value })
+                onValueChange={(destinationCountry) =>
+                  setForm({ ...form, destinationCountry })
                 }
-                required
               />
             </div>
 

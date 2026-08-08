@@ -10,7 +10,9 @@ import {
   syncDealManagerAssignments,
 } from "@/lib/deal-managers";
 import { AuthUser, ROLES } from "@/lib/permissions";
+import { resolveOriginLabel } from "@/lib/customs-calculator/custom-origins";
 import { createAuditLog } from "@/lib/services/audit";
+import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
 import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { notifyStageChange } from "@/lib/services/notifications";
 import { recordStageChange } from "@/lib/services/stage-history";
@@ -93,6 +95,16 @@ async function buildDealWhere(user: AuthUser, filters: ListDealsInput): Promise<
 
   if (filters.stage) {
     where.currentStage = filters.stage;
+  }
+
+  if (filters.destinationCountry) {
+    const settings = await getCompanyCalculatorSettings(user.companyId);
+    const label = resolveOriginLabel(
+      filters.destinationCountry,
+      settings.customOrigins,
+    );
+    const values = Array.from(new Set([filters.destinationCountry, label]));
+    where.destinationCountry = { in: values };
   }
 
   if (filters.search) {

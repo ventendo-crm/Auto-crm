@@ -1,7 +1,7 @@
 "use client";
 
 import { LayoutGrid, LayoutList, Plus, Search } from "lucide-react";
-import { FormEvent, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { CreateDealDialog } from "@/components/deals/create-deal-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,10 +12,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { api } from "@/lib/api-client";
+import {
+  buildOriginOptions,
+  type CustomCalculatorOrigin,
+} from "@/lib/customs-calculator/custom-origins";
 import { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 export const ALL_MANAGERS = "all";
+export const ALL_ORIGINS = "all";
 
 interface KanbanFiltersProps {
   searchInput: string;
@@ -25,6 +31,8 @@ interface KanbanFiltersProps {
   managers: User[];
   selectedManagerId: string;
   onManagerChange: (managerId: string) => void;
+  selectedOriginId: string;
+  onOriginChange: (originId: string) => void;
   compactView: boolean;
   onCompactViewChange: (value: boolean) => void;
   canCreate: boolean;
@@ -67,12 +75,41 @@ export function KanbanFilters({
   managers,
   selectedManagerId,
   onManagerChange,
+  selectedOriginId,
+  onOriginChange,
   compactView,
   onCompactViewChange,
   canCreate,
   onDealCreated,
 }: KanbanFiltersProps) {
+  const [customOrigins, setCustomOrigins] = useState<CustomCalculatorOrigin[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.calculatorExpenseTemplate
+      .get()
+      .then((settings) => {
+        if (!cancelled) setCustomOrigins(settings.customOrigins ?? []);
+      })
+      .catch(() => {
+        if (!cancelled) setCustomOrigins([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const originOptions = useMemo(() => buildOriginOptions(customOrigins), [customOrigins]);
+
   const hasManagerFilter = isAdmin && selectedManagerId !== ALL_MANAGERS;
+  const hasOriginFilter = selectedOriginId !== ALL_ORIGINS;
+  const hasActiveFilters = hasManagerFilter || hasOriginFilter;
+  const showManagerSelect = isAdmin && managers.length > 0;
+
+  const resetFilters = () => {
+    if (hasManagerFilter) onManagerChange(ALL_MANAGERS);
+    if (hasOriginFilter) onOriginChange(ALL_ORIGINS);
+  };
 
   return (
     <div className="flex flex-col gap-3 border-b bg-card px-3 py-3 sm:px-6">
@@ -102,15 +139,10 @@ export function KanbanFilters({
       </div>
 
       <div className="flex flex-col gap-2">
-        <div
-          className={cn(
-            "flex items-center gap-2",
-            !(isAdmin && managers.length > 0) && "justify-end",
-          )}
-        >
-          {isAdmin && managers.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {showManagerSelect && (
             <Select value={selectedManagerId} onValueChange={onManagerChange}>
-              <SelectTrigger className="h-8 min-w-0 flex-1 sm:w-[220px] sm:flex-none">
+              <SelectTrigger className="h-8 min-w-0 flex-1 sm:w-[200px] sm:flex-none">
                 <SelectValue placeholder="Менеджер" />
               </SelectTrigger>
               <SelectContent>
@@ -123,6 +155,20 @@ export function KanbanFilters({
               </SelectContent>
             </Select>
           )}
+
+          <Select value={selectedOriginId} onValueChange={onOriginChange}>
+            <SelectTrigger className="h-8 min-w-0 flex-1 sm:w-[200px] sm:flex-none">
+              <SelectValue placeholder="Страна экспорта" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_ORIGINS}>Все страны</SelectItem>
+              {originOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           <FilterToggle
             active={compactView}
@@ -138,13 +184,13 @@ export function KanbanFilters({
           </FilterToggle>
         </div>
 
-        {hasManagerFilter && (
+        {hasActiveFilters && (
           <Button
             type="button"
             variant="ghost"
             size="sm"
             className="h-8 self-start px-2 text-xs text-muted-foreground"
-            onClick={() => onManagerChange(ALL_MANAGERS)}
+            onClick={resetFilters}
           >
             Сбросить фильтры
           </Button>

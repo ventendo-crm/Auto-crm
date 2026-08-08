@@ -106,4 +106,33 @@ export function buildOriginOptions(
   ];
 }
 
+/** Подпись страны экспорта для отображения (id или старый свободный текст). */
+export function resolveOriginLabel(
+  value: string,
+  customOrigins: CustomCalculatorOrigin[] = [],
+): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  const match = buildOriginOptions(customOrigins).find(
+    (option) => option.value === trimmed || option.label === trimmed,
+  );
+  return match?.label ?? trimmed;
+}
+
+/**
+ * Приводит сохранённое значение к id опции (china / korea / …).
+ * Старые сделки со свободным текстом «Китай» → china; неизвестное остаётся как есть.
+ */
+export function coerceOriginSelectValue(
+  value: string,
+  customOrigins: CustomCalculatorOrigin[] = [],
+): string {
+  const trimmed = value.trim();
+  if (!trimmed) return "china";
+  const match = buildOriginOptions(customOrigins).find(
+    (option) => option.value === trimmed || option.label === trimmed,
+  );
+  return match?.value ?? trimmed;
+}
+
 export { SYSTEM_ORIGIN_COUNTRIES };

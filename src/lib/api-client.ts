@@ -191,6 +191,7 @@ export const api = {
       stage?: DealStageType;
       search?: string;
       managerId?: string;
+      destinationCountry?: string;
       page?: number;
       limit?: number;
     }) => {
@@ -198,6 +199,9 @@ export const api = {
       if (params?.stage) query.set("stage", params.stage);
       if (params?.search) query.set("search", params.search);
       if (params?.managerId) query.set("managerId", params.managerId);
+      if (params?.destinationCountry) {
+        query.set("destinationCountry", params.destinationCountry);
+      }
       if (params?.page) query.set("page", String(params.page));
       if (params?.limit) query.set("limit", String(params.limit));
       const qs = query.toString();
