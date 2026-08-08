@@ -1,8 +1,13 @@
 import { DealStageType, Prisma } from "@prisma/client";
+import {
+  resolveOriginLabel,
+  type CustomCalculatorOrigin,
+} from "@/lib/customs-calculator/custom-origins";
 import { buildDealManagerFilter } from "@/lib/deal-managers";
 import { prisma } from "@/lib/prisma";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
 import { AuthUser, ROLES } from "@/lib/permissions";
+import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
 import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { DashboardChartData, DashboardData, DashboardArrivalEvent, DashboardManagerStat, DashboardStats } from "@/lib/types";
 
@@ -33,6 +38,7 @@ type DealRow = {
   carBrand: string | null;
   carModel: string | null;
   vin: string;
+  destinationCountry: string;
   manager: { id: string; name: string } | null;
   managerAssignments: Array<{
     managerId: string;
@@ -59,7 +65,10 @@ function computeStats(deals: DealRow[]): DashboardStats {
   };
 }
 
-function computeCharts(deals: DealRow[]): DashboardChartData {
+function computeCharts(
+  deals: DealRow[],
+  customOrigins: CustomCalculatorOrigin[] = [],
+): DashboardChartData {
   const now = new Date();
 
   const byStage = STAGE_ORDER.map((stage) => ({
@@ -130,7 +139,25 @@ function computeCharts(deals: DealRow[]): DashboardChartData {
     },
   ].filter((item) => item.value > 0);
 
-  return { byStage, etaDeals, etaTimeline, stageBar, statusPie };
+  const countryCounts = new Map<string, number>();
+  for (const deal of deals) {
+    const raw = deal.destinationCountry?.trim();
+    if (!raw) continue;
+    const label = resolveOriginLabel(raw, customOrigins);
+    countryCounts.set(label, (countryCounts.get(label) ?? 0) + 1);
+  }
+
+  const countryTotal = Array.from(countryCounts.values()).reduce((sum, n) => sum + n, 0);
+  const exportCountryPie = Array.from(countryCounts.entries())
+    .map(([name, value]) => ({
+      name,
+      value,
+      percent:
+        countryTotal > 0 ? Math.round((value / countryTotal) * 1000) / 10 : 0,
+    }))
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name, "ru"));
+
+  return { byStage, etaDeals, etaTimeline, stageBar, statusPie, exportCountryPie };
 }
 
 function formatCarLabel(carBrand: string | null, carModel: string | null, vin: string): string {
@@ -214,6 +241,7 @@ export async function getDashboardData(
       carBrand: true,
       carModel: true,
       vin: true,
+      destinationCountry: true,
       manager: { select: { id: true, name: true } },
       managerAssignments: {
         select: {
@@ -228,8 +256,9 @@ export async function getDashboardData(
     orderBy: { updatedAt: "desc" },
   });
 
+  const calculatorSettings = await getCompanyCalculatorSettings(user.companyId);
   const stats = computeStats(deals);
-  const charts = computeCharts(deals);
+  const charts = computeCharts(deals, calculatorSettings.customOrigins);
   const arrivalEvents = computeArrivalEvents(deals);
 
   const recentDeals = deals.slice(0, 8).map((d) => ({

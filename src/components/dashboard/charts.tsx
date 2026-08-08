@@ -19,29 +19,55 @@ import { DashboardChartData } from "@/lib/types";
 
 const STATUS_COLORS = ["#34D399", "#FB7185", "#FBBF24", "#94A3B8"];
 
+const COUNTRY_COLORS = [
+  "#FF7A59",
+  "#3B82F6",
+  "#34D399",
+  "#A78BFA",
+  "#FBBF24",
+  "#FB7185",
+  "#14B8A6",
+  "#F97316",
+  "#64748B",
+  "#EC4899",
+];
+
 function ChartTooltip({
   active,
   payload,
   label,
 }: {
   active?: boolean;
-  payload?: { value: number; name: string }[];
+  payload?: { value: number; name: string; payload?: { percent?: number; value?: number } }[];
   label?: string;
 }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-lg border bg-card px-3 py-2 text-sm shadow-md">
       {label && <p className="mb-1 font-medium">{label}</p>}
-      {payload.map((entry) => (
-        <p key={entry.name} className="text-muted-foreground">
-          {entry.name}: <span className="font-medium text-foreground">{entry.value}</span>
-        </p>
-      ))}
+      {payload.map((entry) => {
+        const percent = entry.payload?.percent;
+        return (
+          <p key={entry.name} className="text-muted-foreground">
+            {entry.name}:{" "}
+            <span className="font-medium text-foreground">
+              {entry.value}
+              {percent != null ? ` (${formatPercent(percent)}%)` : ""}
+            </span>
+          </p>
+        );
+      })}
     </div>
   );
 }
 
+function formatPercent(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
 export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
+  const exportCountryPie = charts.exportCountryPie ?? [];
+
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card className="border-0 shadow-card">
@@ -66,6 +92,53 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
             </ChartContainer>
           ) : (
             <EmptyChart />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-card">
+        <CardHeader>
+          <CardTitle>Страны экспорта</CardTitle>
+          <CardDescription>Доля автомобилей по стране из карточек сделок</CardDescription>
+        </CardHeader>
+        <CardContent className="h-72">
+          {exportCountryPie.length > 0 ? (
+            <ChartContainer className="h-full w-full">
+              <PieChart>
+                <Pie
+                  data={exportCountryPie}
+                  dataKey="value"
+                  nameKey="name"
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius={80}
+                  paddingAngle={3}
+                  label={({ name, payload }) => {
+                    const percent = (payload as { percent?: number } | undefined)?.percent;
+                    return percent != null
+                      ? `${name} ${formatPercent(percent)}%`
+                      : String(name);
+                  }}
+                >
+                  {exportCountryPie.map((item, i) => (
+                    <Cell key={item.name} fill={COUNTRY_COLORS[i % COUNTRY_COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip content={<ChartTooltip />} />
+                <Legend
+                  formatter={(value, entry) => {
+                    const payload = entry.payload as { value?: number; percent?: number } | undefined;
+                    if (!payload?.value) return value;
+                    const percent =
+                      payload.percent != null ? ` · ${formatPercent(payload.percent)}%` : "";
+                    return `${value}: ${payload.value}${percent}`;
+                  }}
+                />
+              </PieChart>
+            </ChartContainer>
+          ) : (
+            <EmptyChart message="Нет данных по странам экспорта" />
           )}
         </CardContent>
       </Card>
@@ -104,12 +177,12 @@ export function DashboardCharts({ charts }: { charts: DashboardChartData }) {
         </CardContent>
       </Card>
 
-      <Card className="border-0 shadow-card lg:col-span-2">
+      <Card className="border-0 shadow-card">
         <CardHeader>
           <CardTitle className="text-base">Прибытия по неделям</CardTitle>
           <CardDescription>Количество ожидаемых прибытий</CardDescription>
         </CardHeader>
-        <CardContent className="h-64">
+        <CardContent className="h-72">
           {charts.etaTimeline.length > 0 ? (
             <ChartContainer className="h-full w-full">
               <BarChart data={charts.etaTimeline}>

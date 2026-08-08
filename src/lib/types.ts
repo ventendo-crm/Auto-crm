@@ -346,6 +346,8 @@ export interface DashboardChartData {
   byStage: { stage: DealStageType; name: string; value: number }[];
   stageBar: { stage: DealStageType; name: string; count: number }[];
   statusPie: { name: string; value: number }[];
+  /** Распределение сделок по стране экспорта (из карточек). */
+  exportCountryPie: { name: string; value: number; percent: number }[];
   etaDeals: { dealId: string; name: string; clientName: string; days: number; date: string }[];
   etaTimeline: { week: string; label: string; count: number }[];
 }
