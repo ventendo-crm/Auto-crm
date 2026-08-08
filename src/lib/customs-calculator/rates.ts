@@ -4,7 +4,7 @@
  */
 
 export type ImporterType = "personal" | "resale" | "legal";
-export type CarAge = "under3" | "from3to5" | "from5to7" | "over7";
+export type CarAge = "new" | "under3" | "from3to5" | "from5to7" | "over7";
 export type EngineType = "petrol" | "diesel" | "electric";
 export type CurrencyCode = "RUB" | "USD" | "CNY" | "KRW";
 export type DeliveryRoute = "ussuriysk" | "kazakhstan" | "vladivostok";
@@ -87,7 +87,7 @@ export function hpToKw(hp: number): number {
 }
 
 export function isYoungerThan3(age: CarAge): boolean {
-  return age === "under3";
+  return age === "new" || age === "under3";
 }
 
 /** Фиксированная стоимость доставки через Казахстан. */

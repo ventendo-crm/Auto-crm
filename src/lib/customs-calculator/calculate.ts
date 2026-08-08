@@ -188,7 +188,7 @@ function legalPetrolDuty(
   volumeCc: number,
   eurRate: number,
 ): { duty: number; note: string } {
-  if (age === "under3") {
+  if (isYoungerThan3(age)) {
     const p = volumeCc <= 2800 ? 15 : 12.5;
     return { duty: priceRub * (p / 100), note: `${p}%` };
   }
@@ -224,7 +224,7 @@ function legalDieselDuty(
   volumeCc: number,
   eurRate: number,
 ): { duty: number; note: string } {
-  if (age === "under3") {
+  if (isYoungerThan3(age)) {
     return { duty: priceRub * 0.15, note: "15%" };
   }
 
@@ -256,7 +256,7 @@ function calcCustomsDuty(input: {
   const useIndividualRates = importer === "personal" || importer === "resale";
 
   if (useIndividualRates) {
-    if (age === "under3") {
+    if (isYoungerThan3(age)) {
       return individualDutyUnder3(priceEur, volumeCc, eurRate);
     }
     return individualDutyOver3(age, volumeCc, eurRate);

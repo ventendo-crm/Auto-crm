@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Plus, RotateCcw, Save, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,14 +16,14 @@ import {
 import { api } from "@/lib/api-client";
 import {
   CalculatorExpenseItem,
+  CalculatorExpenseOrigin,
   CALCULATOR_EXPENSE_CURRENCIES,
-  CALCULATOR_EXPENSE_ORIGINS,
   CALCULATOR_EXPENSE_ROLES,
   createExpenseItemId,
-  EXPENSE_ORIGIN_LABELS,
   EXPENSE_ROLE_LABELS,
   getDefaultCompanyCalculatorExpenses,
 } from "@/lib/customs-calculator/expense-template";
+import { cn } from "@/lib/utils";
 
 function cloneDefaults(): CalculatorExpenseItem[] {
   return getDefaultCompanyCalculatorExpenses().map((item) => ({ ...item }));
@@ -33,9 +33,42 @@ function cloneItems(items: CalculatorExpenseItem[]): CalculatorExpenseItem[] {
   return items.map((item) => ({ ...item }));
 }
 
+const COUNTRY_TABS: Array<{ value: CalculatorExpenseOrigin; label: string }> = [
+  { value: "china", label: "Китай" },
+  { value: "korea", label: "Корея" },
+  { value: "kyrgyzstan", label: "Киргизия" },
+  { value: "all", label: "Общие" },
+];
+
+function itemsForOrigin(
+  items: CalculatorExpenseItem[],
+  origin: CalculatorExpenseOrigin,
+): CalculatorExpenseItem[] {
+  return items
+    .filter((item) => item.origin === origin)
+    .slice()
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function mergeOriginSlice(
+  allItems: CalculatorExpenseItem[],
+  origin: CalculatorExpenseOrigin,
+  editedSlice: CalculatorExpenseItem[],
+): CalculatorExpenseItem[] {
+  const others = allItems.filter((item) => item.origin !== origin);
+  const normalized = editedSlice.map((item) => ({ ...item, origin }));
+  return [...others, ...normalized].sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function defaultsForOrigin(origin: CalculatorExpenseOrigin): CalculatorExpenseItem[] {
+  return cloneDefaults().filter((item) => item.origin === origin);
+}
+
 interface CalculatorExpenseEditorProps {
   /** Начальный список (если уже загружен в родителе). */
   initialItems?: CalculatorExpenseItem[];
+  /** Стартовая страна фильтра (из калькулятора). */
+  initialOrigin?: CalculatorExpenseOrigin;
   /** Компактный режим внутри калькулятора. */
   embedded?: boolean;
   onSaved?: (items: CalculatorExpenseItem[]) => void;
@@ -44,6 +77,7 @@ interface CalculatorExpenseEditorProps {
 
 export function CalculatorExpenseEditor({
   initialItems,
+  initialOrigin = "china",
   embedded = false,
   onSaved,
   onCancel,
@@ -51,8 +85,13 @@ export function CalculatorExpenseEditor({
   const [items, setItems] = useState<CalculatorExpenseItem[]>(() =>
     initialItems ? cloneItems(initialItems) : cloneDefaults(),
   );
+  const [selectedOrigin, setSelectedOrigin] = useState<CalculatorExpenseOrigin>(initialOrigin);
   const [loading, setLoading] = useState(!initialItems);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setSelectedOrigin(initialOrigin);
+  }, [initialOrigin]);
 
   useEffect(() => {
     if (initialItems) {
@@ -83,6 +122,11 @@ export function CalculatorExpenseEditor({
     };
   }, [initialItems]);
 
+  const visibleItems = useMemo(
+    () => itemsForOrigin(items, selectedOrigin),
+    [items, selectedOrigin],
+  );
+
   const updateItem = (id: string, patch: Partial<CalculatorExpenseItem>) => {
     setItems((current) =>
       current.map((item) => (item.id === id ? { ...item, ...patch } : item)),
@@ -102,7 +146,7 @@ export function CalculatorExpenseEditor({
         label: "Новый расход",
         defaultAmount: 0,
         currency: "RUB",
-        origin: "all",
+        origin: selectedOrigin,
         role: "extra",
         sortOrder: nextOrder,
       },
@@ -110,16 +154,19 @@ export function CalculatorExpenseEditor({
   };
 
   const handleSave = async () => {
-    if (items.some((item) => !item.label.trim())) {
+    if (visibleItems.some((item) => !item.label.trim())) {
       toast.error("У всех пунктов должно быть название");
       return;
     }
     setSaving(true);
     try {
-      const saved = await api.calculatorExpenseTemplate.save(items);
+      const payload = mergeOriginSlice(items, selectedOrigin, visibleItems);
+      const saved = await api.calculatorExpenseTemplate.save(payload);
       const next = cloneItems(saved.expenseItems);
       setItems(next);
-      toast.success("Шаблон расходов сохранён");
+      toast.success(
+        `Шаблон расходов сохранён (${COUNTRY_TABS.find((tab) => tab.value === selectedOrigin)?.label ?? selectedOrigin})`,
+      );
       onSaved?.(next);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
@@ -129,8 +176,12 @@ export function CalculatorExpenseEditor({
   };
 
   const handleReset = () => {
-    setItems(cloneDefaults());
-    toast.message("Восстановлены стандартные пункты — нажмите «Сохранить»");
+    setItems((current) =>
+      mergeOriginSlice(current, selectedOrigin, defaultsForOrigin(selectedOrigin)),
+    );
+    toast.message(
+      `Восстановлены стандартные пункты для «${COUNTRY_TABS.find((tab) => tab.value === selectedOrigin)?.label}» — нажмите «Сохранить»`,
+    );
   };
 
   if (loading) {
@@ -144,6 +195,33 @@ export function CalculatorExpenseEditor({
 
   return (
     <div className="space-y-3">
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Страна для настройки</Label>
+        <div className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1">
+          {COUNTRY_TABS.map((tab) => {
+            const active = selectedOrigin === tab.value;
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setSelectedOrigin(tab.value)}
+                className={cn(
+                  "shrink-0 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors",
+                  active
+                    ? "border-brand bg-brand-muted text-brand"
+                    : "border-border bg-background text-muted-foreground hover:bg-muted/50",
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Редактируете только поля выбранной страны. Остальные страны при сохранении не меняются.
+        </p>
+      </div>
+
       <div className="flex flex-wrap gap-2">
         <Button type="button" variant="outline" size="sm" onClick={addItem}>
           <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -177,23 +255,23 @@ export function CalculatorExpenseEditor({
 
       {!embedded && (
         <p className="text-xs text-muted-foreground">
-          Добавляйте и удаляйте пункты расходов. Роль «Доп. расход» просто входит в итог; системные
-          роли влияют на ВТБ и инвойс Кореи.
+          У каждой строки можно менять название, сумму, валюту и роль. Роль «Доп. расход» просто
+          входит в итог; системные роли влияют на ВТБ и инвойс Кореи.
         </p>
       )}
 
-      {items.length === 0 ? (
+      {visibleItems.length === 0 ? (
         <p className="rounded-xl border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
-          Нет полей. Добавьте свои или сбросьте к стандартным.
+          Нет полей для этой страны. Добавьте свои или сбросьте к стандартным.
         </p>
       ) : (
-        items.map((item) => (
+        visibleItems.map((item) => (
           <div
             key={item.id}
             className={
               embedded
-                ? "grid gap-2 rounded-xl border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_auto]"
-                : "grid gap-3 rounded-xl border bg-muted/10 p-3 sm:grid-cols-[minmax(0,1.4fr)_7rem_6.5rem_minmax(0,1fr)_minmax(0,1.2fr)_auto]"
+                ? "grid gap-2 rounded-xl border bg-background p-3 sm:grid-cols-[minmax(0,1fr)_6.5rem_5.5rem_minmax(0,1fr)_auto]"
+                : "grid gap-3 rounded-xl border bg-muted/10 p-3 sm:grid-cols-[minmax(0,1.4fr)_7rem_6.5rem_minmax(0,1.2fr)_auto]"
             }
           >
             <div className="space-y-1.5">
@@ -240,102 +318,30 @@ export function CalculatorExpenseEditor({
               </Select>
             </div>
 
-            {!embedded && (
-              <>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Страна</Label>
-                  <Select
-                    value={item.origin}
-                    onValueChange={(value) =>
-                      updateItem(item.id, {
-                        origin: value as CalculatorExpenseItem["origin"],
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CALCULATOR_EXPENSE_ORIGINS.map((origin) => (
-                        <SelectItem key={origin} value={origin}>
-                          {EXPENSE_ORIGIN_LABELS[origin]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">Роль в расчёте</Label>
-                  <Select
-                    value={item.role}
-                    onValueChange={(value) =>
-                      updateItem(item.id, {
-                        role: value as CalculatorExpenseItem["role"],
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CALCULATOR_EXPENSE_ROLES.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {EXPENSE_ROLE_LABELS[role]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </>
-            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Роль в расчёте</Label>
+              <Select
+                value={item.role}
+                onValueChange={(value) =>
+                  updateItem(item.id, {
+                    role: value as CalculatorExpenseItem["role"],
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CALCULATOR_EXPENSE_ROLES.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {EXPENSE_ROLE_LABELS[role]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-            {embedded && (
-              <div className="space-y-1.5 sm:col-span-3">
-                <Label className="text-xs text-muted-foreground">Страна / роль</Label>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Select
-                    value={item.origin}
-                    onValueChange={(value) =>
-                      updateItem(item.id, {
-                        origin: value as CalculatorExpenseItem["origin"],
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CALCULATOR_EXPENSE_ORIGINS.map((origin) => (
-                        <SelectItem key={origin} value={origin}>
-                          {EXPENSE_ORIGIN_LABELS[origin]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select
-                    value={item.role}
-                    onValueChange={(value) =>
-                      updateItem(item.id, {
-                        role: value as CalculatorExpenseItem["role"],
-                      })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {CALCULATOR_EXPENSE_ROLES.map((role) => (
-                        <SelectItem key={role} value={role}>
-                          {EXPENSE_ROLE_LABELS[role]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
-
-            <div className={embedded ? "flex items-end sm:col-start-4 sm:row-start-1" : "flex items-end"}>
+            <div className="flex items-end">
               <Button
                 type="button"
                 variant="ghost"

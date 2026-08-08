@@ -109,7 +109,7 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   volumeCc: "2000",
   price: "25000",
   currency: "CNY",
-  chinaExpensesCny: "5000",
+  chinaExpensesCny: "12000",
   cityDeliveryUsd: String(DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD),
   koreaDocsDeliveryKrw: String(DEFAULT_KOREA_DOCS_DELIVERY_KRW),
   parkingFeeKrw: String(DEFAULT_KOREA_PARKING_FEE_KRW),
@@ -128,7 +128,13 @@ function isImporter(value: unknown): value is ImporterType {
 }
 
 function isAge(value: unknown): value is CarAge {
-  return value === "under3" || value === "from3to5" || value === "from5to7" || value === "over7";
+  return (
+    value === "new" ||
+    value === "under3" ||
+    value === "from3to5" ||
+    value === "from5to7" ||
+    value === "over7"
+  );
 }
 
 function isEngine(value: unknown): value is EngineType {
@@ -324,7 +330,8 @@ const IMPORTER_OPTIONS: Array<{ value: ImporterType; label: string }> = [
 ];
 
 const AGE_OPTIONS: Array<{ value: CarAge; label: string }> = [
-  { value: "under3", label: "до 3х лет" },
+  { value: "new", label: "Новый авто" },
+  { value: "under3", label: "до 3 лет" },
   { value: "from3to5", label: "от 3х до 5 лет" },
   { value: "from5to7", label: "от 5 до 7 лет" },
   { value: "over7", label: "более 7 лет" },
@@ -354,7 +361,7 @@ const DELIVERY_ROUTE_OPTIONS: Array<{ value: DeliveryRoute; label: string }> = [
 ];
 
 function chinaExpensesForAge(age: CarAge): string {
-  return age === "under3" ? "5000" : "12000";
+  return age === "new" ? "5000" : "12000";
 }
 
 function numberToInputString(value: number | undefined, fallback: string): string {
@@ -1353,9 +1360,9 @@ export function CustomsCalculator() {
           (Number.isFinite(volumeCcNumber) && volumeCcNumber > PREFERENTIAL_MAX_VOLUME_CC))));
 
   const chinaHint =
-    age === "under3"
-      ? "По умолчанию 5 000 CNY для авто до 3 лет"
-      : "По умолчанию 12 000 CNY для авто от 3 лет";
+    age === "new"
+      ? "По умолчанию 5 000 CNY для нового авто"
+      : "По умолчанию 12 000 CNY для авто до 3 лет и старше";
 
   const kazakhstanDeliveryRub =
     Math.round(Number(deliveryUsd.replace(",", ".")) * rates.USD * 100) / 100;
@@ -1650,6 +1657,7 @@ export function CustomsCalculator() {
               <CalculatorExpenseEditor
                 embedded
                 initialItems={expenseTemplate}
+                initialOrigin={originCountry}
                 onSaved={handleExpenseTemplateSaved}
                 onCancel={() => setEditingExpenses(false)}
               />

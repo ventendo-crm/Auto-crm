@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppIconMark } from "@/components/brand/app-icon-mark";
@@ -179,6 +180,24 @@ export function LandingPage() {
               </div>
             </Reveal>
           ))}
+        </div>
+      </section>
+
+      <section className="border-y border-[var(--landing-line)] bg-[var(--landing-wash)]/60">
+        <div className="mx-auto max-w-6xl px-5 py-12 sm:px-8 sm:py-16">
+          <Reveal>
+            <div className="overflow-hidden border border-[var(--landing-line)] bg-white shadow-[0_20px_60px_rgba(22,24,29,0.08)]">
+              <Image
+                src="/landing/features-overview.png"
+                alt="ImportCRM: канбан, калькулятор, КП, поиск с ИИ, кабинет клиента, автовоз, доп. услуги и Telegram"
+                width={1920}
+                height={1080}
+                className="h-auto w-full"
+                sizes="(max-width: 1152px) 100vw, 1152px"
+                priority={false}
+              />
+            </div>
+          </Reveal>
         </div>
       </section>
 
