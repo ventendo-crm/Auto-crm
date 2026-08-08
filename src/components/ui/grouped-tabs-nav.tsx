@@ -21,6 +21,8 @@ export interface GroupedTabGroup {
 interface GroupedTabsNavProps {
   groups: GroupedTabGroup[];
   className?: string;
+  /** Переносить кнопки на новую строку (удобно при большом числе вкладок). */
+  wrap?: boolean;
 }
 
 const TAB_PILL_CLASS = cn(
@@ -57,15 +59,16 @@ function renderTabTrigger(item: GroupedTabItem) {
   );
 }
 
-export function GroupedTabsNav({ groups, className }: GroupedTabsNavProps) {
+export function GroupedTabsNav({ groups, className, wrap = false }: GroupedTabsNavProps) {
   return (
     <div className={cn(className)}>
       <div className="sticky top-0 z-20 -mx-1 border-b bg-background/95 px-1 pb-2 pt-1 backdrop-blur md:static md:border-b-0 md:bg-transparent md:px-0 md:pb-2 md:pt-0 md:backdrop-blur-none">
         <TabsList
           className={cn(
             "inline-flex h-auto w-full justify-start gap-1.5 rounded-none border-0 bg-transparent p-0 pb-1 shadow-none",
-            "flex-nowrap overflow-x-auto scrollbar-thin",
-            "md:flex-wrap md:overflow-x-visible",
+            wrap
+              ? "flex-wrap overflow-x-visible"
+              : "flex-nowrap overflow-x-auto scrollbar-thin md:flex-wrap md:overflow-x-visible",
           )}
         >
           {groups.map((group, groupIndex) => (

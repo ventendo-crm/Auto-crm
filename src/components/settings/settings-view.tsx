@@ -1,5 +1,17 @@
 "use client";
 
+import { useMemo } from "react";
+import {
+  Bell,
+  Building2,
+  Calculator,
+  Mail,
+  MessageCircle,
+  Palette,
+  User,
+  UserCog,
+  Users,
+} from "lucide-react";
 import { AppearancePanel } from "@/components/settings/appearance-panel";
 import { CalculatorExpensesPanel } from "@/components/settings/calculator-expenses-panel";
 import { CompaniesPanel } from "@/components/settings/companies-panel";
@@ -11,7 +23,8 @@ import { ManagersPanel } from "@/components/settings/managers-panel";
 import { UsersPanel } from "@/components/settings/users-panel";
 import { NotificationsPanel } from "@/components/settings/notifications-panel";
 import { ProfilePanel } from "@/components/settings/profile-panel";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GroupedTabGroup, GroupedTabsNav } from "@/components/ui/grouped-tabs-nav";
+import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { getClientRoleName } from "@/lib/permissions";
 
@@ -33,24 +46,56 @@ export function SettingsView() {
           ? "Профиль, пароль и уведомления"
           : "Профиль и уведомления";
 
+  const groups = useMemo(() => {
+    const accountGroup: GroupedTabGroup = {
+      label: "Аккаунт",
+      items: [
+        { value: "profile", label: "Профиль", icon: User },
+        { value: "notifications", label: "Уведомления", icon: Bell },
+      ],
+    };
+
+    const peopleItems: GroupedTabGroup["items"] = [];
+    if (canManageManagersTab) {
+      peopleItems.push({ value: "managers", label: "Менеджеры", icon: Users });
+    }
+    if (isAdmin) {
+      peopleItems.push({ value: "users", label: "Пользователи", icon: UserCog });
+    }
+
+    const companyItems: GroupedTabGroup["items"] = [];
+    if (isAdmin) {
+      companyItems.push(
+        { value: "appearance", label: "Оформление", icon: Palette },
+        { value: "email", label: "Письма", icon: Mail },
+        { value: "telegram", label: "Telegram", icon: MessageCircle },
+        { value: "calculator", label: "Калькулятор", icon: Calculator },
+      );
+    }
+
+    const result: GroupedTabGroup[] = [accountGroup];
+    if (peopleItems.length > 0) {
+      result.push({ label: "Сотрудники", items: peopleItems });
+    }
+    if (companyItems.length > 0) {
+      result.push({ label: "Компания", items: companyItems });
+    }
+    if (isPlatformAdmin) {
+      result.push({
+        label: "Платформа",
+        items: [{ value: "companies", label: "Компании", icon: Building2 }],
+      });
+    }
+
+    return result;
+  }, [canManageManagersTab, isAdmin, isPlatformAdmin]);
+
   return (
     <>
       <Header title="Настройки" subtitle={subtitle} />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <Tabs defaultValue="profile" className="max-w-5xl">
-          <div className="-mx-1 overflow-x-auto pb-1">
-            <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
-              <TabsTrigger value="profile">Профиль</TabsTrigger>
-              <TabsTrigger value="notifications">Уведомления</TabsTrigger>
-              {isAdmin && <TabsTrigger value="appearance">Оформление</TabsTrigger>}
-              {canManageManagersTab && <TabsTrigger value="managers">Менеджеры</TabsTrigger>}
-              {isAdmin && <TabsTrigger value="users">Пользователи</TabsTrigger>}
-              {isAdmin && <TabsTrigger value="email">Письма</TabsTrigger>}
-              {isAdmin && <TabsTrigger value="telegram">Telegram</TabsTrigger>}
-              {isAdmin && <TabsTrigger value="calculator">Калькулятор</TabsTrigger>}
-              {isPlatformAdmin && <TabsTrigger value="companies">Компании</TabsTrigger>}
-            </TabsList>
-          </div>
+          <GroupedTabsNav groups={groups} wrap />
 
           <TabsContent value="profile" className="mt-4">
             <ProfilePanel />
