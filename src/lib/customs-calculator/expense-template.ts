@@ -6,6 +6,7 @@ import {
   DEFAULT_KOREA_DOCS_DELIVERY_KRW,
   DEFAULT_KOREA_PARKING_FEE_KRW,
   DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD,
+  isChinaLikeOrigin,
   KAZAKHSTAN_DELIVERY_USD,
   OriginCountry,
 } from "@/lib/customs-calculator/rates";
@@ -152,11 +153,26 @@ export function getDefaultCompanyCalculatorExpenses(): CalculatorExpenseItem[] {
   ];
 }
 
+/** Кастомные страны с профилем Китая наследуют поля Китая, если своих нет. */
+function inheritsChinaExpenseFields(origin: OriginCountry): boolean {
+  return isChinaLikeOrigin(origin) && origin !== "china";
+}
+
 export function expenseMatchesOrigin(
   item: CalculatorExpenseItem,
   origin: OriginCountry,
 ): boolean {
-  return item.origin === "all" || item.origin === origin;
+  if (item.origin === "all" || item.origin === origin) return true;
+  // Своя страна считает как Китай: подтягиваем поля Китая (доставка, брокер и т.д.).
+  // Доп. расходы Китая не наследуем — только origin=all или свои.
+  if (
+    inheritsChinaExpenseFields(origin) &&
+    item.origin === "china" &&
+    item.role !== "extra"
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function findExpenseByRole(
@@ -168,8 +184,16 @@ export function findExpenseByRole(
     .filter((item) => item.role === role && expenseMatchesOrigin(item, origin))
     .sort((a, b) => a.sortOrder - b.sortOrder);
 
-  // Prefer origin-specific over "all"
-  return scoped.find((item) => item.origin === origin) ?? scoped[0];
+  const exact = scoped.find((item) => item.origin === origin);
+  if (exact) return exact;
+
+  if (inheritsChinaExpenseFields(origin)) {
+    const fromChina = scoped.find((item) => item.origin === "china");
+    if (fromChina) return fromChina;
+  }
+
+  // Prefer "all" over unrelated leftovers
+  return scoped.find((item) => item.origin === "all") ?? scoped[0];
 }
 
 export function listExtraExpenses(
