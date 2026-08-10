@@ -21,6 +21,7 @@ import { SearchProcessLinksPanel } from "@/components/deals/search-process-links
 import { SearchProcessVariantFeedback } from "@/components/client/search-process-variant-feedback";
 import { MediaGallery } from "@/components/media/media-gallery";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
+import { MediaThumb } from "@/components/media/media-thumb";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
@@ -319,23 +320,19 @@ function ClientMediaThumb({
   onPreview: () => void;
 }) {
   const isVideo = item.type === MediaType.VIDEO;
-  const previewSrc = item.thumbnailUrl ?? item.fileUrl;
 
   return (
     <div className="group relative overflow-hidden rounded-lg border bg-muted/30 text-left shadow-sm transition-shadow hover:shadow-md">
       <button type="button" onClick={onPreview} className="block w-full">
-        <div className="aspect-square w-full overflow-hidden">
-          {isVideo ? (
-            <div className="relative flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-              <Play className="h-8 w-8 text-white/90" />
+        <div className="relative aspect-square w-full overflow-hidden">
+          <MediaThumb
+            item={item}
+            className="transition-transform group-hover:scale-105"
+          />
+          {isVideo && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+              <Play className="h-8 w-8 text-white/90 drop-shadow" />
             </div>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewSrc}
-              alt={item.fileName}
-              className="h-full w-full object-cover transition-transform group-hover:scale-105"
-            />
           )}
         </div>
         {!hideCaption && (

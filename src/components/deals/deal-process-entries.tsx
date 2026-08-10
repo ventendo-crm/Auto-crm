@@ -5,6 +5,7 @@ import { Eye, ImagePlus, ListPlus, Loader2, Play, Plus, Trash2 } from "lucide-re
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
+import { MediaThumb } from "@/components/media/media-thumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -479,7 +480,6 @@ function ProcessMediaTile({
   onDelete: () => void;
 }) {
   const isVideo = item.type === MediaType.VIDEO;
-  const previewSrc = item.thumbnailUrl ?? item.fileUrl;
 
   return (
     <div className="group relative overflow-hidden rounded-lg border bg-card shadow-sm">
@@ -497,22 +497,10 @@ function ProcessMediaTile({
         title="Открыть предпросмотр"
       >
         <div className="relative aspect-[4/3] w-full overflow-hidden bg-muted">
-          {isVideo && !item.thumbnailUrl ? (
-            <video
-              src={item.fileUrl}
-              muted
-              playsInline
-              preload="metadata"
-              className="pointer-events-none h-full w-full object-cover"
-            />
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={previewSrc}
-              alt={item.fileName}
-              className="pointer-events-none h-full w-full object-cover transition-transform group-hover:scale-105"
-            />
-          )}
+          <MediaThumb
+            item={item}
+            className="transition-transform group-hover:scale-105"
+          />
 
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
             {isVideo && (

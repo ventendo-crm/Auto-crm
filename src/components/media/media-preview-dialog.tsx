@@ -3,6 +3,7 @@
 import { MediaType } from "@prisma/client";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useEffect, useMemo } from "react";
+import { mediaVideoPreviewSrc } from "@/components/media/media-thumb";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -148,10 +149,10 @@ export function MediaPreviewDialog({
             ) : (
               <video
                 key={activeMedia.id}
-                src={activeMedia.fileUrl}
+                src={mediaVideoPreviewSrc(activeMedia.fileUrl)}
                 controls
-                autoPlay
                 playsInline
+                preload="metadata"
                 className="mx-auto block h-auto max-h-[70dvh] w-full max-w-full bg-black object-contain"
               >
                 <track kind="captions" />

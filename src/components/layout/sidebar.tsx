@@ -51,7 +51,7 @@ export function Sidebar() {
         <button
           type="button"
           aria-label="Закрыть меню"
-          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          className="fixed inset-0 z-[70] bg-black/50 md:hidden"
           onClick={close}
         />
       )}
@@ -61,7 +61,7 @@ export function Sidebar() {
           "flex h-full flex-col border-r bg-card transition-transform duration-200 ease-in-out",
           isMobile
             ? cn(
-                "fixed inset-y-0 left-0 z-50 w-64 shadow-xl",
+                "fixed inset-y-0 left-0 z-[80] w-64 shadow-xl",
                 isOpen ? "translate-x-0" : "-translate-x-full pointer-events-none",
               )
             : "relative w-60 shrink-0",

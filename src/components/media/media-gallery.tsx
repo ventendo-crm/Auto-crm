@@ -5,6 +5,7 @@ import { Play, Trash2, Download, ImageIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
+import { MediaThumb } from "@/components/media/media-thumb";
 import { MediaUploadZone } from "@/components/media/media-upload-zone";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -136,7 +137,6 @@ function MediaGalleryItem({
   onDelete: () => void;
 }) {
   const isVideo = item.type === MediaType.VIDEO;
-  const previewSrc = item.thumbnailUrl ?? item.fileUrl;
 
   return (
     <div className="group relative overflow-hidden rounded-xl border bg-muted/30 shadow-sm">
@@ -145,21 +145,22 @@ function MediaGalleryItem({
         onClick={onPreview}
         className="block aspect-square w-full overflow-hidden"
       >
-        {isVideo ? (
-          <div className="relative flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-            <Play className="h-10 w-10 text-white/90" />
-            <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
-              Видео
-            </span>
-          </div>
-        ) : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={previewSrc}
-            alt={item.fileName}
-            className="h-full w-full object-cover transition-transform group-hover:scale-105"
+        <div className="relative h-full w-full">
+          <MediaThumb
+            item={item}
+            className="transition-transform group-hover:scale-105"
           />
-        )}
+          {isVideo && (
+            <>
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+                <Play className="h-10 w-10 text-white/90 drop-shadow" />
+              </div>
+              <span className="absolute bottom-2 left-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] text-white">
+                Видео
+              </span>
+            </>
+          )}
+        </div>
       </button>
 
       <div className="border-t bg-card p-2">
