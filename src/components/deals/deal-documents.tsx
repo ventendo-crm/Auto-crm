@@ -15,6 +15,7 @@ import {
   DOCUMENT_STATUS_LABELS,
   PASSPORT_DOCUMENT_TYPES,
   PASSPORT_FILE_LABELS,
+  PASSPORT_NOTARIZED_COPY_DOCUMENT_TYPES,
 } from "@/lib/constants";
 import { canDeleteDealDocuments, canUploadDealDocuments, getClientRoleName } from "@/lib/permissions";
 import { DocumentItem } from "@/lib/types";
@@ -56,21 +57,36 @@ function getDownloadUrl(dealId: string, type: DocumentType, fileUrl: string): st
 
 type DisplayEntry =
   | { kind: "single"; type: DocumentType }
-  | { kind: "passport" };
+  | { kind: "passport" }
+  | { kind: "passportNotarizedCopy" };
 
 function buildDisplayEntries(types: readonly DocumentType[]): DisplayEntry[] {
   const entries: DisplayEntry[] = [];
 
   for (const type of types) {
-    if (type === "PASSPORT_2") continue;
+    if (type === "PASSPORT_2" || type === "PASSPORT_NOTARIZED_COPY_2") continue;
     if (type === "PASSPORT") {
       entries.push({ kind: "passport" });
+      continue;
+    }
+    if (type === "PASSPORT_NOTARIZED_COPY") {
+      entries.push({ kind: "passportNotarizedCopy" });
       continue;
     }
     entries.push({ kind: "single", type });
   }
 
   return entries;
+}
+
+function documentUploadLabel(type: DocumentType): string {
+  if (type === "PASSPORT" || type === "PASSPORT_2") {
+    return `Паспорт (${PASSPORT_FILE_LABELS[type === "PASSPORT" ? 0 : 1]})`;
+  }
+  if (type === "PASSPORT_NOTARIZED_COPY" || type === "PASSPORT_NOTARIZED_COPY_2") {
+    return `Нотариально заверенная копия паспорта (${PASSPORT_FILE_LABELS[type === "PASSPORT_NOTARIZED_COPY" ? 0 : 1]})`;
+  }
+  return DOCUMENT_LABELS[type as keyof typeof DOCUMENT_LABELS] ?? type;
 }
 
 interface DealDocumentsProps {
@@ -308,11 +324,7 @@ export function DealDocuments({
     setUploadingType(type);
     try {
       await api.documents.upload(dealId, type, file);
-      const label =
-        type === "PASSPORT" || type === "PASSPORT_2"
-          ? `Паспорт (${PASSPORT_FILE_LABELS[type === "PASSPORT" ? 0 : 1]})`
-          : DOCUMENT_LABELS[type as keyof typeof DOCUMENT_LABELS] ?? type;
-      toast.success(`${label} загружен`);
+      toast.success(`${documentUploadLabel(type)} загружен`);
       onUpdated?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Ошибка загрузки");
@@ -402,6 +414,35 @@ export function DealDocuments({
 
                 <div className="space-y-3">
                   {PASSPORT_DOCUMENT_TYPES.map((type, index) => (
+                    <DocumentSlot
+                      key={type}
+                      {...slotProps(type)}
+                      compact
+                      slotLabel={PASSPORT_FILE_LABELS[index]}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          }
+
+          if (entry.kind === "passportNotarizedCopy") {
+            return (
+              <div key="passportNotarizedCopy" className="space-y-3 rounded-lg border p-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+                    <FileText className="h-5 w-5 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">Нотариально заверенная копия паспорта</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Можно загрузить 2 файла (например, разворот и прописку)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  {PASSPORT_NOTARIZED_COPY_DOCUMENT_TYPES.map((type, index) => (
                     <DocumentSlot
                       key={type}
                       {...slotProps(type)}

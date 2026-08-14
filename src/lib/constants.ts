@@ -125,6 +125,7 @@ export const DOCUMENT_LABELS = {
   PASSPORT: "Паспорт",
   PASSPORT_2: "Паспорт (2-й файл)",
   PASSPORT_NOTARIZED_COPY: "Нотариально заверенная копия паспорта",
+  PASSPORT_NOTARIZED_COPY_2: "Нотариально заверенная копия паспорта (2-й файл)",
   INN: "ИНН",
   SNILS: "СНИЛС",
   PAYMENT: "Оплата",
@@ -157,6 +158,11 @@ export const CLIENT_DOCUMENT_ORDER = [
 export const RECEIVED_DOCUMENT_ORDER = ["EPTS", "PTD", "SBKTS"] as const;
 
 export const PASSPORT_DOCUMENT_TYPES = ["PASSPORT", "PASSPORT_2"] as const;
+
+export const PASSPORT_NOTARIZED_COPY_DOCUMENT_TYPES = [
+  "PASSPORT_NOTARIZED_COPY",
+  "PASSPORT_NOTARIZED_COPY_2",
+] as const;
 
 export const PASSPORT_FILE_LABELS = ["Файл 1", "Файл 2"] as const;
 
