@@ -28,7 +28,7 @@ export const calculatorPresetSchema = z.object({
   deliveryRub: z.string().max(32),
   deliveryUsd: z.string().max(32),
   escortRub: z.string().max(32),
-  rates: exchangeRatesSchema,
+  rates: exchangeRatesSchema.optional(),
 });
 
 export const updateCalculatorSettingsSchema = z.object({

@@ -263,21 +263,6 @@ function loadUserPresets(): UserPreset[] {
     return parsed
       .filter((item): item is Record<string, unknown> => item !== null && typeof item === "object")
       .map((item) => {
-        const rates = roundExchangeRates({
-          ...DEFAULT_EXCHANGE_RATES,
-          USD: typeof item.rates === "object" && item.rates && typeof (item.rates as ExchangeRates).USD === "number"
-            ? (item.rates as ExchangeRates).USD
-            : DEFAULT_EXCHANGE_RATES.USD,
-          EUR: typeof item.rates === "object" && item.rates && typeof (item.rates as ExchangeRates).EUR === "number"
-            ? (item.rates as ExchangeRates).EUR
-            : DEFAULT_EXCHANGE_RATES.EUR,
-          CNY: typeof item.rates === "object" && item.rates && typeof (item.rates as ExchangeRates).CNY === "number"
-            ? (item.rates as ExchangeRates).CNY
-            : DEFAULT_EXCHANGE_RATES.CNY,
-          KRW: typeof item.rates === "object" && item.rates && typeof (item.rates as ExchangeRates).KRW === "number"
-            ? (item.rates as ExchangeRates).KRW
-            : DEFAULT_EXCHANGE_RATES.KRW,
-        });
         return {
           id: typeof item.id === "string" ? item.id : `${Date.now()}`,
           name: typeof item.name === "string" && item.name.trim() ? item.name.trim() : "Без названия",
@@ -316,7 +301,6 @@ function loadUserPresets(): UserPreset[] {
           deliveryUsd:
             typeof item.deliveryUsd === "string" ? item.deliveryUsd : DEFAULT_STATE.deliveryUsd,
           escortRub: typeof item.escortRub === "string" ? item.escortRub : DEFAULT_STATE.escortRub,
-          rates,
         } satisfies UserPreset;
       })
       .slice(0, MAX_USER_PRESETS);
@@ -1212,15 +1196,18 @@ export function CustomsCalculator() {
 
   const applyUserPreset = (preset: UserPreset) => {
     applyScenario(preset);
-    setRates(preset.rates);
     toast.success(`Шаблон «${preset.name}» применён`);
   };
 
   const persistPresets = async (next: UserPreset[], successMessage?: string) => {
-    setUserPresets(next);
+    const withoutRates = next.slice(0, MAX_USER_PRESETS).map((preset) => {
+      const { rates: _ignored, ...rest } = preset;
+      return rest;
+    });
+    setUserPresets(withoutRates);
     setPresetsSaving(true);
     try {
-      const saved = await api.calculatorSettings.savePresets(next.slice(0, MAX_USER_PRESETS));
+      const saved = await api.calculatorSettings.savePresets(withoutRates);
       setUserPresets(saved.presets);
       if (successMessage) toast.success(successMessage);
     } catch (error) {
@@ -1265,7 +1252,6 @@ export function CustomsCalculator() {
       deliveryRub,
       deliveryUsd,
       escortRub,
-      rates,
     };
 
     const next = [preset, ...userPresets.filter((item) => item.name !== preset.name)].slice(
