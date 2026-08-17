@@ -30,6 +30,8 @@ model Company {
   calculatorSettings     CompanyCalculatorSettings?
   dashboardSettings      CompanyDashboardSettings?
   appearanceSettings     CompanyAppearanceSettings?
+  googleCalendarSettings CompanyGoogleCalendarSettings?
+  googleCalendarEvents   GoogleCalendarEventMap[]
 
   @@map("companies")
 }
@@ -360,6 +362,39 @@ model CompanyAppearanceSettings {
   @@map("company_appearance_settings")
 }
 
+model CompanyGoogleCalendarSettings {
+  companyId            String    @id
+  googleEmail          String
+  refreshTokenEnc      String
+  accessTokenEnc       String?
+  accessTokenExpiresAt DateTime?
+  calendarId           String
+  connectedAt          DateTime  @default(now())
+  lastSyncAt           DateTime?
+  lastSyncError        String?
+  updatedAt            DateTime  @updatedAt
+  company              Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_google_calendar_settings")
+}
+
+model GoogleCalendarEventMap {
+  id            String                   @id @default(cuid())
+  companyId     String
+  dealId        String
+  sourceType    GoogleCalendarSourceType
+  sourceId      String
+  googleEventId String
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  company       Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, sourceType, sourceId])
+  @@index([companyId])
+  @@index([dealId])
+  @@map("google_calendar_event_maps")
+}
+
 model Document {
   id           String         @id @default(cuid())
   dealId       String
@@ -549,6 +584,11 @@ model ClientStageMessage {
   @@unique([companyId, stage])
   @@index([companyId])
   @@map("client_stage_messages")
+}
+
+enum GoogleCalendarSourceType {
+  CUSTOMS
+  REMINDER
 }
 
 enum DealStageType {

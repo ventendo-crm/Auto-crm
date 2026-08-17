@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Bell,
   Building2,
   Calculator,
+  CalendarDays,
   Mail,
   MessageCircle,
   Palette,
@@ -12,10 +14,12 @@ import {
   UserCog,
   Users,
 } from "lucide-react";
+import { toast } from "sonner";
 import { AppearancePanel } from "@/components/settings/appearance-panel";
 import { CalculatorExpensesPanel } from "@/components/settings/calculator-expenses-panel";
 import { CompaniesPanel } from "@/components/settings/companies-panel";
 import { EmailTemplatesPanel } from "@/components/settings/email-templates-panel";
+import { GoogleCalendarSettingsCard } from "@/components/settings/google-calendar-settings-card";
 import { TelegramBotSettingsCard } from "@/components/settings/telegram-bot-settings-card";
 import { TelegramTemplatesPanel } from "@/components/settings/telegram-templates-panel";
 import { Header } from "@/components/layout/header";
@@ -28,18 +32,42 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { getClientRoleName } from "@/lib/permissions";
 
+const SETTINGS_TABS = new Set([
+  "profile",
+  "notifications",
+  "appearance",
+  "managers",
+  "users",
+  "email",
+  "telegram",
+  "calendar",
+  "calculator",
+  "companies",
+]);
+
 export function SettingsView() {
+  return (
+    <Suspense>
+      <SettingsViewInner />
+    </Suspense>
+  );
+}
+
+function SettingsViewInner() {
   const { user } = useAuth();
   const role = getClientRoleName(user);
   const isAdmin = role === "ADMIN";
   const isClient = role === "CLIENT";
   const canManageManagersTab = role === "ADMIN" || role === "MANAGER";
   const isPlatformAdmin = Boolean(user?.isPlatformAdmin);
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
 
   const subtitle = isPlatformAdmin
-    ? "Профиль, компании, письма, Telegram, калькулятор и пользователи"
+    ? "Профиль, компании, письма, Telegram, календарь, калькулятор и пользователи"
     : isAdmin
-      ? "Профиль, оформление, уведомления, письма, Telegram, калькулятор и пользователи"
+      ? "Профиль, оформление, уведомления, письма, Telegram, календарь, калькулятор и пользователи"
       : canManageManagersTab
         ? "Профиль, уведомления и менеджеры"
         : isClient
@@ -69,6 +97,7 @@ export function SettingsView() {
         { value: "appearance", label: "Оформление", icon: Palette },
         { value: "email", label: "Письма", icon: Mail },
         { value: "telegram", label: "Telegram", icon: MessageCircle },
+        { value: "calendar", label: "Календарь", icon: CalendarDays },
         { value: "calculator", label: "Калькулятор", icon: Calculator },
       );
     }
@@ -90,11 +119,55 @@ export function SettingsView() {
     return result;
   }, [canManageManagersTab, isAdmin, isPlatformAdmin]);
 
+  const allowedTabs = useMemo(
+    () => new Set(groups.flatMap((group) => group.items.map((item) => item.value))),
+    [groups],
+  );
+
+  const requestedTab = searchParams.get("tab");
+  const initialTab =
+    requestedTab && SETTINGS_TABS.has(requestedTab) && allowedTabs.has(requestedTab)
+      ? requestedTab
+      : "profile";
+  const [tab, setTab] = useState(initialTab);
+
+  useEffect(() => {
+    if (allowedTabs.has(initialTab) && initialTab !== tab) {
+      setTab(initialTab);
+    }
+  }, [allowedTabs, initialTab, tab]);
+
+  useEffect(() => {
+    const google = searchParams.get("google");
+    if (!google) return;
+
+    if (google === "ok") {
+      toast.success("Google Календарь подключён. События выгружаются в фоне.");
+    } else if (google === "error") {
+      toast.error(searchParams.get("message") || "Не удалось подключить Google Календарь");
+    }
+
+    const next = new URLSearchParams(searchParams.toString());
+    next.delete("google");
+    next.delete("message");
+    next.set("tab", "calendar");
+    router.replace(`${pathname}?${next.toString()}`);
+  }, [pathname, router, searchParams]);
+
+  const handleTabChange = (value: string) => {
+    setTab(value);
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", value);
+    next.delete("google");
+    next.delete("message");
+    router.replace(`${pathname}?${next.toString()}`, { scroll: false });
+  };
+
   return (
     <>
       <Header title="Настройки" subtitle={subtitle} />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <Tabs defaultValue="profile" className="max-w-5xl">
+        <Tabs value={tab} onValueChange={handleTabChange} className="max-w-5xl">
           <GroupedTabsNav groups={groups} wrap />
 
           <TabsContent value="profile" className="mt-4">
@@ -133,6 +206,12 @@ export function SettingsView() {
             <TabsContent value="telegram" className="mt-4 space-y-4">
               <TelegramBotSettingsCard />
               <TelegramTemplatesPanel />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
+            <TabsContent value="calendar" className="mt-4">
+              <GoogleCalendarSettingsCard />
             </TabsContent>
           )}
 

@@ -5,6 +5,10 @@ import { dealAccessSelect } from "@/lib/deal-managers";
 import { createAuditLog } from "@/lib/services/audit";
 import { buildManagerDealsWhere, getManagerPeerIdsForUser } from "@/lib/services/deal-access";
 import { createReminderSchema, updateReminderSchema } from "@/lib/validators/reminders";
+import {
+  scheduleReminderRemoval,
+  scheduleReminderSync,
+} from "@/lib/google-calendar/sync";
 import { z } from "zod";
 
 type CreateInput = z.infer<typeof createReminderSchema>;
@@ -143,6 +147,8 @@ export async function createReminder(
     newValue: { dealId, title: reminder.title, dueDate: reminder.dueDate },
   });
 
+  scheduleReminderSync(reminder.id);
+
   return reminder;
 }
 
@@ -180,13 +186,15 @@ export async function updateReminder(
     newValue: input,
   });
 
+  scheduleReminderSync(reminder.id);
+
   return reminder;
 }
 
 export async function deleteReminder(user: AuthUser, reminderId: string) {
   const existing = await prisma.reminder.findUnique({
     where: { id: reminderId },
-    include: { deal: { select: dealAccessSelect } },
+    include: { deal: { select: { ...dealAccessSelect, companyId: true } } },
   });
 
   if (!existing) {
@@ -204,6 +212,8 @@ export async function deleteReminder(user: AuthUser, reminderId: string) {
     action: "DELETE",
     oldValue: { title: existing.title, dealId: existing.dealId },
   });
+
+  scheduleReminderRemoval(existing.deal.companyId, reminderId);
 }
 
 export function isReminderOverdue(dueDate: Date, completed: boolean): boolean {

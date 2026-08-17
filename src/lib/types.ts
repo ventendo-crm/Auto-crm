@@ -65,6 +65,15 @@ export interface CompanyTelegramBotSettings {
   tokenMasked: string | null;
 }
 
+export interface CompanyGoogleCalendarSettings {
+  configured: boolean;
+  connected: boolean;
+  googleEmail: string | null;
+  connectedAt: string | null;
+  lastSyncAt: string | null;
+  lastSyncError: string | null;
+}
+
 export interface DealManager {
   id: string;
   name: string;

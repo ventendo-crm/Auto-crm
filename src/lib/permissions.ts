@@ -190,6 +190,10 @@ export function canManageCompanyTelegram(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }
 
+export function canManageCompanyGoogleCalendar(role: RoleName): boolean {
+  return role === ROLES.ADMIN;
+}
+
 export function canAccessCalculator(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }

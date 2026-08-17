@@ -18,6 +18,7 @@ import { notifyStageChange } from "@/lib/services/notifications";
 import { recordStageChange } from "@/lib/services/stage-history";
 import { z } from "zod";
 import { createDealSchema, listDealsSchema, updateDealSchema } from "@/lib/validators/deal";
+import { scheduleDealRefresh, scheduleDealRemoval } from "@/lib/google-calendar/sync";
 
 type CreateDealInput = z.infer<typeof createDealSchema>;
 type UpdateDealInput = z.infer<typeof updateDealSchema>;
@@ -288,6 +289,8 @@ export async function updateDeal(user: AuthUser, id: string, input: UpdateDealIn
     },
   });
 
+  scheduleDealRefresh(id);
+
   return deal;
 }
 
@@ -306,6 +309,8 @@ export async function deleteDeal(user: AuthUser, id: string) {
     action: "DELETE",
     oldValue: { vin: existing.vin, clientName: existing.clientName },
   });
+
+  scheduleDealRemoval(user.companyId, id);
 }
 
 export async function changeDealStage(user: AuthUser, id: string, toStage: DealStageType) {

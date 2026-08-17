@@ -7,6 +7,7 @@ import {
   shipmentInputToData,
   UpdateShipmentInput,
 } from "@/lib/validators/shipment";
+import { scheduleCustomsSync } from "@/lib/google-calendar/sync";
 
 async function assertDealShipmentAccess(user: AuthUser, dealId: string, write = false) {
   const deal = await prisma.deal.findUnique({
@@ -64,6 +65,8 @@ export async function upsertDealShipment(
     oldValue: existing ?? undefined,
     newValue: data,
   });
+
+  scheduleCustomsSync(dealId);
 
   return shipment;
 }

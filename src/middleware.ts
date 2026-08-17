@@ -7,6 +7,7 @@ const PUBLIC_API_PATHS = [
   "/api/auth/logout",
   "/api/auth/password-reset",
   "/api/telegram/webhook",
+  "/api/google-calendar/callback",
 ];
 const PUBLIC_PAGE_PATHS = ["/login", "/forgot-password", "/reset-password", "/landing"];
 

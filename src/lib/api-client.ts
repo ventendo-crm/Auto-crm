@@ -6,6 +6,7 @@ import {
   ClientPortalDeal,
   CompanyListItem,
   CompanyTelegramBotSettings,
+  CompanyGoogleCalendarSettings,
   DashboardData,
   DealDetail,
   DealListItem,
@@ -895,6 +896,23 @@ export const api = {
       request<ClientStageMessageItem[]>("/api/telegram/stage-messages", {
         method: "PUT",
         body: JSON.stringify({ messages }),
+      }),
+  },
+
+  googleCalendar: {
+    getSettings: () => request<CompanyGoogleCalendarSettings>("/api/google-calendar/settings"),
+    connect: (data: { googleEmail: string }) =>
+      request<{ url: string }>("/api/google-calendar/connect", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+    disconnect: () =>
+      request<CompanyGoogleCalendarSettings>("/api/google-calendar/settings", {
+        method: "DELETE",
+      }),
+    syncNow: () =>
+      request<CompanyGoogleCalendarSettings>("/api/google-calendar/sync", {
+        method: "POST",
       }),
   },
 
