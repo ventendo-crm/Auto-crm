@@ -3,6 +3,7 @@
 import { ImagePlus, Loader2, Upload, Video } from "lucide-react";
 import { useCallback, useRef, useState } from "react";
 import { cn, formatFileSize } from "@/lib/utils";
+import { MEDIA_FILE_ACCEPT } from "@/lib/validators/media";
 
 interface MediaUploadZoneProps {
   onUpload: (files: File[]) => Promise<void>;
@@ -105,7 +106,7 @@ export function MediaUploadZone({ onUpload, disabled }: MediaUploadZoneProps) {
           {uploading ? "Загрузка..." : "Перетащите фото или видео сюда"}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          JPEG, PNG, WebP, GIF · MP4, WebM, MOV
+          JPEG, PNG, WebP, GIF · MP4, MOV, WebM, 3GP и другие
         </p>
         <p className="mt-0.5 text-xs text-muted-foreground">
           Фото до 10 MB · Видео до 100 MB
@@ -124,7 +125,7 @@ export function MediaUploadZone({ onUpload, disabled }: MediaUploadZoneProps) {
         ref={inputRef}
         type="file"
         multiple
-        accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+        accept={MEDIA_FILE_ACCEPT}
         className="hidden"
         disabled={disabled || uploading}
         onChange={(e) => {

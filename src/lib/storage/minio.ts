@@ -3,6 +3,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadBucketCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   S3Client,
 } from "@aws-sdk/client-s3";
@@ -93,7 +94,30 @@ export async function deleteObject(key: string): Promise<void> {
   );
 }
 
-export async function getObjectStream(key: string): Promise<{
+export async function headObject(key: string): Promise<{
+  contentLength: number;
+  contentType?: string;
+}> {
+  const s3 = getS3Client();
+  const { bucket } = getConfig();
+
+  const result = await s3.send(
+    new HeadObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    }),
+  );
+
+  return {
+    contentLength: result.ContentLength ?? 0,
+    contentType: result.ContentType,
+  };
+}
+
+export async function getObjectStream(
+  key: string,
+  range?: { start: number; end: number },
+): Promise<{
   body: ReadableStream;
   contentLength?: number;
   contentType?: string;
@@ -105,6 +129,7 @@ export async function getObjectStream(key: string): Promise<{
     new GetObjectCommand({
       Bucket: bucket,
       Key: key,
+      ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}),
     }),
   );
 

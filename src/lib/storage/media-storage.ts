@@ -8,8 +8,10 @@ import {
   buildThumbnailKey,
   deleteObject,
   getObjectStream,
+  headObject,
   uploadObject,
 } from "@/lib/storage/minio";
+import { ByteRange, parseByteRange } from "@/lib/storage/http-range";
 import { guessMediaContentType } from "@/lib/validators/media";
 
 function storageMode(): "local" | "minio" | "auto" {
@@ -61,34 +63,66 @@ export function isLocalMediaUrl(fileUrl: string): boolean {
 export async function openStoredMediaFile(
   storedKey: string,
   fileName: string,
+  rangeHeader?: string | null,
 ): Promise<{
-  stream: ReadableStream;
+  stream: ReadableStream | null;
   contentType: string;
   fileName: string;
-  size?: number;
+  size: number;
+  range: ByteRange | null;
+  status: 200 | 206 | 416;
 }> {
   const contentType = guessMediaContentType(fileName);
 
   if (isLocalMediaUrl(storedKey)) {
     const filePath = path.join(localUploadsDir(), path.basename(storedKey));
     const fileStat = await stat(filePath);
-    const nodeStream = createReadStream(filePath);
+    const size = fileStat.size;
+    const parsed = parseByteRange(rangeHeader, size);
+
+    if (parsed === "unsatisfiable") {
+      return { stream: null, contentType, fileName, size, range: null, status: 416 };
+    }
+
+    const range = parsed;
+    const start = range?.start ?? 0;
+    const end = range?.end ?? size - 1;
+    const nodeStream = createReadStream(filePath, { start, end });
 
     return {
       stream: Readable.toWeb(nodeStream) as ReadableStream,
       contentType,
       fileName,
-      size: fileStat.size,
+      size,
+      range,
+      status: range ? 206 : 200,
     };
   }
 
-  const object = await getObjectStream(storedKey);
+  const objectHead = await headObject(storedKey);
+  const size = objectHead.contentLength;
+  const parsed = parseByteRange(rangeHeader, size);
+
+  if (parsed === "unsatisfiable") {
+    return {
+      stream: null,
+      contentType: objectHead.contentType ?? contentType,
+      fileName,
+      size,
+      range: null,
+      status: 416,
+    };
+  }
+
+  const object = await getObjectStream(storedKey, parsed ?? undefined);
 
   return {
     stream: object.body,
-    contentType: object.contentType ?? contentType,
+    contentType: object.contentType ?? objectHead.contentType ?? contentType,
     fileName,
-    size: object.contentLength,
+    size,
+    range: parsed,
+    status: parsed ? 206 : 200,
   };
 }
 

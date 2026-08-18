@@ -11,8 +11,10 @@ import {
   storeMediaFile,
 } from "@/lib/storage/media-storage";
 import {
+  detectMediaTypeFromBuffer,
   detectMediaTypeFromFile,
   getMaxSizeForType,
+  UNSUPPORTED_MEDIA_FORMAT_MESSAGE,
 } from "@/lib/validators/media";
 
 const mediaInclude = {
@@ -179,9 +181,10 @@ export async function uploadDealMedia(
     }
   }
 
-  const mediaType = detectMediaTypeFromFile(file);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const mediaType = detectMediaTypeFromFile(file) ?? detectMediaTypeFromBuffer(buffer);
   if (!mediaType) {
-    throw new Error("Неподдерживаемый формат. Разрешены: JPEG, PNG, WebP, GIF, MP4, WebM, MOV");
+    throw new Error(UNSUPPORTED_MEDIA_FORMAT_MESSAGE);
   }
 
   if (file.size > getMaxSizeForType(mediaType)) {
@@ -191,7 +194,6 @@ export async function uploadDealMedia(
     );
   }
 
-  const buffer = Buffer.from(await file.arrayBuffer());
   const mediaId = crypto.randomUUID();
 
   const { fileKey, thumbnailKey } = await storeMediaFile({
@@ -327,6 +329,7 @@ export async function streamMediaFile(
   user: AuthUser,
   mediaId: string,
   variant: "full" | "thumb" = "full",
+  rangeHeader?: string | null,
 ) {
   const media = await prisma.mediaFile.findUnique({
     where: { id: mediaId },
@@ -352,5 +355,5 @@ export async function streamMediaFile(
   const storedKey =
     variant === "thumb" && media.thumbnailUrl ? media.thumbnailUrl : media.fileUrl;
 
-  return openStoredMediaFile(storedKey, media.fileName);
+  return openStoredMediaFile(storedKey, media.fileName, rangeHeader);
 }

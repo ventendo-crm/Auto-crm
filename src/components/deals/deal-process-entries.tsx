@@ -15,10 +15,9 @@ import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
 import { MediaItem } from "@/lib/types";
 import { cn, formatDateTime, formatFileSize } from "@/lib/utils";
+import { MEDIA_FILE_ACCEPT } from "@/lib/validators/media";
 
 const MAX_MEDIA = MAX_PROCESS_ENTRY_MEDIA;
-const MEDIA_ACCEPT =
-  "image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime";
 
 export interface ProcessEntryItem {
   id: string;
@@ -397,7 +396,7 @@ function ProcessEntryCard({
               ref={fileInputRef}
               type="file"
               multiple
-              accept={MEDIA_ACCEPT}
+              accept={MEDIA_FILE_ACCEPT}
               className="hidden"
               disabled={uploading || slotsLeft <= 0}
               onChange={(e) => {

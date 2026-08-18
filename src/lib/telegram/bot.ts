@@ -273,6 +273,9 @@ async function loadTelegramMediaBytes(item: CompanyTelegramMediaItem): Promise<{
   const fileName = item.fileName.trim() || "file";
   const kind = isPhotoMediaType(item.type) ? "photo" : "video";
   const opened = await openStoredMediaFile(item.fileUrl, fileName);
+  if (!opened.stream) {
+    throw new Error("Не удалось прочитать медиафайл");
+  }
   const bytes = Buffer.from(await new Response(opened.stream).arrayBuffer());
   return {
     bytes,

@@ -45,6 +45,15 @@ export function guessUploadContentType(fileName: string): string {
       return "video/webm";
     case ".mov":
       return "video/quicktime";
+    case ".m4v":
+      return "video/mp4";
+    case ".3gp":
+    case ".3gpp":
+      return "video/3gpp";
+    case ".avi":
+      return "video/x-msvideo";
+    case ".mkv":
+      return "video/x-matroska";
     case ".doc":
       return "application/msword";
     case ".docx":

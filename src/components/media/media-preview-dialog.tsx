@@ -2,8 +2,8 @@
 
 import { MediaType } from "@prisma/client";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
-import { useEffect, useMemo } from "react";
-import { mediaVideoPreviewSrc } from "@/components/media/media-thumb";
+import { useEffect, useMemo, useRef } from "react";
+import { ZoomableImage } from "@/components/media/zoomable-image";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -52,6 +52,7 @@ export function MediaPreviewDialog({
 
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < gallery.length - 1;
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const goTo = (offset: number) => {
     if (currentIndex < 0) return;
@@ -82,6 +83,29 @@ export function MediaPreviewDialog({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, currentIndex, gallery, onCurrentChange]);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (!open || activeMedia?.type !== MediaType.VIDEO) {
+      video.pause();
+      return;
+    }
+
+    video.muted = false;
+    const play = video.play();
+    if (play) {
+      void play.catch(() => {
+        video.muted = true;
+        void video.play().catch(() => undefined);
+      });
+    }
+
+    return () => {
+      video.pause();
+    };
+  }, [open, activeMedia?.id, activeMedia?.type]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -139,21 +163,22 @@ export function MediaPreviewDialog({
 
           <div className="flex w-full min-w-0 max-w-full items-center justify-center px-8 sm:px-12">
             {activeMedia.type === MediaType.PHOTO ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <ZoomableImage
                 key={activeMedia.id}
                 src={activeMedia.fileUrl}
                 alt={activeMedia.fileName}
-                className="mx-auto block h-auto max-h-[70dvh] w-auto max-w-full object-contain"
               />
             ) : (
               <video
                 key={activeMedia.id}
-                src={mediaVideoPreviewSrc(activeMedia.fileUrl)}
+                ref={videoRef}
+                src={activeMedia.fileUrl}
                 controls
+                autoPlay
                 playsInline
-                preload="metadata"
-                className="mx-auto block h-auto max-h-[70dvh] w-full max-w-full bg-black object-contain"
+                preload="auto"
+                className="relative z-20 mx-auto block h-auto max-h-[70dvh] w-full max-w-full bg-black object-contain"
+                onPointerDown={(event) => event.stopPropagation()}
               >
                 <track kind="captions" />
               </video>

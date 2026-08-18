@@ -238,6 +238,30 @@ class MainActivity : AppCompatActivity() {
                 this@MainActivity.filePathCallback = filePathCallback
 
                 val intent = fileChooserParams.createIntent()
+                val acceptTypes = fileChooserParams.acceptTypes
+                    ?.map { it.trim().lowercase() }
+                    ?.filter { it.isNotEmpty() }
+                    .orEmpty()
+
+                val wantsVideo = acceptTypes.any { type ->
+                    type.startsWith("video/") || type == "video/*" || type.contains("video")
+                }
+                val wantsImage = acceptTypes.any { type ->
+                    type.startsWith("image/") || type == "image/*" || type.contains("image")
+                }
+
+                if (wantsVideo || wantsImage) {
+                    intent.type = "*/*"
+                    val mimeTypes = mutableListOf<String>()
+                    if (wantsImage) mimeTypes.add("image/*")
+                    if (wantsVideo) mimeTypes.add("video/*")
+                    intent.putExtra(Intent.EXTRA_MIME_TYPES, mimeTypes.toTypedArray())
+                }
+
+                if (fileChooserParams.mode == FileChooserParams.MODE_OPEN_MULTIPLE) {
+                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+                }
+
                 fileChooserLauncher.launch(Intent.createChooser(intent, getString(R.string.choose_file)))
                 return true
             }
