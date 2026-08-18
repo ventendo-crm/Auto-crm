@@ -167,6 +167,13 @@ export async function getDealByClientUserId(clientUserId: string) {
             orderBy: { uploadedAt: "asc" as const },
             include: SEARCH_PROCESS_MEDIA_INCLUDE,
           },
+          customsEstimate: {
+            include: {
+              createdBy: {
+                select: { name: true },
+              },
+            },
+          },
         },
       },
       importProcessEntries: {
@@ -222,6 +229,25 @@ export async function getClientPortalDeal(clientUserId: string) {
       clientFeedback: entry.clientFeedback,
       clientFeedbackAt: entry.clientFeedbackAt,
       media: await Promise.all(entry.media.map(enrichMediaRecord)),
+      estimate: entry.customsEstimate
+        ? {
+            id: entry.customsEstimate.id,
+            searchProcessEntryId: entry.customsEstimate.searchProcessEntryId,
+            createdById: entry.customsEstimate.createdById,
+            createdByName: entry.customsEstimate.createdBy.name,
+            createdAt: entry.customsEstimate.createdAt.toISOString(),
+            updatedAt: entry.customsEstimate.updatedAt.toISOString(),
+            price: Number(entry.customsEstimate.price),
+            currency: entry.customsEstimate.currency,
+            powerHp: entry.customsEstimate.powerHp,
+            volumeCc: entry.customsEstimate.volumeCc,
+            carYear: entry.customsEstimate.carYear,
+            note: entry.customsEstimate.note,
+            input: entry.customsEstimate.input,
+            result: entry.customsEstimate.result,
+            totalWithCar: Number(entry.customsEstimate.totalWithCar),
+          }
+        : null,
     })),
   );
 

@@ -17,6 +17,7 @@ import { DealComments } from "@/components/deals/deal-comments";
 import { DealCustomsEstimatesPanel } from "@/components/deals/deal-customs-estimates-panel";
 import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
 import { DealLogistics } from "@/components/deals/deal-logistics";
+import { SearchProcessEntryEstimatePanel } from "@/components/deals/search-process-entry-estimate";
 import { SearchProcessLinksPanel } from "@/components/deals/search-process-links";
 import { SearchProcessVariantFeedback } from "@/components/client/search-process-variant-feedback";
 import { MediaGallery } from "@/components/media/media-gallery";
@@ -238,6 +239,15 @@ export function ClientDealView() {
                     ) : (
                       <p className="text-xs text-muted-foreground">Фото и видео не загружены</p>
                     )}
+
+                    <div className="mt-4">
+                      <SearchProcessEntryEstimatePanel
+                        dealId={deal.id}
+                        entry={entry}
+                        previousEntry={null}
+                        destinationCountry={deal.destinationCountry}
+                      />
+                    </div>
 
                     <SearchProcessVariantFeedback
                       dealId={deal.id}

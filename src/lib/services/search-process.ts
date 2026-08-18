@@ -8,6 +8,7 @@ import {
   SEARCH_PROCESS_MEDIA_INCLUDE,
   uploadDealMedia,
 } from "@/lib/services/media";
+import { type SearchProcessEntryEstimateItem } from "@/lib/services/search-process-entry-estimates";
 import { normalizeExternalUrl } from "@/lib/validators/search-process-links";
 
 export interface SearchProcessLinks {
@@ -24,6 +25,13 @@ const entryInclude = {
     orderBy: { uploadedAt: "asc" as const },
     include: SEARCH_PROCESS_MEDIA_INCLUDE,
   },
+  customsEstimate: {
+    include: {
+      createdBy: {
+        select: { name: true },
+      },
+    },
+  },
 } as const;
 
 async function serializeEntry(
@@ -37,6 +45,23 @@ async function serializeEntry(
     createdAt: Date;
     updatedAt: Date;
     media: Parameters<typeof enrichMediaRecord>[0][];
+    customsEstimate?: {
+      id: string;
+      searchProcessEntryId: string;
+      createdById: string;
+      createdAt: Date;
+      updatedAt: Date;
+      price: { toNumber(): number };
+      currency: string;
+      powerHp: number;
+      volumeCc: number;
+      carYear: number;
+      note: string | null;
+      input: unknown;
+      result: unknown;
+      totalWithCar: { toNumber(): number };
+      createdBy: { name: string };
+    } | null;
   },
 ) {
   return {
@@ -49,6 +74,25 @@ async function serializeEntry(
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
     media: await Promise.all(entry.media.map(enrichMediaRecord)),
+    estimate: (entry.customsEstimate
+      ? {
+          id: entry.customsEstimate.id,
+          searchProcessEntryId: entry.customsEstimate.searchProcessEntryId,
+          createdById: entry.customsEstimate.createdById,
+          createdByName: entry.customsEstimate.createdBy.name,
+          createdAt: entry.customsEstimate.createdAt.toISOString(),
+          updatedAt: entry.customsEstimate.updatedAt.toISOString(),
+          price: entry.customsEstimate.price.toNumber(),
+          currency: entry.customsEstimate.currency,
+          powerHp: entry.customsEstimate.powerHp,
+          volumeCc: entry.customsEstimate.volumeCc,
+          carYear: entry.customsEstimate.carYear,
+          note: entry.customsEstimate.note,
+          input: entry.customsEstimate.input,
+          result: entry.customsEstimate.result,
+          totalWithCar: entry.customsEstimate.totalWithCar.toNumber(),
+        }
+      : null) as SearchProcessEntryEstimateItem | null,
   };
 }
 

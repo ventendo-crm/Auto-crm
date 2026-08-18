@@ -265,6 +265,7 @@ export default function DealPage() {
               dealId={deal.id}
               canEdit={canManageDeal}
               onChanged={refreshActivity}
+              destinationCountry={deal.destinationCountry}
             />
           </TabsContent>
 

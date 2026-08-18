@@ -198,6 +198,25 @@ export interface SearchProcessEntry {
   createdAt: string;
   updatedAt: string;
   media: MediaItem[];
+  estimate?: SearchProcessEntryEstimate | null;
+}
+
+export interface SearchProcessEntryEstimate {
+  id: string;
+  searchProcessEntryId: string;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  price: number;
+  currency: "RUB" | "USD" | "CNY" | "KRW";
+  powerHp: number;
+  volumeCc: number;
+  carYear: number;
+  note?: string | null;
+  input: import("@/lib/customs-calculator").CustomsCalculatorInput;
+  result: import("@/lib/customs-calculator").CustomsCalculatorResult;
+  totalWithCar: number;
 }
 
 export interface DealDetail extends DealListItem {
@@ -439,6 +458,7 @@ export interface ClientPortalDeal {
     clientFeedback?: string | null;
     clientFeedbackAt?: string | null;
     media: MediaItem[];
+    estimate?: SearchProcessEntryEstimate | null;
   }[];
   searchProcessLinks: SearchProcessLinks;
   importProcessEnabled: boolean;

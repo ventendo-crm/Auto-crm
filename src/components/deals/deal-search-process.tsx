@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { SearchProcessEntryEstimatePanel } from "@/components/deals/search-process-entry-estimate";
 import { SearchProcessLinksPanel } from "@/components/deals/search-process-links";
 import { DealProcessEntries } from "@/components/deals/deal-process-entries";
 import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
@@ -11,9 +12,15 @@ interface DealSearchProcessProps {
   dealId: string;
   canEdit?: boolean;
   onChanged?: () => void;
+  destinationCountry?: string | null;
 }
 
-export function DealSearchProcess({ dealId, canEdit = false, onChanged }: DealSearchProcessProps) {
+export function DealSearchProcess({
+  dealId,
+  canEdit = false,
+  onChanged,
+  destinationCountry,
+}: DealSearchProcessProps) {
   const [links, setLinks] = useState<SearchProcessLinks>({
     inspectionLink: null,
     chinaAutotecaLink: null,
@@ -69,6 +76,16 @@ export function DealSearchProcess({ dealId, canEdit = false, onChanged }: DealSe
       hideMediaCaptions
       entriesApi={entriesApi}
       showClientFeedback
+      renderEntryExtra={({ entry, entryIndex, entries, updateEntry }) => (
+        <SearchProcessEntryEstimatePanel
+          dealId={dealId}
+          entry={entry}
+          previousEntry={entries[entryIndex - 1] ?? null}
+          destinationCountry={destinationCountry}
+          canEdit={canEdit}
+          onUpdated={(estimate) => updateEntry({ ...entry, estimate })}
+        />
+      )}
       headerExtra={
         <SearchProcessLinksPanel
           dealId={dealId}

@@ -13,7 +13,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
-import { MediaItem } from "@/lib/types";
+import { MediaItem, SearchProcessEntryEstimate } from "@/lib/types";
 import { cn, formatDateTime, formatFileSize } from "@/lib/utils";
 import { MEDIA_FILE_ACCEPT } from "@/lib/validators/media";
 
@@ -25,6 +25,7 @@ export interface ProcessEntryItem {
   media: MediaItem[];
   clientFeedback?: string | null;
   clientFeedbackAt?: string | null;
+  estimate?: SearchProcessEntryEstimate | null;
 }
 
 export interface ProcessEntriesApi {
@@ -56,6 +57,12 @@ interface DealProcessEntriesProps {
   showClientFeedback?: boolean;
   autoCreateFirst?: boolean;
   hideMediaCaptions?: boolean;
+  renderEntryExtra?: (args: {
+    entry: ProcessEntryItem;
+    entryIndex: number;
+    entries: ProcessEntryItem[];
+    updateEntry: (entry: ProcessEntryItem) => void;
+  }) => ReactNode;
 }
 
 interface PreviewState {
@@ -84,6 +91,7 @@ export function DealProcessEntries({
   showClientFeedback = false,
   autoCreateFirst = true,
   hideMediaCaptions = false,
+  renderEntryExtra,
 }: DealProcessEntriesProps) {
   const [entries, setEntries] = useState<ProcessEntryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,6 +219,12 @@ export function DealProcessEntries({
                 onChanged={onChanged}
                 onDeleted={() => void handleDeleteEntry(entry.id)}
                 onPreview={openPreview}
+                extraContent={renderEntryExtra?.({
+                  entry,
+                  entryIndex: index,
+                  entries,
+                  updateEntry: handleUpdateEntry,
+                })}
               />
             ))
           )}
@@ -260,6 +274,7 @@ function ProcessEntryCard({
   onChanged,
   onDeleted,
   onPreview,
+  extraContent,
 }: {
   dealId: string;
   entry: ProcessEntryItem;
@@ -276,6 +291,7 @@ function ProcessEntryCard({
   onChanged?: () => void;
   onDeleted: () => void;
   onPreview: (items: MediaItem[], item: MediaItem) => void;
+  extraContent?: ReactNode;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [description, setDescription] = useState(entry.description);
@@ -460,6 +476,8 @@ function ProcessEntryCard({
             )}
           </div>
         )}
+
+        {extraContent}
       </div>
     </div>
   );

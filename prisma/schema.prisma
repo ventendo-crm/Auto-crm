@@ -73,6 +73,7 @@ model User {
   createdTasks      Task[]         @relation("TaskCreatedBy")
   updatedAdditionalOptions DealAdditionalOption[] @relation("AdditionalOptionUpdatedBy")
   createdCustomsEstimates DealCustomsEstimate[] @relation("CustomsEstimateCreatedBy")
+  createdSearchProcessEstimates SearchProcessEntryCustomsEstimate[] @relation("SearchProcessEstimateCreatedBy")
   calculatorSettings UserCalculatorSettings?
   role              Role           @relation(fields: [roleId], references: [id])
   dealManagerAssignments DealManagerAssignment[] @relation("DealManagerAssignmentUser")
@@ -232,6 +233,7 @@ model SearchProcessEntry {
   updatedAt        DateTime    @updatedAt
   deal             Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
   media            MediaFile[]
+  customsEstimate  SearchProcessEntryCustomsEstimate?
 
   @@index([dealId])
   @@index([sortOrder])
@@ -320,6 +322,28 @@ model DealCustomsEstimate {
   @@index([dealId, createdAt])
   @@index([createdById])
   @@map("deal_customs_estimates")
+}
+
+model SearchProcessEntryCustomsEstimate {
+  id                   String             @id @default(cuid())
+  searchProcessEntryId String             @unique
+  createdById          String
+  price                Decimal            @db.Decimal(14, 2)
+  currency             String
+  powerHp              Int
+  volumeCc             Int
+  carYear              Int
+  input                Json
+  result               Json
+  totalWithCar         Decimal            @db.Decimal(14, 2)
+  note                 String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  searchProcessEntry   SearchProcessEntry @relation(fields: [searchProcessEntryId], references: [id], onDelete: Cascade)
+  createdBy            User               @relation("SearchProcessEstimateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([createdById])
+  @@map("search_process_entry_customs_estimates")
 }
 
 model UserCalculatorSettings {

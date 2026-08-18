@@ -739,6 +739,39 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ description }),
       }),
+    getEstimate: (dealId: string, entryId: string) =>
+      request<import("@/lib/types").SearchProcessEntryEstimate | null>(
+        `/api/deals/${dealId}/search-process/${entryId}/estimate`,
+      ),
+    saveEstimate: (
+      dealId: string,
+      entryId: string,
+      data: {
+        price: number;
+        currency: "RUB" | "USD" | "CNY" | "KRW";
+        powerHp: number;
+        volumeCc: number;
+        carYear: number;
+        note?: string | null;
+      },
+    ) =>
+      request<import("@/lib/types").SearchProcessEntryEstimate>(
+        `/api/deals/${dealId}/search-process/${entryId}/estimate`,
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
+        },
+      ),
+    deleteEstimate: async (dealId: string, entryId: string) => {
+      const response = await fetch(`/api/deals/${dealId}/search-process/${entryId}/estimate`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        const json = (await response.json()) as ApiResponse<unknown>;
+        throw new Error(json.error ?? "Delete failed");
+      }
+    },
     submitFeedback: (dealId: string, entryId: string, feedback: string) =>
       request<SearchProcessEntry>(
         `/api/deals/${dealId}/search-process/${entryId}/feedback`,
