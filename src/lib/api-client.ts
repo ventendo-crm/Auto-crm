@@ -752,6 +752,15 @@ export const api = {
         powerHp: number;
         volumeCc: number;
         carYear: number;
+        chinaExpensesCny?: number;
+        cityDeliveryUsd?: number;
+        koreaDocsDeliveryKrw?: number;
+        parkingFeeKrw?: number;
+        brokerFeeRub?: number;
+        deliveryRoute?: "ussuriysk" | "kazakhstan" | "vladivostok";
+        deliveryRub?: number;
+        deliveryUsd?: number;
+        escortRub?: number;
         note?: string | null;
       },
     ) =>

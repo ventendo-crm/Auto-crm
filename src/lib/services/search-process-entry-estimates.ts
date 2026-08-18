@@ -127,17 +127,18 @@ async function buildCalculatorInput(entryId: string, body: UpsertInput): Promise
     currency: body.currency,
     rates,
     chinaExpensesCny:
-      isChinaLikeOrigin(originCountry) && chinaLocal
+      body.chinaExpensesCny ??
+      (isChinaLikeOrigin(originCountry) && chinaLocal
         ? chinaExpensesForAge(age)
-        : (chinaLocal?.defaultAmount ?? 0),
-    cityDeliveryUsd: cityDelivery?.defaultAmount ?? 0,
-    koreaDocsDeliveryKrw: koreaDocs?.defaultAmount ?? 0,
-    parkingFeeKrw: koreaParking?.defaultAmount ?? 0,
-    brokerFeeRub: broker?.defaultAmount ?? 0,
-    deliveryRub: delivery?.defaultAmount ?? 0,
-    deliveryUsd: deliveryUsd?.defaultAmount ?? 0,
-    escortRub: escort?.defaultAmount ?? 0,
-    deliveryRoute: "ussuriysk",
+        : (chinaLocal?.defaultAmount ?? 0)),
+    cityDeliveryUsd: body.cityDeliveryUsd ?? cityDelivery?.defaultAmount ?? 0,
+    koreaDocsDeliveryKrw: body.koreaDocsDeliveryKrw ?? koreaDocs?.defaultAmount ?? 0,
+    parkingFeeKrw: body.parkingFeeKrw ?? koreaParking?.defaultAmount ?? 0,
+    brokerFeeRub: body.brokerFeeRub ?? broker?.defaultAmount ?? 0,
+    deliveryRub: body.deliveryRub ?? delivery?.defaultAmount ?? 0,
+    deliveryUsd: body.deliveryUsd ?? deliveryUsd?.defaultAmount ?? 0,
+    escortRub: body.escortRub ?? escort?.defaultAmount ?? 0,
+    deliveryRoute: body.deliveryRoute ?? (originCountry === "korea" ? "vladivostok" : "ussuriysk"),
     extraExpenses,
   };
 }

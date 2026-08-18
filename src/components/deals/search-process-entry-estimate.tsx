@@ -4,6 +4,8 @@ import { Calculator, Copy, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CustomsEstimateSnapshot } from "@/components/calculator/customs-estimate-snapshot";
+import { isChinaLikeOrigin } from "@/lib/customs-calculator";
+import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import {
@@ -23,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { api } from "@/lib/api-client";
 import type { MediaItem, SearchProcessEntryEstimate } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 
@@ -55,6 +56,13 @@ type SearchProcessEstimateEntryLike = {
   media?: MediaItem[];
 };
 
+type DeliveryRoute = "ussuriysk" | "kazakhstan" | "vladivostok";
+
+function parseAmount(value: string): number {
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+}
+
 export function SearchProcessEntryEstimatePanel({
   dealId,
   entry,
@@ -67,6 +75,10 @@ export function SearchProcessEntryEstimatePanel({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  const originCountry = entry.estimate?.input.originCountry ?? destinationCountry ?? "china";
+  const isChina = isChinaLikeOrigin(originCountry);
+  const isKorea = originCountry === "korea";
+  const isKyrgyzstan = originCountry === "kyrgyzstan";
 
   const initial = useMemo(
     () => ({
@@ -75,9 +87,18 @@ export function SearchProcessEntryEstimatePanel({
       powerHp: entry.estimate?.powerHp ? String(entry.estimate.powerHp) : "",
       volumeCc: entry.estimate?.volumeCc ? String(entry.estimate.volumeCc) : "",
       carYear: entry.estimate?.carYear ? String(entry.estimate.carYear) : "",
+      chinaExpensesCny: String(entry.estimate?.input.chinaExpensesCny ?? (isChina ? 12000 : 0)),
+      cityDeliveryUsd: String(entry.estimate?.input.cityDeliveryUsd ?? 0),
+      koreaDocsDeliveryKrw: String(entry.estimate?.input.koreaDocsDeliveryKrw ?? 0),
+      parkingFeeKrw: String(entry.estimate?.input.parkingFeeKrw ?? 0),
+      brokerFeeRub: String(entry.estimate?.input.brokerFeeRub ?? 0),
+      deliveryRoute: (entry.estimate?.input.deliveryRoute ?? (isKorea ? "vladivostok" : "ussuriysk")) as DeliveryRoute,
+      deliveryRub: String(entry.estimate?.input.deliveryRub ?? 0),
+      deliveryUsd: String(entry.estimate?.input.deliveryUsd ?? 0),
+      escortRub: String(entry.estimate?.input.escortRub ?? 0),
       note: entry.estimate?.note ?? "",
     }),
-    [destinationCountry, entry.estimate],
+    [destinationCountry, entry.estimate, isChina, isKorea],
   );
 
   const [price, setPrice] = useState(initial.price);
@@ -85,12 +106,37 @@ export function SearchProcessEntryEstimatePanel({
   const [powerHp, setPowerHp] = useState(initial.powerHp);
   const [volumeCc, setVolumeCc] = useState(initial.volumeCc);
   const [carYear, setCarYear] = useState(initial.carYear);
+  const [chinaExpensesCny, setChinaExpensesCny] = useState(initial.chinaExpensesCny);
+  const [cityDeliveryUsd, setCityDeliveryUsd] = useState(initial.cityDeliveryUsd);
+  const [koreaDocsDeliveryKrw, setKoreaDocsDeliveryKrw] = useState(initial.koreaDocsDeliveryKrw);
+  const [parkingFeeKrw, setParkingFeeKrw] = useState(initial.parkingFeeKrw);
+  const [brokerFeeRub, setBrokerFeeRub] = useState(initial.brokerFeeRub);
+  const [deliveryRoute, setDeliveryRoute] = useState<DeliveryRoute>(initial.deliveryRoute);
+  const [deliveryRub, setDeliveryRub] = useState(initial.deliveryRub);
+  const [deliveryUsd, setDeliveryUsd] = useState(initial.deliveryUsd);
+  const [escortRub, setEscortRub] = useState(initial.escortRub);
   const [note, setNote] = useState(initial.note);
 
   useEffect(() => {
     resetForm();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initial.price, initial.currency, initial.powerHp, initial.volumeCc, initial.carYear, initial.note]);
+  }, [
+    initial.price,
+    initial.currency,
+    initial.powerHp,
+    initial.volumeCc,
+    initial.carYear,
+    initial.chinaExpensesCny,
+    initial.cityDeliveryUsd,
+    initial.koreaDocsDeliveryKrw,
+    initial.parkingFeeKrw,
+    initial.brokerFeeRub,
+    initial.deliveryRoute,
+    initial.deliveryRub,
+    initial.deliveryUsd,
+    initial.escortRub,
+    initial.note,
+  ]);
 
   const resetForm = () => {
     setPrice(initial.price);
@@ -98,6 +144,15 @@ export function SearchProcessEntryEstimatePanel({
     setPowerHp(initial.powerHp);
     setVolumeCc(initial.volumeCc);
     setCarYear(initial.carYear);
+    setChinaExpensesCny(initial.chinaExpensesCny);
+    setCityDeliveryUsd(initial.cityDeliveryUsd);
+    setKoreaDocsDeliveryKrw(initial.koreaDocsDeliveryKrw);
+    setParkingFeeKrw(initial.parkingFeeKrw);
+    setBrokerFeeRub(initial.brokerFeeRub);
+    setDeliveryRoute(initial.deliveryRoute);
+    setDeliveryRub(initial.deliveryRub);
+    setDeliveryUsd(initial.deliveryUsd);
+    setEscortRub(initial.escortRub);
     setNote(initial.note);
   };
 
@@ -111,16 +166,34 @@ export function SearchProcessEntryEstimatePanel({
     setPowerHp(String(previousEntry.estimate.powerHp));
     setVolumeCc(String(previousEntry.estimate.volumeCc));
     setCarYear(String(previousEntry.estimate.carYear));
+    setChinaExpensesCny(String(previousEntry.estimate.input.chinaExpensesCny ?? 0));
+    setCityDeliveryUsd(String(previousEntry.estimate.input.cityDeliveryUsd ?? 0));
+    setKoreaDocsDeliveryKrw(String(previousEntry.estimate.input.koreaDocsDeliveryKrw ?? 0));
+    setParkingFeeKrw(String(previousEntry.estimate.input.parkingFeeKrw ?? 0));
+    setBrokerFeeRub(String(previousEntry.estimate.input.brokerFeeRub ?? 0));
+    setDeliveryRoute((previousEntry.estimate.input.deliveryRoute ?? "ussuriysk") as DeliveryRoute);
+    setDeliveryRub(String(previousEntry.estimate.input.deliveryRub ?? 0));
+    setDeliveryUsd(String(previousEntry.estimate.input.deliveryUsd ?? 0));
+    setEscortRub(String(previousEntry.estimate.input.escortRub ?? 0));
     setNote(previousEntry.estimate.note ?? "");
   };
 
   const handleSave = async () => {
     const payload = {
-      price: Number(price.replace(",", ".")),
+      price: parseAmount(price),
       currency,
       powerHp: Number(powerHp),
       volumeCc: Number(volumeCc),
       carYear: Number(carYear),
+      chinaExpensesCny: parseAmount(chinaExpensesCny),
+      cityDeliveryUsd: parseAmount(cityDeliveryUsd),
+      koreaDocsDeliveryKrw: parseAmount(koreaDocsDeliveryKrw),
+      parkingFeeKrw: parseAmount(parkingFeeKrw),
+      brokerFeeRub: parseAmount(brokerFeeRub),
+      deliveryRoute,
+      deliveryRub: parseAmount(deliveryRub),
+      deliveryUsd: parseAmount(deliveryUsd),
+      escortRub: parseAmount(escortRub),
       note: note.trim() || null,
     };
     setSaving(true);
@@ -220,7 +293,7 @@ export function SearchProcessEntryEstimatePanel({
           <DialogHeader>
             <DialogTitle>{entry.estimate ? "Изменить расчёт варианта" : "Расчёт варианта"}</DialogTitle>
             <DialogDescription>
-              Менеджер задаёт цену, объём, лошадиные силы и год. Детальный расчёт увидит и клиент.
+              Менеджер задаёт цену, объём, лошадиные силы, год и при необходимости меняет услуги вручную.
             </DialogDescription>
           </DialogHeader>
 
@@ -280,6 +353,118 @@ export function SearchProcessEntryEstimatePanel({
                   onChange={(event) => setCarYear(event.target.value)}
                   placeholder="Например, 2021"
                 />
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-muted/10 p-4">
+              <p className="text-sm font-medium">Услуги и расходы</p>
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                {isChina && (
+                  <div className="space-y-2">
+                    <Label htmlFor={`variant-china-expenses-${entry.id}`}>Расходы по Китаю, CNY</Label>
+                    <Input
+                      id={`variant-china-expenses-${entry.id}`}
+                      inputMode="decimal"
+                      value={chinaExpensesCny}
+                      onChange={(event) => setChinaExpensesCny(event.target.value)}
+                    />
+                  </div>
+                )}
+
+                {isKyrgyzstan && (
+                  <div className="space-y-2">
+                    <Label htmlFor={`variant-city-delivery-${entry.id}`}>Доставка до города, USD</Label>
+                    <Input
+                      id={`variant-city-delivery-${entry.id}`}
+                      inputMode="decimal"
+                      value={cityDeliveryUsd}
+                      onChange={(event) => setCityDeliveryUsd(event.target.value)}
+                    />
+                  </div>
+                )}
+
+                {isKorea && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor={`variant-korea-parking-${entry.id}`}>Комиссия стоянки, KRW</Label>
+                      <Input
+                        id={`variant-korea-parking-${entry.id}`}
+                        inputMode="decimal"
+                        value={parkingFeeKrw}
+                        onChange={(event) => setParkingFeeKrw(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor={`variant-korea-docs-${entry.id}`}>Документы и доставка до РФ, KRW</Label>
+                      <Input
+                        id={`variant-korea-docs-${entry.id}`}
+                        inputMode="decimal"
+                        value={koreaDocsDeliveryKrw}
+                        onChange={(event) => setKoreaDocsDeliveryKrw(event.target.value)}
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor={`variant-broker-${entry.id}`}>Услуги брокера, RUB</Label>
+                  <Input
+                    id={`variant-broker-${entry.id}`}
+                    inputMode="decimal"
+                    value={brokerFeeRub}
+                    onChange={(event) => setBrokerFeeRub(event.target.value)}
+                  />
+                </div>
+
+                {!isKyrgyzstan && (
+                  <>
+                    <div className="space-y-2">
+                      <Label>Маршрут доставки</Label>
+                      <Select value={deliveryRoute} onValueChange={(value) => setDeliveryRoute(value as DeliveryRoute)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ussuriysk">Через Уссурийск</SelectItem>
+                          <SelectItem value="kazakhstan">Через Казахстан</SelectItem>
+                          {isKorea ? <SelectItem value="vladivostok">Из Владивостока</SelectItem> : null}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {deliveryRoute === "kazakhstan" ? (
+                      <div className="space-y-2">
+                        <Label htmlFor={`variant-delivery-usd-${entry.id}`}>Доставка через Казахстан, USD</Label>
+                        <Input
+                          id={`variant-delivery-usd-${entry.id}`}
+                          inputMode="decimal"
+                          value={deliveryUsd}
+                          onChange={(event) => setDeliveryUsd(event.target.value)}
+                        />
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <Label htmlFor={`variant-delivery-rub-${entry.id}`}>Доставка, RUB</Label>
+                        <Input
+                          id={`variant-delivery-rub-${entry.id}`}
+                          inputMode="decimal"
+                          value={deliveryRub}
+                          onChange={(event) => setDeliveryRub(event.target.value)}
+                        />
+                      </div>
+                    )}
+                  </>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor={`variant-escort-${entry.id}`}>Услуги сопровождения, RUB</Label>
+                  <Input
+                    id={`variant-escort-${entry.id}`}
+                    inputMode="decimal"
+                    value={escortRub}
+                    onChange={(event) => setEscortRub(event.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
