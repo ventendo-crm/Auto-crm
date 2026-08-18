@@ -228,11 +228,15 @@ export function SearchProcessEntryEstimatePanel({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-medium">Расчёт растаможки для варианта</p>
-          <p className="text-xs text-muted-foreground">
-            {entry.estimate
-              ? `Итого: ${formatCurrency(entry.estimate.totalWithCar)}`
-              : "Отдельный расчёт для этого варианта автомобиля."}
-          </p>
+          {entry.estimate ? (
+            <p className="mt-1 text-lg font-semibold tabular-nums">
+              Итого: {formatCurrency(entry.estimate.totalWithCar)}
+            </p>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Отдельный расчёт для этого варианта автомобиля.
+            </p>
+          )}
         </div>
 
         {canEdit ? (
