@@ -4,6 +4,7 @@ import { MediaType } from "@prisma/client";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { ZoomableImage } from "@/components/media/zoomable-image";
+import { mediaVideoPreviewSrc } from "@/components/media/media-thumb";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -93,11 +94,13 @@ export function MediaPreviewDialog({
       return;
     }
 
-    video.muted = false;
+    // Для автозапуска браузеры часто требуют muted.
+    // Дальше пользователь может включить звук вручную в плеере.
+    video.muted = true;
     const play = video.play();
     if (play) {
       void play.catch(() => {
-        video.muted = true;
+        // Если автозапуск заблокирован — оставляем как есть (без падений UI).
         void video.play().catch(() => undefined);
       });
     }
@@ -172,7 +175,8 @@ export function MediaPreviewDialog({
               <video
                 key={activeMedia.id}
                 ref={videoRef}
-                src={activeMedia.fileUrl}
+                // Важно: вернём превью первого кадра через #t, чтобы не было чёрного экрана.
+                src={mediaVideoPreviewSrc(activeMedia.fileUrl)}
                 controls
                 autoPlay
                 playsInline
