@@ -1,14 +1,15 @@
 import { Prisma } from "@prisma/client";
 import {
   calculateCustoms,
-  DEFAULT_EXCHANGE_RATES,
   type CarAge,
   type CurrencyCode,
   type CustomsCalculatorInput,
   type CustomsCalculatorResult,
   findExpenseByRole,
+  isChinaLikeOrigin,
   listExtraExpenses,
 } from "@/lib/customs-calculator";
+import { fetchGoogleFinanceRates } from "@/lib/customs-calculator/google-finance-rates";
 import { AuthUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
@@ -44,6 +45,10 @@ function resolveCarAge(carYear: number): CarAge {
   if (diff <= 5) return "from3to5";
   if (diff <= 7) return "from5to7";
   return "over7";
+}
+
+function chinaExpensesForAge(age: CarAge): number {
+  return age === "new" ? 5000 : 12000;
 }
 
 function serializeEstimate(record: {
@@ -93,6 +98,7 @@ async function buildCalculatorInput(entryId: string, body: UpsertInput): Promise
 
   const settings = await getCompanyCalculatorSettings(entry.deal.companyId);
   const originCountry = entry.deal.destinationCountry;
+  const age = resolveCarAge(body.carYear);
   const expenseItems = settings.expenseItems;
   const broker = findExpenseByRole(expenseItems, "broker", originCountry);
   const delivery = findExpenseByRole(expenseItems, "delivery", originCountry);
@@ -108,18 +114,22 @@ async function buildCalculatorInput(entryId: string, body: UpsertInput): Promise
     amount: item.defaultAmount,
     currency: item.currency,
   }));
+  const rates = (await fetchGoogleFinanceRates()).rates;
 
   return {
     originCountry,
     importer: "personal",
-    age: resolveCarAge(body.carYear),
+    age,
     engine: "petrol",
     powerHp: body.powerHp,
     volumeCc: body.volumeCc,
     price: body.price,
     currency: body.currency,
-    rates: DEFAULT_EXCHANGE_RATES,
-    chinaExpensesCny: chinaLocal?.defaultAmount ?? 0,
+    rates,
+    chinaExpensesCny:
+      isChinaLikeOrigin(originCountry) && chinaLocal
+        ? chinaExpensesForAge(age)
+        : (chinaLocal?.defaultAmount ?? 0),
     cityDeliveryUsd: cityDelivery?.defaultAmount ?? 0,
     koreaDocsDeliveryKrw: koreaDocs?.defaultAmount ?? 0,
     parkingFeeKrw: koreaParking?.defaultAmount ?? 0,

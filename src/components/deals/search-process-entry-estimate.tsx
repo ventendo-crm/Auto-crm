@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CustomsEstimateSnapshot } from "@/components/calculator/customs-estimate-snapshot";
 import { Button } from "@/components/ui/button";
+import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import {
   Dialog,
   DialogContent,
@@ -65,6 +66,7 @@ export function SearchProcessEntryEstimatePanel({
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const initial = useMemo(
     () => ({
@@ -177,14 +179,29 @@ export function SearchProcessEntryEstimatePanel({
       </div>
 
       {entry.estimate ? (
-        <div className="mt-3">
-          <CustomsEstimateSnapshot
-            input={entry.estimate.input}
-            result={entry.estimate.result}
-            createdAt={entry.estimate.updatedAt}
-            createdByName={entry.estimate.createdByName}
-            note={entry.estimate.note}
-          />
+        <div className="mt-3 rounded-lg border bg-muted/10">
+          <CollapsibleTrigger
+            open={detailsOpen}
+            onToggle={() => setDetailsOpen((value) => !value)}
+            className="px-3 py-3"
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-medium">Подробный расчёт</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {detailsOpen ? "Скрыть детализацию" : "Показать детализацию"}
+              </p>
+            </div>
+          </CollapsibleTrigger>
+
+          <CollapsiblePanel open={detailsOpen} className="border-t px-3 pb-3 pt-3">
+            <CustomsEstimateSnapshot
+              input={entry.estimate.input}
+              result={entry.estimate.result}
+              createdAt={entry.estimate.updatedAt}
+              createdByName={entry.estimate.createdByName}
+              note={entry.estimate.note}
+            />
+          </CollapsiblePanel>
         </div>
       ) : (
         <p className="mt-3 text-sm text-muted-foreground">Расчёт ещё не добавлен.</p>

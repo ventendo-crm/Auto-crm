@@ -4,7 +4,6 @@ import { MediaType } from "@prisma/client";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { useEffect, useMemo, useRef } from "react";
 import { ZoomableImage } from "@/components/media/zoomable-image";
-import { mediaVideoPreviewSrc } from "@/components/media/media-thumb";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -175,14 +174,24 @@ export function MediaPreviewDialog({
               <video
                 key={activeMedia.id}
                 ref={videoRef}
-                // Важно: вернём превью первого кадра через #t, чтобы не было чёрного экрана.
-                src={mediaVideoPreviewSrc(activeMedia.fileUrl)}
+                src={activeMedia.fileUrl}
                 controls
                 autoPlay
                 playsInline
                 preload="auto"
                 className="relative z-20 mx-auto block h-auto max-h-[70dvh] w-full max-w-full bg-black object-contain"
                 onPointerDown={(event) => event.stopPropagation()}
+                onLoadedMetadata={() => {
+                  const video = videoRef.current;
+                  if (!video) return;
+                  if (!Number.isFinite(video.duration) || video.duration <= 0.001) return;
+                  if (video.currentTime > 0) return;
+                  try {
+                    video.currentTime = 0.001;
+                  } catch {
+                    // Некоторые браузеры могут запретить seek до полной готовности.
+                  }
+                }}
               >
                 <track kind="captions" />
               </video>
