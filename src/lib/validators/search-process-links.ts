@@ -15,6 +15,12 @@ const linkField = z
 export const updateSearchProcessLinksSchema = z.object({
   inspectionLink: linkField,
   chinaAutotecaLink: linkField,
+  exchangeRate: z
+    .number()
+    .positive()
+    .max(1_000_000)
+    .optional()
+    .nullable(),
 });
 
 export function normalizeExternalUrl(value: string | null | undefined): string | null {

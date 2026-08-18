@@ -54,6 +54,8 @@ interface DealProcessEntriesProps {
   descriptionPlaceholder: string;
   entriesApi: ProcessEntriesApi;
   headerExtra?: ReactNode;
+  reloadKey?: number;
+  onEntriesLoaded?: (entries: ProcessEntryItem[]) => void;
   showClientFeedback?: boolean;
   autoCreateFirst?: boolean;
   hideMediaCaptions?: boolean;
@@ -88,6 +90,8 @@ export function DealProcessEntries({
   descriptionPlaceholder,
   entriesApi,
   headerExtra,
+  reloadKey = 0,
+  onEntriesLoaded,
   showClientFeedback = false,
   autoCreateFirst = true,
   hideMediaCaptions = false,
@@ -105,19 +109,26 @@ export function DealProcessEntries({
       if (data.length === 0 && canEdit && autoCreateFirst) {
         const created = await entriesApi.create(dealId);
         setEntries([created]);
+        onEntriesLoaded?.([created]);
       } else {
         setEntries(data);
+        onEntriesLoaded?.(data);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : loadErrorText);
     } finally {
       setLoading(false);
     }
-  }, [autoCreateFirst, canEdit, dealId, entriesApi, loadErrorText]);
+  }, [autoCreateFirst, canEdit, dealId, entriesApi, loadErrorText, onEntriesLoaded]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (!reloadKey) return;
+    void load();
+  }, [reloadKey, load]);
 
   const handleAddEntry = async () => {
     setAdding(true);

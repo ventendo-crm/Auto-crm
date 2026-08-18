@@ -110,6 +110,7 @@ model Deal {
   priority           Int            @default(1)
   inspectionLink     String?
   chinaAutotecaLink  String?
+  searchProcessExchangeRate Decimal? @db.Decimal(10, 4)
   importProcessEnabled Boolean        @default(false)
   carCarrierDestinationLat Decimal?    @db.Decimal(10, 7)
   carCarrierDestinationLng Decimal?    @db.Decimal(10, 7)

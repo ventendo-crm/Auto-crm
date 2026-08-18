@@ -10,6 +10,7 @@ import {
   listExtraExpenses,
 } from "@/lib/customs-calculator";
 import { fetchGoogleFinanceRates } from "@/lib/customs-calculator/google-finance-rates";
+import { applyDealExchangeRate } from "@/lib/customs-calculator/deal-exchange-rate";
 import { AuthUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
@@ -90,7 +91,16 @@ function serializeEstimate(record: {
 async function buildCalculatorInput(entryId: string, body: UpsertInput): Promise<CustomsCalculatorInput> {
   const entry = await prisma.searchProcessEntry.findUnique({
     where: { id: entryId },
-    select: { id: true, deal: { select: { companyId: true, destinationCountry: true } } },
+    select: {
+      id: true,
+      deal: {
+        select: {
+          companyId: true,
+          destinationCountry: true,
+          searchProcessExchangeRate: true,
+        },
+      },
+    },
   });
   if (!entry) {
     throw new Error("NOT_FOUND");
@@ -114,7 +124,13 @@ async function buildCalculatorInput(entryId: string, body: UpsertInput): Promise
     amount: item.defaultAmount,
     currency: item.currency,
   }));
-  const rates = (await fetchGoogleFinanceRates()).rates;
+  const rates = applyDealExchangeRate(
+    (await fetchGoogleFinanceRates()).rates,
+    originCountry,
+    entry.deal.searchProcessExchangeRate != null
+      ? Number(entry.deal.searchProcessExchangeRate)
+      : null,
+  );
 
   return {
     originCountry,
@@ -222,6 +238,59 @@ export async function upsertSearchProcessEntryEstimate(
   });
 
   return serializeEstimate(saved);
+}
+
+function estimateToUpsertBody(estimate: SearchProcessEntryEstimateItem): UpsertInput {
+  const input = estimate.input;
+  return {
+    price: estimate.price,
+    currency: estimate.currency,
+    powerHp: estimate.powerHp,
+    volumeCc: estimate.volumeCc,
+    carYear: estimate.carYear,
+    chinaExpensesCny: input.chinaExpensesCny,
+    cityDeliveryUsd: input.cityDeliveryUsd,
+    koreaDocsDeliveryKrw: input.koreaDocsDeliveryKrw,
+    parkingFeeKrw: input.parkingFeeKrw,
+    brokerFeeRub: input.brokerFeeRub,
+    deliveryRub: input.deliveryRub,
+    deliveryUsd: input.deliveryUsd,
+    escortRub: input.escortRub,
+    deliveryRoute: input.deliveryRoute,
+    note: estimate.note,
+  };
+}
+
+export async function recalculateAllSearchProcessEstimates(
+  user: AuthUser,
+  dealId: string,
+): Promise<{ updated: number }> {
+  const entries = await prisma.searchProcessEntry.findMany({
+    where: {
+      dealId,
+      customsEstimate: { isNot: null },
+    },
+    include: {
+      customsEstimate: {
+        include: { createdBy: { select: { name: true } } },
+      },
+    },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  if (entries.length === 0) {
+    return { updated: 0 };
+  }
+
+  let updated = 0;
+  for (const entry of entries) {
+    if (!entry.customsEstimate) continue;
+    const body = estimateToUpsertBody(serializeEstimate(entry.customsEstimate));
+    await upsertSearchProcessEntryEstimate(user, dealId, entry.id, body);
+    updated += 1;
+  }
+
+  return { updated };
 }
 
 export async function deleteSearchProcessEntryEstimate(

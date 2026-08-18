@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { AuthUser, ROLES } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
@@ -14,6 +15,7 @@ import { normalizeExternalUrl } from "@/lib/validators/search-process-links";
 export interface SearchProcessLinks {
   inspectionLink: string | null;
   chinaAutotecaLink: string | null;
+  exchangeRate: number | null;
 }
 
 export interface SearchProcessData {
@@ -116,7 +118,7 @@ export async function getSearchProcessLinks(
 
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { inspectionLink: true, chinaAutotecaLink: true },
+    select: { inspectionLink: true, chinaAutotecaLink: true, searchProcessExchangeRate: true },
   });
 
   if (!deal) {
@@ -126,6 +128,8 @@ export async function getSearchProcessLinks(
   return {
     inspectionLink: deal.inspectionLink,
     chinaAutotecaLink: deal.chinaAutotecaLink,
+    exchangeRate:
+      deal.searchProcessExchangeRate != null ? deal.searchProcessExchangeRate.toNumber() : null,
   };
 }
 
@@ -138,7 +142,7 @@ export async function updateSearchProcessLinks(
 
   const existing = await prisma.deal.findUnique({
     where: { id: dealId },
-    select: { inspectionLink: true, chinaAutotecaLink: true },
+    select: { inspectionLink: true, chinaAutotecaLink: true, searchProcessExchangeRate: true },
   });
 
   if (!existing) {
@@ -153,16 +157,24 @@ export async function updateSearchProcessLinks(
     input.chinaAutotecaLink !== undefined
       ? normalizeExternalUrl(input.chinaAutotecaLink)
       : existing.chinaAutotecaLink;
+  const searchProcessExchangeRate =
+    input.exchangeRate !== undefined
+      ? input.exchangeRate != null
+        ? new Prisma.Decimal(input.exchangeRate)
+        : null
+      : existing.searchProcessExchangeRate;
 
   const deal = await prisma.deal.update({
     where: { id: dealId },
-    data: { inspectionLink, chinaAutotecaLink },
-    select: { inspectionLink: true, chinaAutotecaLink: true },
+    data: { inspectionLink, chinaAutotecaLink, searchProcessExchangeRate },
+    select: { inspectionLink: true, chinaAutotecaLink: true, searchProcessExchangeRate: true },
   });
 
   if (
     existing.inspectionLink !== deal.inspectionLink ||
-    existing.chinaAutotecaLink !== deal.chinaAutotecaLink
+    existing.chinaAutotecaLink !== deal.chinaAutotecaLink ||
+    (existing.searchProcessExchangeRate?.toString() ?? null) !==
+      (deal.searchProcessExchangeRate?.toString() ?? null)
   ) {
     await createAuditLog({
       userId: user.id,
@@ -172,15 +184,26 @@ export async function updateSearchProcessLinks(
       oldValue: {
         inspectionLink: existing.inspectionLink,
         chinaAutotecaLink: existing.chinaAutotecaLink,
+        exchangeRate:
+          existing.searchProcessExchangeRate != null
+            ? existing.searchProcessExchangeRate.toNumber()
+            : null,
       },
       newValue: {
         inspectionLink: deal.inspectionLink,
         chinaAutotecaLink: deal.chinaAutotecaLink,
+        exchangeRate:
+          deal.searchProcessExchangeRate != null ? deal.searchProcessExchangeRate.toNumber() : null,
       },
     });
   }
 
-  return deal;
+  return {
+    inspectionLink: deal.inspectionLink,
+    chinaAutotecaLink: deal.chinaAutotecaLink,
+    exchangeRate:
+      deal.searchProcessExchangeRate != null ? deal.searchProcessExchangeRate.toNumber() : null,
+  };
 }
 
 export async function listSearchProcess(user: AuthUser, dealId: string): Promise<SearchProcessData> {

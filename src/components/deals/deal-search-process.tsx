@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { SearchProcessEntryEstimatePanel } from "@/components/deals/search-process-entry-estimate";
+import { SearchProcessExchangeRatePanel } from "@/components/deals/search-process-exchange-rate";
 import { SearchProcessLinksPanel } from "@/components/deals/search-process-links";
 import { DealProcessEntries } from "@/components/deals/deal-process-entries";
 import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
@@ -24,7 +25,10 @@ export function DealSearchProcess({
   const [links, setLinks] = useState<SearchProcessLinks>({
     inspectionLink: null,
     chinaAutotecaLink: null,
+    exchangeRate: null,
   });
+  const [estimatesCount, setEstimatesCount] = useState(0);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const entriesApi = useMemo(
     () => ({
@@ -42,6 +46,10 @@ export function DealSearchProcess({
     }),
     [],
   );
+
+  const handleEntriesLoaded = useCallback((entries: { estimate?: unknown | null }[]) => {
+    setEstimatesCount(entries.filter((entry) => entry.estimate).length);
+  }, []);
 
   const loadLinks = useCallback(async () => {
     try {
@@ -61,6 +69,8 @@ export function DealSearchProcess({
       dealId={dealId}
       canEdit={canEdit}
       onChanged={onChanged}
+      reloadKey={reloadKey}
+      onEntriesLoaded={handleEntriesLoaded}
       title="Процесс поиска авто"
       subtitle={`Добавляйте варианты с описанием, фото и видео — до ${MAX_PROCESS_ENTRY_MEDIA} файлов на вариант.`}
       entryLabel="Вариант"
@@ -87,13 +97,24 @@ export function DealSearchProcess({
         />
       )}
       headerExtra={
-        <SearchProcessLinksPanel
-          dealId={dealId}
-          links={links}
-          canEdit={canEdit}
-          onChanged={onChanged}
-          onLinksUpdated={setLinks}
-        />
+        <div className="space-y-4">
+          <SearchProcessExchangeRatePanel
+            dealId={dealId}
+            links={links}
+            destinationCountry={destinationCountry}
+            canEdit={canEdit}
+            estimatesCount={estimatesCount}
+            onLinksUpdated={setLinks}
+            onRecalculated={() => setReloadKey((current) => current + 1)}
+          />
+          <SearchProcessLinksPanel
+            dealId={dealId}
+            links={links}
+            canEdit={canEdit}
+            onChanged={onChanged}
+            onLinksUpdated={setLinks}
+          />
+        </div>
       }
     />
   );

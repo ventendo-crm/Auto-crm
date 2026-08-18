@@ -732,6 +732,10 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    recalculateEstimates: (dealId: string) =>
+      request<{ updated: number }>(`/api/deals/${dealId}/search-process/estimates/recalculate`, {
+        method: "POST",
+      }),
     create: (dealId: string) =>
       request<SearchProcessEntry>(`/api/deals/${dealId}/search-process`, { method: "POST" }),
     update: (dealId: string, entryId: string, description: string) =>

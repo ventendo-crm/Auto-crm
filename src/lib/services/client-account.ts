@@ -341,6 +341,8 @@ export async function getClientPortalDeal(clientUserId: string) {
     searchProcessLinks: {
       inspectionLink: deal.inspectionLink,
       chinaAutotecaLink: deal.chinaAutotecaLink,
+      exchangeRate:
+        deal.searchProcessExchangeRate != null ? deal.searchProcessExchangeRate.toNumber() : null,
     },
     importProcessEnabled: deal.importProcessEnabled,
     importProcess,

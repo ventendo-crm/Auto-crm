@@ -139,6 +139,7 @@ export interface MediaItem {
 export interface SearchProcessLinks {
   inspectionLink: string | null;
   chinaAutotecaLink: string | null;
+  exchangeRate: number | null;
 }
 
 export interface SearchProcessData {

@@ -19,7 +19,9 @@ const LINK_FIELDS = [
     label: "Ссылка китайской автотеки",
     placeholder: "https://example.com/autoteca",
   },
-];
+] as const;
+
+type SearchProcessLinkField = (typeof LINK_FIELDS)[number]["key"];
 
 interface SearchProcessLinksPanelProps {
   dealId: string;
@@ -40,7 +42,7 @@ export function SearchProcessLinksPanel({
     inspectionLink: links.inspectionLink ?? "",
     chinaAutotecaLink: links.chinaAutotecaLink ?? "",
   });
-  const [savingKey, setSavingKey] = useState<keyof SearchProcessLinks | null>(null);
+  const [savingKey, setSavingKey] = useState<SearchProcessLinkField | null>(null);
 
   useEffect(() => {
     setValues({
@@ -49,7 +51,7 @@ export function SearchProcessLinksPanel({
     });
   }, [links.chinaAutotecaLink, links.inspectionLink]);
 
-  const saveField = async (key: keyof SearchProcessLinks) => {
+  const saveField = async (key: SearchProcessLinkField) => {
     const nextValue = values[key].trim();
     const currentValue = links[key] ?? "";
 
