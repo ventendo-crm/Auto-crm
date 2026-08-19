@@ -1,6 +1,10 @@
 import { MediaType, Prisma } from "@prisma/client";
 import { dealAccessSelect } from "@/lib/deal-managers";
-import { MAX_PROCESS_ENTRY_MEDIA, MAX_TRACKING_POINT_MEDIA } from "@/lib/constants";
+import {
+  MAX_PROCESS_ENTRY_MEDIA,
+  MAX_SEARCH_PROCESS_ENTRY_MEDIA,
+  MAX_TRACKING_POINT_MEDIA,
+} from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { AuthUser, canUpdateDeal, canViewDeal } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
@@ -142,8 +146,8 @@ export async function uploadDealMedia(
 
     searchEntry = entry;
 
-    if (entry._count.media >= MAX_PROCESS_ENTRY_MEDIA) {
-      throw new Error(`Максимум ${MAX_PROCESS_ENTRY_MEDIA} файлов на вариант`);
+    if (entry._count.media >= MAX_SEARCH_PROCESS_ENTRY_MEDIA) {
+      throw new Error(`Максимум ${MAX_SEARCH_PROCESS_ENTRY_MEDIA} файлов на вариант`);
     }
   }
 

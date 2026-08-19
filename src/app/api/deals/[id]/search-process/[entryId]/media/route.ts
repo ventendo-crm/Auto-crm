@@ -2,7 +2,7 @@ import { withAuth, assertFound } from "@/lib/api-handler";
 import { created, error } from "@/lib/api-response";
 import { getDeal } from "@/lib/services/deals";
 import { uploadSearchProcessMedia } from "@/lib/services/search-process";
-import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
+import { MAX_SEARCH_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { serialize } from "@/lib/serialize";
 
 export const runtime = "nodejs";
@@ -35,9 +35,9 @@ export const POST = withAuth(async (request, { user, params }) => {
     return error("Not found", 404);
   }
 
-  if (entry._count.media + files.length > MAX_PROCESS_ENTRY_MEDIA) {
+  if (entry._count.media + files.length > MAX_SEARCH_PROCESS_ENTRY_MEDIA) {
     return error(
-      `Можно загрузить ещё ${Math.max(0, MAX_PROCESS_ENTRY_MEDIA - entry._count.media)} файл(ов)`,
+      `Можно загрузить ещё ${Math.max(0, MAX_SEARCH_PROCESS_ENTRY_MEDIA - entry._count.media)} файл(ов)`,
       400,
     );
   }

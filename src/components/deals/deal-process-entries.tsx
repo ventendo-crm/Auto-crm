@@ -12,13 +12,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
+import { MAX_SEARCH_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
 import { MediaItem, SearchProcessEntryEstimate } from "@/lib/types";
 import { cn, formatDateTime, formatFileSize } from "@/lib/utils";
 import { MEDIA_FILE_ACCEPT } from "@/lib/validators/media";
 
-const MAX_MEDIA = MAX_PROCESS_ENTRY_MEDIA;
+const MAX_MEDIA = MAX_SEARCH_PROCESS_ENTRY_MEDIA;
 
 export interface ProcessEntryItem {
   id: string;

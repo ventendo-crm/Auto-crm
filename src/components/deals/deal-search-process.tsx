@@ -5,7 +5,7 @@ import { SearchProcessEntryEstimatePanel } from "@/components/deals/search-proce
 import { SearchProcessExchangeRatePanel } from "@/components/deals/search-process-exchange-rate";
 import { SearchProcessLinksPanel } from "@/components/deals/search-process-links";
 import { DealProcessEntries } from "@/components/deals/deal-process-entries";
-import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
+import { MAX_SEARCH_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
 import { SearchProcessLinks } from "@/lib/types";
 
@@ -76,7 +76,7 @@ export function DealSearchProcess({
       reloadKey={reloadKey}
       onEntriesLoaded={handleEntriesLoaded}
       title="Процесс поиска авто"
-      subtitle={`Добавляйте варианты с описанием, фото и видео — до ${MAX_PROCESS_ENTRY_MEDIA} файлов на вариант. Новый вариант сохраняется как черновик; клиент увидит его после «Отправить клиенту».`}
+      subtitle={`Добавляйте варианты с описанием, фото и видео — до ${MAX_SEARCH_PROCESS_ENTRY_MEDIA} файлов на вариант. Новый вариант сохраняется как черновик; клиент увидит его после «Отправить клиенту».`}
       entryLabel="Вариант"
       emptyText="Вариантов пока нет."
       addButtonText="Добавить вариант"

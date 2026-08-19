@@ -1,5 +1,6 @@
 import { DealStageType } from "@prisma/client";
 
+export const MAX_SEARCH_PROCESS_ENTRY_MEDIA = 25;
 export const MAX_PROCESS_ENTRY_MEDIA = 20;
 export const MAX_TRACKING_POINT_MEDIA = 10;
 
