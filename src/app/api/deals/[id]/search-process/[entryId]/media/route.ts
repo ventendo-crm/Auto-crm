@@ -1,7 +1,6 @@
 import { withAuth, assertFound } from "@/lib/api-handler";
 import { created, error } from "@/lib/api-response";
 import { getDeal } from "@/lib/services/deals";
-import { notifyClientSearchProcessMediaUploaded } from "@/lib/services/notifications";
 import { uploadSearchProcessMedia } from "@/lib/services/search-process";
 import { MAX_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { serialize } from "@/lib/serialize";
@@ -52,18 +51,6 @@ export const POST = withAuth(async (request, { user, params }) => {
     const message = err instanceof Error ? err.message : "Ошибка загрузки";
     return error(message, 400);
   }
-
-  void notifyClientSearchProcessMediaUploaded({
-    dealId: params.id,
-    entryId: params.entryId,
-    media: uploaded.map((item) => ({
-      fileKey: item.fileKey,
-      fileName: item.fileName,
-      type: item.type,
-    })),
-  }).catch((err) => {
-    console.error("[search-process] client telegram media notify failed:", err);
-  });
 
   return created(serialize(uploaded.length === 1 ? uploaded[0] : uploaded));
 });

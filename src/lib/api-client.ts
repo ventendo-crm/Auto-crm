@@ -736,6 +736,14 @@ export const api = {
       request<{ updated: number }>(`/api/deals/${dealId}/search-process/estimates/recalculate`, {
         method: "POST",
       }),
+    publishToClient: (dealId: string, entryId: string) =>
+      request<SearchProcessEntry>(`/api/deals/${dealId}/search-process/${entryId}/publish`, {
+        method: "POST",
+      }),
+    notifyClientUpdate: (dealId: string, entryId: string) =>
+      request<SearchProcessEntry>(`/api/deals/${dealId}/search-process/${entryId}/notify-client`, {
+        method: "POST",
+      }),
     create: (dealId: string) =>
       request<SearchProcessEntry>(`/api/deals/${dealId}/search-process`, { method: "POST" }),
     update: (dealId: string, entryId: string, description: string) =>

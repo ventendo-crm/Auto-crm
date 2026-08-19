@@ -43,6 +43,10 @@ export function DealSearchProcess({
       delete: (id: string, entryId: string) => api.searchProcess.delete(id, entryId),
       uploadMedia: (id: string, entryId: string, files: File[]) =>
         api.searchProcess.uploadMedia(id, entryId, files),
+      publishToClient: (id: string, entryId: string) =>
+        api.searchProcess.publishToClient(id, entryId),
+      notifyClientUpdate: (id: string, entryId: string) =>
+        api.searchProcess.notifyClientUpdate(id, entryId),
     }),
     [],
   );
@@ -72,7 +76,7 @@ export function DealSearchProcess({
       reloadKey={reloadKey}
       onEntriesLoaded={handleEntriesLoaded}
       title="Процесс поиска авто"
-      subtitle={`Добавляйте варианты с описанием, фото и видео — до ${MAX_PROCESS_ENTRY_MEDIA} файлов на вариант.`}
+      subtitle={`Добавляйте варианты с описанием, фото и видео — до ${MAX_PROCESS_ENTRY_MEDIA} файлов на вариант. Новый вариант сохраняется как черновик; клиент увидит его после «Отправить клиенту».`}
       entryLabel="Вариант"
       emptyText="Вариантов пока нет."
       addButtonText="Добавить вариант"
@@ -84,6 +88,7 @@ export function DealSearchProcess({
       mediaPerEntryLabel="файлов на вариант"
       descriptionPlaceholder="Кратко опишите вариант..."
       hideMediaCaptions
+      showPublishActions
       entriesApi={entriesApi}
       showClientFeedback
       renderEntryExtra={({ entry, entryIndex, entries, updateEntry }) => (

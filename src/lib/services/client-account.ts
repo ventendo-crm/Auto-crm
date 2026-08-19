@@ -161,6 +161,7 @@ export async function getDealByClientUserId(clientUserId: string) {
         },
       },
       searchProcessEntries: {
+        where: { publishedAt: { not: null } },
         orderBy: { sortOrder: "asc" as const },
         include: {
           media: {

@@ -195,6 +195,7 @@ export interface SearchProcessEntry {
   description: string;
   clientFeedback?: string | null;
   clientFeedbackAt?: string | null;
+  publishedAt?: string | null;
   sortOrder: number;
   createdAt: string;
   updatedAt: string;

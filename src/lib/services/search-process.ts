@@ -10,6 +10,7 @@ import {
   uploadDealMedia,
 } from "@/lib/services/media";
 import { type SearchProcessEntryEstimateItem } from "@/lib/services/search-process-entry-estimates";
+import { notifyClientSearchProcessVariantPublished } from "@/lib/services/notifications";
 import { normalizeExternalUrl } from "@/lib/validators/search-process-links";
 
 export interface SearchProcessLinks {
@@ -43,6 +44,7 @@ async function serializeEntry(
     description: string;
     clientFeedback: string | null;
     clientFeedbackAt: Date | null;
+    publishedAt: Date | null;
     sortOrder: number;
     createdAt: Date;
     updatedAt: Date;
@@ -72,6 +74,7 @@ async function serializeEntry(
     description: entry.description,
     clientFeedback: entry.clientFeedback,
     clientFeedbackAt: entry.clientFeedbackAt?.toISOString() ?? null,
+    publishedAt: entry.publishedAt?.toISOString() ?? null,
     sortOrder: entry.sortOrder,
     createdAt: entry.createdAt.toISOString(),
     updatedAt: entry.updatedAt.toISOString(),
@@ -323,6 +326,152 @@ export async function uploadSearchProcessMedia(
   file: File,
 ) {
   return uploadDealMedia(user, dealId, file, { searchProcessEntryId: entryId });
+}
+
+async function loadSearchProcessEntryForClientNotify(dealId: string, entryId: string) {
+  return prisma.searchProcessEntry.findFirst({
+    where: { id: entryId, dealId },
+    include: {
+      media: {
+        orderBy: { uploadedAt: "asc" as const },
+        select: { fileUrl: true, fileName: true, type: true },
+      },
+      customsEstimate: { select: { totalWithCar: true } },
+    },
+  });
+}
+
+/** Первая публикация варианта клиенту (кабинет + Telegram). */
+export async function publishSearchProcessEntryToClient(
+  user: AuthUser,
+  dealId: string,
+  entryId: string,
+) {
+  await assertDealMediaAccess(user, dealId, true);
+
+  const existing = await prisma.searchProcessEntry.findFirst({
+    where: { id: entryId, dealId },
+    include: { _count: { select: { media: true } } },
+  });
+
+  if (!existing) {
+    throw new Error("NOT_FOUND");
+  }
+
+  if (existing.publishedAt) {
+    throw new Error("ALREADY_PUBLISHED");
+  }
+
+  if (existing._count.media === 0) {
+    throw new Error("MEDIA_REQUIRED");
+  }
+
+  const publishedAt = new Date();
+  const entry = await prisma.searchProcessEntry.update({
+    where: { id: entryId },
+    data: { publishedAt },
+    include: entryInclude,
+  });
+
+  await createAuditLog({
+    userId: user.id,
+    entity: "SearchProcessEntry",
+    entityId: entryId,
+    action: "PUBLISH",
+    newValue: {
+      dealId,
+      sortOrder: entry.sortOrder,
+      variantNumber: entry.sortOrder + 1,
+      publishedAt: publishedAt.toISOString(),
+    },
+  });
+
+  const forNotify = await loadSearchProcessEntryForClientNotify(dealId, entryId);
+  if (forNotify) {
+    await notifyClientSearchProcessVariantPublished({
+      dealId,
+      entryId,
+      variantNumber: forNotify.sortOrder + 1,
+      description: forNotify.description,
+      totalWithCar:
+        forNotify.customsEstimate?.totalWithCar != null
+          ? Number(forNotify.customsEstimate.totalWithCar)
+          : null,
+      media: forNotify.media.map((item) => ({
+        fileKey: item.fileUrl,
+        fileName: item.fileName,
+        type: item.type,
+      })),
+      isUpdate: false,
+    });
+  }
+
+  return serializeEntry(entry);
+}
+
+/** Повторная отправка актуальных данных варианта клиенту в Telegram. */
+export async function notifyClientSearchProcessEntryUpdate(
+  user: AuthUser,
+  dealId: string,
+  entryId: string,
+) {
+  await assertDealMediaAccess(user, dealId, true);
+
+  const existing = await prisma.searchProcessEntry.findFirst({
+    where: { id: entryId, dealId },
+    include: { _count: { select: { media: true } } },
+  });
+
+  if (!existing) {
+    throw new Error("NOT_FOUND");
+  }
+
+  if (!existing.publishedAt) {
+    throw new Error("NOT_PUBLISHED");
+  }
+
+  if (existing._count.media === 0) {
+    throw new Error("MEDIA_REQUIRED");
+  }
+
+  const forNotify = await loadSearchProcessEntryForClientNotify(dealId, entryId);
+  if (!forNotify) {
+    throw new Error("NOT_FOUND");
+  }
+
+  await notifyClientSearchProcessVariantPublished({
+    dealId,
+    entryId,
+    variantNumber: forNotify.sortOrder + 1,
+    description: forNotify.description,
+    totalWithCar:
+      forNotify.customsEstimate?.totalWithCar != null
+        ? Number(forNotify.customsEstimate.totalWithCar)
+        : null,
+    media: forNotify.media.map((item) => ({
+      fileKey: item.fileUrl,
+      fileName: item.fileName,
+      type: item.type,
+    })),
+    isUpdate: true,
+  });
+
+  await createAuditLog({
+    userId: user.id,
+    entity: "SearchProcessEntry",
+    entityId: entryId,
+    action: "CLIENT_NOTIFY",
+    newValue: {
+      dealId,
+      sortOrder: existing.sortOrder,
+      variantNumber: existing.sortOrder + 1,
+    },
+  });
+
+  return serializeEntry(await prisma.searchProcessEntry.findFirstOrThrow({
+    where: { id: entryId },
+    include: entryInclude,
+  }));
 }
 
 export async function submitSearchProcessClientFeedback(

@@ -27,6 +27,7 @@ import {
   type CompanyTelegramMediaItem,
 } from "@/lib/telegram/bot";
 import { displayStoredFileName } from "@/lib/storage/local-uploads";
+import { formatCurrency } from "@/lib/utils";
 
 interface CreateNotificationParams {
   userId: string;
@@ -437,6 +438,8 @@ async function notifyClientWithMedia(params: {
   message: string;
   caption: string;
   media: CompanyTelegramMediaItem[];
+  /** Отдельное текстовое сообщение перед медиа (описание, цена и т.п.). */
+  telegramTextBeforeMedia?: string;
 }): Promise<void> {
   const deal = await prisma.deal.findUnique({
     where: { id: params.dealId },
@@ -468,17 +471,26 @@ async function notifyClientWithMedia(params: {
     await dispatchTelegramToUsers({
       companyId: target.companyId,
       userIds: [target.clientUserId],
-      text: params.caption,
+      text: params.telegramTextBeforeMedia ?? params.caption,
       includeDefaultChatIds: false,
     });
     return;
+  }
+
+  if (params.telegramTextBeforeMedia?.trim()) {
+    await dispatchTelegramToUsers({
+      companyId: target.companyId,
+      userIds: [target.clientUserId],
+      text: params.telegramTextBeforeMedia,
+      includeDefaultChatIds: false,
+    });
   }
 
   const result = await sendCompanyTelegramMedia({
     companyId: target.companyId,
     chatId: target.chatId,
     items: params.media,
-    caption: params.caption,
+    caption: params.telegramTextBeforeMedia ? undefined : params.caption,
   });
 
   if (!result.ok) {
@@ -490,7 +502,7 @@ async function notifyClientWithMedia(params: {
     await dispatchTelegramToUsers({
       companyId: target.companyId,
       userIds: [target.clientUserId],
-      text: params.caption,
+      text: params.telegramTextBeforeMedia ?? params.caption,
       includeDefaultChatIds: false,
     });
   }
@@ -512,45 +524,73 @@ function toTelegramMediaItems(
     }));
 }
 
-/** Фото/видео нового варианта в «Процессе поиска». */
-export async function notifyClientSearchProcessMediaUploaded(params: {
+function buildSearchProcessVariantNotification(params: {
+  variantNumber: number;
+  description: string;
+  totalWithCar: number | null;
+  isUpdate: boolean;
+}): { title: string; message: string; telegramText: string } {
+  const description = params.description.trim();
+  const title = params.isUpdate
+    ? `Обновлён вариант автомобиля №${params.variantNumber}`
+    : `Новый вариант автомобиля №${params.variantNumber}`;
+
+  const messageParts = [
+    description || (params.isUpdate ? "Обновлены данные варианта в поиске." : "Добавлен вариант в поиске."),
+    params.totalWithCar != null && params.totalWithCar > 0
+      ? `Итого: ${formatCurrency(params.totalWithCar)}`
+      : null,
+  ].filter(Boolean);
+
+  const telegramLines = [
+    params.isUpdate ? "🔄 <b>Обновление варианта автомобиля</b>" : "🚗 <b>Новый вариант автомобиля</b>",
+    "",
+    `<b>Вариант №${params.variantNumber}</b>`,
+  ];
+
+  if (description) {
+    telegramLines.push("", escapeHtml(description));
+  }
+
+  if (params.totalWithCar != null && params.totalWithCar > 0) {
+    telegramLines.push("", `<b>Итого:</b> ${escapeHtml(formatCurrency(params.totalWithCar))}`);
+  }
+
+  return {
+    title,
+    message: messageParts.join("\n"),
+    telegramText: telegramLines.join("\n").trim(),
+  };
+}
+
+/** Публикация или обновление варианта в «Процессе поиска» — Telegram клиенту. */
+export async function notifyClientSearchProcessVariantPublished(params: {
   dealId: string;
   entryId: string;
+  variantNumber: number;
+  description: string;
+  totalWithCar: number | null;
   media: Array<{ fileKey: string; fileName: string; type: MediaType }>;
+  isUpdate: boolean;
 }): Promise<void> {
   const items = toTelegramMediaItems(params.media);
   if (items.length === 0) {
     return;
   }
 
-  const entry = await prisma.searchProcessEntry.findFirst({
-    where: { id: params.entryId, dealId: params.dealId },
-    select: { description: true, sortOrder: true },
+  const { title, message, telegramText } = buildSearchProcessVariantNotification({
+    variantNumber: params.variantNumber,
+    description: params.description,
+    totalWithCar: params.totalWithCar,
+    isUpdate: params.isUpdate,
   });
-
-  if (!entry) {
-    return;
-  }
-
-  const variantNumber = entry.sortOrder + 1;
-  const description = entry.description.trim();
-  const title = `Новый вариант автомобиля №${variantNumber}`;
-  const message = description || "Добавлены фото по варианту в поиске.";
-  const caption = [
-    `🚗 <b>Новый вариант автомобиля</b>`,
-    "",
-    `<b>Вариант №${variantNumber}</b>`,
-    description ? escapeHtml(description) : "",
-  ]
-    .filter((line, index, lines) => line.length > 0 || (index > 0 && lines[index - 1]?.length > 0))
-    .join("\n")
-    .trim();
 
   await notifyClientWithMedia({
     dealId: params.dealId,
     title,
     message,
-    caption,
+    caption: telegramText,
+    telegramTextBeforeMedia: telegramText,
     media: items,
   });
 }

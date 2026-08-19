@@ -1,11 +1,12 @@
 "use client";
 
 import { MediaType } from "@prisma/client";
-import { Eye, ImagePlus, ListPlus, Loader2, Play, Plus, Trash2 } from "lucide-react";
+import { Eye, ImagePlus, ListPlus, Loader2, Play, Plus, Send, Trash2 } from "lucide-react";
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { MediaThumb } from "@/components/media/media-thumb";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -25,6 +26,7 @@ export interface ProcessEntryItem {
   media: MediaItem[];
   clientFeedback?: string | null;
   clientFeedbackAt?: string | null;
+  publishedAt?: string | null;
   estimate?: SearchProcessEntryEstimate | null;
 }
 
@@ -34,6 +36,8 @@ export interface ProcessEntriesApi {
   update: (dealId: string, entryId: string, description: string) => Promise<ProcessEntryItem>;
   delete: (dealId: string, entryId: string) => Promise<void>;
   uploadMedia: (dealId: string, entryId: string, files: File[]) => Promise<MediaItem | MediaItem[]>;
+  publishToClient?: (dealId: string, entryId: string) => Promise<ProcessEntryItem>;
+  notifyClientUpdate?: (dealId: string, entryId: string) => Promise<ProcessEntryItem>;
 }
 
 interface DealProcessEntriesProps {
@@ -59,6 +63,7 @@ interface DealProcessEntriesProps {
   showClientFeedback?: boolean;
   autoCreateFirst?: boolean;
   hideMediaCaptions?: boolean;
+  showPublishActions?: boolean;
   renderEntryExtra?: (args: {
     entry: ProcessEntryItem;
     entryIndex: number;
@@ -95,6 +100,7 @@ export function DealProcessEntries({
   showClientFeedback = false,
   autoCreateFirst = true,
   hideMediaCaptions = false,
+  showPublishActions = false,
   renderEntryExtra,
 }: DealProcessEntriesProps) {
   const [entries, setEntries] = useState<ProcessEntryItem[]>([]);
@@ -225,6 +231,7 @@ export function DealProcessEntries({
                 mediaPerEntryLabel={mediaPerEntryLabel}
                 showClientFeedback={showClientFeedback}
                 hideMediaCaptions={hideMediaCaptions}
+                showPublishActions={showPublishActions}
                 entriesApi={entriesApi}
                 onUpdated={handleUpdateEntry}
                 onChanged={onChanged}
@@ -280,6 +287,7 @@ function ProcessEntryCard({
   mediaPerEntryLabel,
   showClientFeedback,
   hideMediaCaptions,
+  showPublishActions,
   entriesApi,
   onUpdated,
   onChanged,
@@ -297,6 +305,7 @@ function ProcessEntryCard({
   mediaPerEntryLabel: string;
   showClientFeedback: boolean;
   hideMediaCaptions: boolean;
+  showPublishActions: boolean;
   entriesApi: ProcessEntriesApi;
   onUpdated: (entry: ProcessEntryItem) => void;
   onChanged?: () => void;
@@ -308,6 +317,13 @@ function ProcessEntryCard({
   const [description, setDescription] = useState(entry.description);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [publishing, setPublishing] = useState(false);
+  const [notifyingClient, setNotifyingClient] = useState(false);
+
+  const isDraft = !entry.publishedAt;
+  const canPublish = showPublishActions && canEdit && isDraft && entry.media.length > 0;
+  const canNotifyClientUpdate =
+    showPublishActions && canEdit && !isDraft && entry.media.length > 0;
 
   useEffect(() => {
     setDescription(entry.description);
@@ -378,14 +394,63 @@ function ProcessEntryCard({
     }
   };
 
+  const handlePublishToClient = async () => {
+    if (!entriesApi.publishToClient) return;
+    if (entry.media.length === 0) {
+      toast.error("Добавьте хотя бы одно фото или видео");
+      return;
+    }
+
+    setPublishing(true);
+    try {
+      const updated = await entriesApi.publishToClient(dealId, entry.id);
+      onUpdated(updated);
+      onChanged?.();
+      toast.success("Вариант отправлен клиенту");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось отправить клиенту");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleNotifyClientUpdate = async () => {
+    if (!entriesApi.notifyClientUpdate) return;
+    if (entry.media.length === 0) {
+      toast.error("Добавьте хотя бы одно фото или видео");
+      return;
+    }
+
+    setNotifyingClient(true);
+    try {
+      await entriesApi.notifyClientUpdate(dealId, entry.id);
+      toast.success("Клиенту отправлено обновление");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось отправить обновление");
+    } finally {
+      setNotifyingClient(false);
+    }
+  };
+
   const slotsLeft = MAX_MEDIA - entry.media.length;
 
   return (
     <div className="rounded-xl border bg-muted/10 p-4">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold">
-          {entryLabel} {entryNumber}
-        </h3>
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-sm font-semibold">
+            {entryLabel} {entryNumber}
+          </h3>
+          {showPublishActions && (
+            isDraft ? (
+              <Badge variant="secondary">Черновик</Badge>
+            ) : (
+              <Badge variant="outline" className="border-emerald-300 text-emerald-800 dark:text-emerald-300">
+                Отправлено{entry.publishedAt ? ` · ${formatDateTime(entry.publishedAt)}` : ""}
+              </Badge>
+            )
+          )}
+        </div>
         {canDelete && (
           <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={onDeleted}>
             <Trash2 className="h-4 w-4" />
@@ -489,6 +554,48 @@ function ProcessEntryCard({
         )}
 
         {extraContent}
+
+        {showPublishActions && canEdit && (
+          <div className="flex flex-wrap gap-2 border-t pt-3">
+            {canPublish && (
+              <Button
+                type="button"
+                size="sm"
+                variant="brand"
+                disabled={publishing}
+                onClick={() => void handlePublishToClient()}
+              >
+                {publishing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Отправить клиенту
+              </Button>
+            )}
+            {isDraft && entry.media.length === 0 && (
+              <p className="text-xs text-muted-foreground self-center">
+                Для отправки нужно хотя бы одно фото или видео
+              </p>
+            )}
+            {canNotifyClientUpdate && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={notifyingClient}
+                onClick={() => void handleNotifyClientUpdate()}
+              >
+                {notifyingClient ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Обновить у клиента
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
