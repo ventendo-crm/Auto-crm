@@ -430,7 +430,7 @@ export async function sendCompanyTelegramMedia(params: {
     kind: "photo" | "video";
   }> = [];
 
-  for (const item of params.items.slice(0, 10)) {
+  for (const item of params.items) {
     try {
       loaded.push(await loadTelegramMediaBytes(item));
     } catch (error) {
@@ -447,34 +447,53 @@ export async function sendCompanyTelegramMedia(params: {
   }
 
   try {
-    if (loaded.length === 1) {
-      const item = loaded[0];
-      if (item.kind === "photo") {
-        return sendTelegramPhotoWithToken({
-          token: config.token,
-          chatId: params.chatId,
-          bytes: item.bytes,
-          fileName: item.fileName,
-          contentType: item.contentType,
-          caption: params.caption,
-        });
-      }
-      return sendTelegramVideoWithToken({
-        token: config.token,
-        chatId: params.chatId,
-        bytes: item.bytes,
-        fileName: item.fileName,
-        contentType: item.contentType,
-        caption: params.caption,
-      });
+    const chunks: typeof loaded[] = [];
+    for (let index = 0; index < loaded.length; index += 10) {
+      chunks.push(loaded.slice(index, index + 10));
     }
 
-    return sendTelegramMediaGroupWithToken({
-      token: config.token,
-      items: loaded,
-      chatId: params.chatId,
-      caption: params.caption,
-    });
+    for (let index = 0; index < chunks.length; index += 1) {
+      const chunk = chunks[index];
+      const caption = index === 0 ? params.caption : undefined;
+
+      if (chunk.length === 1) {
+        const item = chunk[0];
+        const singleResult =
+          item.kind === "photo"
+            ? await sendTelegramPhotoWithToken({
+                token: config.token,
+                chatId: params.chatId,
+                bytes: item.bytes,
+                fileName: item.fileName,
+                contentType: item.contentType,
+                caption,
+              })
+            : await sendTelegramVideoWithToken({
+                token: config.token,
+                chatId: params.chatId,
+                bytes: item.bytes,
+                fileName: item.fileName,
+                contentType: item.contentType,
+                caption,
+              });
+        if (!singleResult.ok) {
+          return singleResult;
+        }
+        continue;
+      }
+
+      const groupResult = await sendTelegramMediaGroupWithToken({
+        token: config.token,
+        items: chunk,
+        chatId: params.chatId,
+        caption,
+      });
+      if (!groupResult.ok) {
+        return groupResult;
+      }
+    }
+
+    return { ok: true, chatId: params.chatId };
   } catch (error) {
     return {
       ok: false,
