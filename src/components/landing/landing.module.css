@@ -63,6 +63,59 @@
   animation-delay: 0.42s;
 }
 
+.demoInput {
+  display: block;
+  width: 100%;
+  margin-top: 0.4rem;
+  border: 1px solid var(--landing-line);
+  border-radius: 0;
+  background: #fff;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--landing-ink);
+  outline: none;
+  appearance: none;
+}
+
+.demoInput:focus {
+  border-color: var(--landing-brand);
+}
+
+select.demoInput {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%235c6370' d='M1.2 1.2 6 6l4.8-4.8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  padding-right: 2.2rem;
+}
+
+.faqSummary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  cursor: pointer;
+  list-style: none;
+  padding: 1.35rem 0;
+}
+
+.faqSummary::-webkit-details-marker {
+  display: none;
+}
+
+.faqMark {
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  color: var(--landing-brand);
+  font-size: 1.25rem;
+  font-weight: 500;
+  line-height: 1;
+}
+
+details[open] .faqMark {
+  transform: rotate(45deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal,
   .heroAnim {

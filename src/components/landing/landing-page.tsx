@@ -4,8 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AppIconMark } from "@/components/brand/app-icon-mark";
-import { LandingCalculatorVisual } from "@/components/landing/landing-calculator-visual";
 import { LandingClientVisual } from "@/components/landing/landing-client-visual";
+import { LandingDemoCalculator } from "@/components/landing/landing-demo-calculator";
 import { LandingHeroVisual } from "@/components/landing/landing-hero-visual";
 import { LandingTelegramVisual } from "@/components/landing/landing-telegram-visual";
 import styles from "@/components/landing/landing.module.css";
@@ -17,7 +17,7 @@ const PHONE_HREF = "tel:+79053024499";
 const FEATURES = [
   {
     title: "Сделки на канбане",
-    text: "Весь импорт в одном потоке: от лида до выдачи. Этапы, приоритеты и менеджеры — без таблиц в Excel.",
+    text: "Весь импорт в одном потоке: от лида до выдачи. Этапы, приоритеты и менеджеры — без таблиц в Excel и без сборки воронок в Битрикс.",
   },
   {
     title: "Калькулятор растаможки",
@@ -44,6 +44,65 @@ const AUDIENCE = [
   "Импортёры автомобилей",
   "Таможенные брокеры и агенты",
   "Команды с несколькими менеджерами",
+] as const;
+
+const VS_BITRIX = [
+  {
+    title: "Готовый процесс, а не конструктор",
+    text: "В Битрикс месяцами собирают воронки, поля и виджеты. В ImportCRM канбан импорта уже настроен: от лида до выдачи.",
+  },
+  {
+    title: "Всё связанно, а не модулями",
+    text: "Калькулятор, сделка, кабинет клиента, карта автовоза и Telegram работают вместе. Не нужно докупать приложения и склеивать их интегратором.",
+  },
+  {
+    title: "Подключение за день",
+    text: "Даём доступ компании и можно сразу вести сделки. Без внедрения «под ключ» и обучения десятку разделов, которые вам не нужны.",
+  },
+] as const;
+
+const PRICING_INCLUDES = [
+  "Канбан сделок и роли сотрудников",
+  "Калькулятор растаможки с привязкой к клиенту",
+  "Личный кабинет и Telegram",
+  "Календарь прибытий",
+  "Карта автовоза",
+  "Расходы и доп. опции по сделке",
+] as const;
+
+const FAQ = [
+  {
+    q: "Для чего нужна ImportCRM?",
+    a: "Компаниям, которые импортируют автомобили: чтобы вести сделки, считать растаможку, показывать клиенту прогресс и не держать процесс в Excel, чатах и Битрикс. Одна система — от заявки до выдачи машины.",
+  },
+  {
+    q: "Чем это проще Битрикса?",
+    a: "Битрикс — конструктор: его собирают под вас, часто долго и дорого. ImportCRM сразу заточена под импорт авто. Канбан, калькулятор, кабинет, карта и уведомления уже связаны — без модулей и интегратора.",
+  },
+  {
+    q: "Как работает калькулятор?",
+    a: "Считает растаможку для Китая, Кореи и Киргизии: пошлины, утильсбор, расходы по стране. Расчёт можно сохранить в сделку и отдать клиенту как коммерческое предложение. На этой странице — упрощённое демо; в CRM больше полей, шаблоны и курсы компании.",
+  },
+  {
+    q: "Что за календарь?",
+    a: "На дашборде — календарь прибытий: даты таможни по сделкам на одном экране. Администратор может выгрузить их в Google Календарь вместе с напоминаниями менеджерам.",
+  },
+  {
+    q: "Как устроена карта с автовозом?",
+    a: "Во вкладке «Доставка» отмечаете точки маршрута и город назначения — на карте, с датами и фото. Клиент видит тот же маршрут в личном кабинете и может получать уведомления в Telegram, когда появляется новая точка.",
+  },
+  {
+    q: "Зачем вкладка «Расходы»?",
+    a: "Это внутренний учёт затрат по конкретной сделке: строки с описанием и суммой, внизу — итог. Так команда видит маржу. Не путать с калькулятором растаможки — там считается смета клиенту.",
+  },
+  {
+    q: "Что такое доп. опции?",
+    a: "Дополнительные услуги: антикор, плёнка, диагностика и другие позиции вашей компании. Клиент отмечает нужное в кабинете, менеджер сразу видит выбор в карточке сделки.",
+  },
+  {
+    q: "Сколько стоит и что входит?",
+    a: "5 000 ₽ в месяц за компанию. Входит весь функционал, без доплат за модули. Первые 30 дней — бесплатно: напишите в Telegram или позвоните, подключим доступ.",
+  },
 ] as const;
 
 function useInView<T extends HTMLElement>(margin = "0px 0px -8% 0px") {
@@ -93,6 +152,20 @@ function Reveal({
 export function LandingPage() {
   return (
     <div className={styles.landingRoot}>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "FAQPage",
+            mainEntity: FAQ.map((item) => ({
+              "@type": "Question",
+              name: item.q,
+              acceptedAnswer: { "@type": "Answer", text: item.a },
+            })),
+          }),
+        }}
+      />
       <header className="relative z-20 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/landing" className="flex items-center gap-3 no-underline">
           <AppIconMark size={36} />
@@ -102,12 +175,20 @@ export function LandingPage() {
             ImportCRM
           </span>
         </Link>
-        <Link
-          href="/login"
-          className="text-sm font-medium text-[var(--landing-ink)] underline-offset-4 hover:text-[var(--landing-brand-deep)] hover:underline"
-        >
-          Войти
-        </Link>
+        <nav className="flex items-center gap-4 sm:gap-6">
+          <a
+            href="#pricing"
+            className="text-sm font-medium text-[var(--landing-ink)] underline-offset-4 hover:text-[var(--landing-brand-deep)] hover:underline"
+          >
+            Цены
+          </a>
+          <Link
+            href="/login"
+            className="text-sm font-medium text-[var(--landing-ink)] underline-offset-4 hover:text-[var(--landing-brand-deep)] hover:underline"
+          >
+            Войти
+          </Link>
+        </nav>
       </header>
 
       <section className="relative overflow-hidden">
@@ -120,18 +201,18 @@ export function LandingPage() {
           <p
             className={`${styles.heroAnim} ${styles.heroAnimD1} mt-3 max-w-xl text-base text-[var(--landing-muted)] sm:text-lg`}
           >
-            CRM для импорта автомобилей
+            Для компаний, которые импортируют авто
           </p>
           <h1
             className={`${styles.heroAnim} ${styles.heroAnimD2} ${styles.fontDisplay} mt-8 max-w-2xl text-[clamp(1.65rem,4.2vw,2.75rem)] font-semibold leading-[1.15] tracking-tight`}
           >
-            Ведите поставки авто в одной системе — от заявки до выдачи
+            Не конструктор вроде Битрикс — готовый процесс импорта
           </h1>
           <p
             className={`${styles.heroAnim} ${styles.heroAnimD3} mt-4 max-w-lg text-base leading-relaxed text-[var(--landing-muted)] sm:text-lg`}
           >
-            Канбан сделок, калькулятор растаможки и кабинет клиента — чтобы команда и клиент всегда
-            видели, где машина. Первые 30 дней — бесплатно.
+            Канбан, калькулятор растаможки, кабинет клиента и карта автовоза уже внутри. Первые 30
+            дней — бесплатно.
           </p>
           <div
             className={`${styles.heroAnim} ${styles.heroAnimD4} mt-8 flex flex-wrap items-center gap-3 sm:gap-4`}
@@ -164,7 +245,7 @@ export function LandingPage() {
             Что умеет ImportCRM
           </h2>
           <p className="mt-3 max-w-xl text-[var(--landing-muted)]">
-            Всё, что нужно компании для импорта — без зоопарка чатов и таблиц.
+            Всё, что нужно компании для импорта — без зоопарка чатов, таблиц и модулей.
           </p>
         </Reveal>
         <div className="mt-14 space-y-0 divide-y divide-[var(--landing-line)] border-y border-[var(--landing-line)]">
@@ -201,20 +282,20 @@ export function LandingPage() {
         </div>
       </section>
 
-      <section className="border-y border-[var(--landing-line)] bg-white/50">
+      <section id="calculator" className="border-y border-[var(--landing-line)] bg-white/50">
         <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
           <Reveal>
             <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
-              Калькулятор под импорт
+              Посчитайте сами
             </h2>
             <p className="mt-3 max-w-2xl text-[var(--landing-muted)]">
-              Не отдельная таблица — расчёт внутри CRM, с формированием готового коммерческого
-              предложения и сохранением в сделку клиента.
+              Упрощённый расчёт прямо здесь. В CRM — полный калькулятор, поиск авто и сохранение сметы
+              в сделку клиента.
             </p>
           </Reveal>
           <Reveal delayMs={80}>
             <div className="mt-10">
-              <LandingCalculatorVisual />
+              <LandingDemoCalculator />
             </div>
           </Reveal>
           <div className="mt-12 space-y-0 divide-y divide-[var(--landing-line)] border-y border-[var(--landing-line)]">
@@ -366,6 +447,103 @@ export function LandingPage() {
             </Reveal>
           ))}
         </ul>
+      </section>
+
+      <section className="border-y border-[var(--landing-line)] bg-white/50">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+          <Reveal>
+            <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
+              Проще Битрикса. Заточено под импорт
+            </h2>
+            <p className="mt-3 max-w-2xl text-[var(--landing-muted)]">
+              Не платформа «на все случаи», а рабочий контур компании, которая возит автомобили.
+            </p>
+          </Reveal>
+          <div className="mt-14 space-y-0 divide-y divide-[var(--landing-line)] border-y border-[var(--landing-line)]">
+            {VS_BITRIX.map((item, i) => (
+              <Reveal key={item.title} delayMs={i * 70}>
+                <div className="grid gap-3 py-8 sm:grid-cols-[minmax(0,0.4fr)_minmax(0,0.6fr)] sm:gap-10 sm:py-10">
+                  <h3 className={`${styles.fontDisplay} text-xl font-semibold tracking-tight sm:text-2xl`}>
+                    {item.title}
+                  </h3>
+                  <p className="text-base leading-relaxed text-[var(--landing-muted)] sm:pt-1">
+                    {item.text}
+                  </p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+        <Reveal>
+          <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
+            Один тариф. Весь функционал
+          </h2>
+          <p className="mt-3 max-w-xl text-[var(--landing-muted)]">
+            Без модулей, пакетов и скрытых доплат. Сначала 30 дней бесплатно, потом — подписка.
+          </p>
+        </Reveal>
+        <Reveal delayMs={80}>
+          <div className="mt-12 border-y border-[var(--landing-line)] py-10">
+            <p className={`${styles.fontDisplay} text-[clamp(2.5rem,8vw,4.5rem)] font-semibold leading-none tracking-tight`}>
+              5 000 ₽
+            </p>
+            <p className="mt-3 text-lg text-[var(--landing-muted)]">в месяц за компанию</p>
+            <p className="mt-2 text-sm font-medium text-[var(--landing-brand-deep)]">
+              30 дней бесплатно
+            </p>
+            <ul className="mt-8 grid gap-3 sm:grid-cols-2">
+              {PRICING_INCLUDES.map((item) => (
+                <li key={item} className="flex items-baseline gap-3 text-base text-[var(--landing-ink)]">
+                  <span className="h-1.5 w-1.5 shrink-0 bg-[var(--landing-brand)]" aria-hidden />
+                  {item}
+                </li>
+              ))}
+            </ul>
+            <a
+              href={TELEGRAM_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-10 inline-flex h-11 items-center justify-center bg-[var(--landing-brand)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-brand-deep)]"
+            >
+              Подключить пробный период
+            </a>
+          </div>
+        </Reveal>
+      </section>
+
+      <section id="faq" className="border-y border-[var(--landing-line)] bg-[var(--landing-wash)]/60">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+          <Reveal>
+            <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
+              Частые вопросы
+            </h2>
+            <p className="mt-3 max-w-xl text-[var(--landing-muted)]">
+              Коротко про продукт — без презентации на час.
+            </p>
+          </Reveal>
+          <div className="mt-10 border-y border-[var(--landing-line)]">
+            {FAQ.map((item, i) => (
+              <Reveal key={item.q} delayMs={i * 40}>
+                <details className="border-b border-[var(--landing-line)] last:border-b-0">
+                  <summary className={styles.faqSummary}>
+                    <span className={`${styles.fontDisplay} text-lg font-semibold tracking-tight sm:text-xl`}>
+                      {item.q}
+                    </span>
+                    <span className={styles.faqMark} aria-hidden>
+                      +
+                    </span>
+                  </summary>
+                  <p className="max-w-3xl pb-6 text-base leading-relaxed text-[var(--landing-muted)]">
+                    {item.a}
+                  </p>
+                </details>
+              </Reveal>
+            ))}
+          </div>
+        </div>
       </section>
 
       <section className="border-t border-[var(--landing-line)] bg-[var(--landing-ink)] text-white">
