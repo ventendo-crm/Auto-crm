@@ -130,6 +130,18 @@ export function CustomsEstimateSnapshot({
           value={result.priceRub}
           note={formatForeignNote(priceToForeign(input, result.priceRub, rateCode), rateCode)}
         />
+        {result.customsPriceRub != null && result.customsPriceRub > 0 && (
+          <ResultRow
+            label="Стоимость для таможни"
+            value={result.customsPriceRub}
+            note={formatForeignNote(
+              input.currency === rateCode
+                ? (input.customsPrice ?? 0)
+                : result.customsPriceRub / (input.rates[rateCode] || 1),
+              rateCode,
+            )}
+          />
+        )}
         {isKorea ? (
           <>
             <ResultRow
@@ -203,7 +215,15 @@ export function CustomsEstimateSnapshot({
         {!isKyrgyzstan && (
           <>
             <ResultRow label="Акциз (А)" value={result.excise} />
-            <ResultRow label="НДС" value={result.vat} note="20% от (стоимость + пошлина + акциз)" />
+            <ResultRow
+              label="НДС"
+              value={result.vat}
+              note={
+                result.customsPriceRub != null
+                  ? "20% от (стоимость для таможни + пошлина + акциз)"
+                  : "20% от (стоимость + пошлина + акциз)"
+              }
+            />
           </>
         )}
       </ResultSection>

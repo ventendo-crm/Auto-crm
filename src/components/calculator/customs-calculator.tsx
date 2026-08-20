@@ -81,6 +81,8 @@ type CalculatorPersistedState = {
   powerHp: string;
   volumeCc: string;
   price: string;
+  /** Стоимость для таможни (каталог), только для new; пусто = не используется */
+  customsPrice: string;
   currency: CurrencyCode;
   chinaExpensesCny: string;
   cityDeliveryUsd: string;
@@ -112,6 +114,7 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   powerHp: "150",
   volumeCc: "2000",
   price: "25000",
+  customsPrice: "",
   currency: "CNY",
   chinaExpensesCny: "12000",
   cityDeliveryUsd: String(DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD),
@@ -190,6 +193,8 @@ function loadPersistedState(): CalculatorPersistedState {
       powerHp: typeof parsed.powerHp === "string" ? parsed.powerHp : DEFAULT_STATE.powerHp,
       volumeCc: typeof parsed.volumeCc === "string" ? parsed.volumeCc : DEFAULT_STATE.volumeCc,
       price: typeof parsed.price === "string" ? parsed.price : DEFAULT_STATE.price,
+      customsPrice:
+        typeof parsed.customsPrice === "string" ? parsed.customsPrice : DEFAULT_STATE.customsPrice,
       currency: isCurrency(parsed.currency) ? parsed.currency : DEFAULT_STATE.currency,
       chinaExpensesCny:
         typeof parsed.chinaExpensesCny === "string"
@@ -276,6 +281,8 @@ function loadUserPresets(): UserPreset[] {
           powerHp: typeof item.powerHp === "string" ? item.powerHp : DEFAULT_STATE.powerHp,
           volumeCc: typeof item.volumeCc === "string" ? item.volumeCc : DEFAULT_STATE.volumeCc,
           price: typeof item.price === "string" ? item.price : DEFAULT_STATE.price,
+          customsPrice:
+            typeof item.customsPrice === "string" ? item.customsPrice : DEFAULT_STATE.customsPrice,
           currency: isCurrency(item.currency) ? item.currency : DEFAULT_STATE.currency,
           chinaExpensesCny:
             typeof item.chinaExpensesCny === "string"
@@ -377,6 +384,12 @@ function inputToCalculatorState(input: CustomsCalculatorInput): CalculatorPersis
     powerHp: numberToInputString(input.powerHp, DEFAULT_STATE.powerHp),
     volumeCc: numberToInputString(input.volumeCc, DEFAULT_STATE.volumeCc),
     price: numberToInputString(input.price, DEFAULT_STATE.price),
+    customsPrice:
+      typeof input.customsPrice === "number" &&
+      Number.isFinite(input.customsPrice) &&
+      input.customsPrice > 0
+        ? String(input.customsPrice)
+        : "",
     currency: isCurrency(input.currency) ? input.currency : DEFAULT_STATE.currency,
     chinaExpensesCny: numberToInputString(input.chinaExpensesCny, chinaExpensesForAge(age)),
     cityDeliveryUsd: numberToInputString(
@@ -659,6 +672,7 @@ export function CustomsCalculator() {
   const [powerHp, setPowerHp] = useState(DEFAULT_STATE.powerHp);
   const [volumeCc, setVolumeCc] = useState(DEFAULT_STATE.volumeCc);
   const [price, setPrice] = useState(DEFAULT_STATE.price);
+  const [customsPrice, setCustomsPrice] = useState(DEFAULT_STATE.customsPrice);
   const [currency, setCurrency] = useState<CurrencyCode>(DEFAULT_STATE.currency);
   const [chinaExpensesCny, setChinaExpensesCny] = useState(DEFAULT_STATE.chinaExpensesCny);
   const [cityDeliveryUsd, setCityDeliveryUsd] = useState(DEFAULT_STATE.cityDeliveryUsd);
@@ -710,6 +724,7 @@ export function CustomsCalculator() {
     setPowerHp(stored.powerHp);
     setVolumeCc(stored.volumeCc);
     setPrice(stored.price);
+    setCustomsPrice(stored.customsPrice);
     setCurrency(stored.currency);
     setChinaExpensesCny(stored.chinaExpensesCny);
     setCityDeliveryUsd(stored.cityDeliveryUsd);
@@ -849,6 +864,7 @@ export function CustomsCalculator() {
       powerHp,
       volumeCc,
       price,
+      customsPrice,
       currency,
       chinaExpensesCny,
       cityDeliveryUsd,
@@ -872,6 +888,7 @@ export function CustomsCalculator() {
     powerHp,
     volumeCc,
     price,
+    customsPrice,
     currency,
     chinaExpensesCny,
     cityDeliveryUsd,
@@ -889,6 +906,7 @@ export function CustomsCalculator() {
 
   const result = useMemo(() => {
     if (!submitted) return null;
+    const customsPriceNumber = Number(customsPrice.replace(",", "."));
     return calculateCustoms({
       originCountry,
       importer,
@@ -897,6 +915,10 @@ export function CustomsCalculator() {
       powerHp: Number(powerHp.replace(",", ".")),
       volumeCc: Number(volumeCc.replace(",", ".")),
       price: Number(price.replace(",", ".")),
+      customsPrice:
+        age === "new" && Number.isFinite(customsPriceNumber) && customsPriceNumber > 0
+          ? customsPriceNumber
+          : undefined,
       currency,
       rates,
       chinaExpensesCny: amountOrZero(Boolean(expenseRoles.chinaLocal), chinaExpensesCny),
@@ -924,6 +946,7 @@ export function CustomsCalculator() {
     powerHp,
     volumeCc,
     price,
+    customsPrice,
     currency,
     rates,
     chinaExpensesCny,
@@ -951,6 +974,7 @@ export function CustomsCalculator() {
       powerHp,
       volumeCc,
       price,
+      customsPrice,
       currency,
       chinaExpensesCny,
       cityDeliveryUsd,
@@ -978,6 +1002,7 @@ export function CustomsCalculator() {
       powerHp,
       volumeCc,
       price,
+      customsPrice,
       currency,
       chinaExpensesCny,
       cityDeliveryUsd,
@@ -1009,6 +1034,7 @@ export function CustomsCalculator() {
     powerHp,
     volumeCc,
     price,
+    customsPrice,
     currency,
     chinaExpensesCny,
     cityDeliveryUsd,
@@ -1124,6 +1150,9 @@ export function CustomsCalculator() {
 
   const handleAgeChange = (next: CarAge) => {
     setAge(next);
+    if (next !== "new") {
+      setCustomsPrice("");
+    }
     if (isChinaLikeOrigin(originCountry) && expenseRoles.chinaLocal) {
       setChinaExpensesCny(chinaExpensesForAge(next));
     }
@@ -1172,6 +1201,13 @@ export function CustomsCalculator() {
     if (scenario.powerHp !== undefined) setPowerHp(scenario.powerHp);
     if (scenario.volumeCc !== undefined) setVolumeCc(scenario.volumeCc);
     if (scenario.price !== undefined) setPrice(scenario.price);
+    if (scenario.customsPrice !== undefined) {
+      setCustomsPrice(scenario.customsPrice);
+    } else if (scenario.age !== undefined && scenario.age !== "new") {
+      setCustomsPrice("");
+    } else if (scenario.price !== undefined) {
+      setCustomsPrice("");
+    }
     if (scenario.currency) setCurrency(scenario.currency);
     if (scenario.chinaExpensesCny !== undefined) setChinaExpensesCny(scenario.chinaExpensesCny);
     if (scenario.cityDeliveryUsd !== undefined) setCityDeliveryUsd(scenario.cityDeliveryUsd);
@@ -1242,6 +1278,7 @@ export function CustomsCalculator() {
       powerHp,
       volumeCc,
       price,
+      customsPrice,
       currency,
       chinaExpensesCny,
       cityDeliveryUsd,
@@ -1385,6 +1422,11 @@ export function CustomsCalculator() {
     powerHp: Number(powerHp.replace(",", ".")),
     volumeCc: Number(volumeCc.replace(",", ".")),
     price: Number(price.replace(",", ".")),
+    customsPrice: (() => {
+      if (age !== "new") return undefined;
+      const value = Number(customsPrice.replace(",", "."));
+      return Number.isFinite(value) && value > 0 ? value : undefined;
+    })(),
     currency,
     rates,
     chinaExpensesCny: amountOrZero(Boolean(expenseRoles.chinaLocal), chinaExpensesCny),
@@ -1586,6 +1628,25 @@ export function CustomsCalculator() {
                 )}
               </div>
             </div>
+
+            {age === "new" && (
+              <div className="space-y-2">
+                <Label htmlFor="customs-price">Стоимость для таможни</Label>
+                <Input
+                  id="customs-price"
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={customsPrice}
+                  onChange={(event) => setCustomsPrice(event.target.value)}
+                  placeholder="Необязательно"
+                />
+                <FieldHint>
+                  Если таможня берёт стоимость из каталога, укажите её здесь — сбор, пошлина и НДС
+                  посчитаются от этой суммы. Стоимость автомобиля для оплаты останется прежней.
+                </FieldHint>
+              </div>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
@@ -2238,6 +2299,23 @@ export function CustomsCalculator() {
                           isKorea ? "KRW" : isKyrgyzstan ? "USD" : "CNY",
                         )}
                       />
+                      {result.customsPriceRub != null && result.customsPriceRub > 0 && (
+                        <ResultRow
+                          compact
+                          label="Стоимость для таможни"
+                          value={result.customsPriceRub}
+                          note={formatForeignNote(
+                            priceToForeign(
+                              calculatorInput.customsPrice ?? 0,
+                              currency,
+                              result.customsPriceRub,
+                              rates,
+                              isKorea ? "KRW" : isKyrgyzstan ? "USD" : "CNY",
+                            ),
+                            isKorea ? "KRW" : isKyrgyzstan ? "USD" : "CNY",
+                          )}
+                        />
+                      )}
                       {isKorea ? (
                         <>
                           {result.parkingFeeRub > 0 && (
@@ -2339,7 +2417,11 @@ export function CustomsCalculator() {
                             compact
                             label="НДС"
                             value={result.vat}
-                            note="20% от (стоимость + пошлина + акциз)"
+                            note={
+                              result.customsPriceRub != null
+                                ? "20% от (стоимость для таможни + пошлина + акциз)"
+                                : "20% от (стоимость + пошлина + акциз)"
+                            }
                           />
                         </>
                       )}

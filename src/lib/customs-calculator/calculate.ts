@@ -34,6 +34,12 @@ export interface CustomsCalculatorInput {
   powerHp: number;
   volumeCc: number;
   price: number;
+  /**
+   * Опциональная таможенная стоимость (каталог таможни), в той же валюте, что и `price`.
+   * Учитывается только для возраста `new`: сбор, пошлина и НДС считаются от неё,
+   * а стоимость авто для оплаты (ВТБ и т.п.) остаётся по `price`.
+   */
+  customsPrice?: number;
   currency: CurrencyCode;
   rates: ExchangeRates;
   /** Расходы по Китаю в юанях (CNY) */
@@ -70,6 +76,9 @@ export interface CustomsCalculatorResult {
   originCountry: OriginCountry;
   priceRub: number;
   priceEur: number;
+  /** Таможенная (каталожная) стоимость в ₽, если задана и применена для new. */
+  customsPriceRub: number | null;
+  customsPriceEur: number | null;
   chinaExpensesCny: number;
   chinaExpensesRub: number;
   cityDeliveryUsd: number;
@@ -497,10 +506,21 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const priceEur = toEur(priceRub, input.rates);
   const eurRate = input.rates.EUR;
 
+  const useCustomsCatalog =
+    input.age === "new" &&
+    Number.isFinite(input.customsPrice) &&
+    (input.customsPrice as number) > 0;
+  const customsPriceRub = useCustomsCatalog
+    ? toRub(input.customsPrice as number, input.currency, input.rates)
+    : null;
+  const customsBaseRub = customsPriceRub ?? priceRub;
+  const customsBaseEur = toEur(customsBaseRub, input.rates);
+  const customsPriceEur = useCustomsCatalog ? customsBaseEur : null;
+
   const originCountry: OriginCountry = input.originCountry?.trim() || "china";
   const skipFullCustoms = isKyrgyzstanOrigin(originCountry);
 
-  const customsFee = skipFullCustoms ? 0 : calcCustomsFee(priceRub);
+  const customsFee = skipFullCustoms ? 0 : calcCustomsFee(customsBaseRub);
   const dutyResult = skipFullCustoms
     ? { duty: 0, note: "" }
     : calcCustomsDuty({
@@ -508,8 +528,8 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
         age: input.age,
         engine: input.engine,
         volumeCc: input.engine === "electric" ? 0 : input.volumeCc,
-        priceRub,
-        priceEur,
+        priceRub: customsBaseRub,
+        priceEur: customsBaseEur,
         eurRate,
       });
   const customsDuty = dutyResult.duty;
@@ -522,7 +542,7 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
     (input.engine === "electric" ? paysExciseAndVatEv : paysExciseAndVatIce);
 
   const excise = paysExciseAndVat ? calcExcise(input.powerHp) : 0;
-  const vat = paysExciseAndVat ? (priceRub + customsDuty + excise) * VAT_RATE : 0;
+  const vat = paysExciseAndVat ? (customsBaseRub + customsDuty + excise) * VAT_RATE : 0;
 
   const { fee: recyclingFee, note: recyclingNote } = calcRecyclingFee({
     importer: input.importer,
@@ -628,6 +648,8 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
     originCountry,
     priceRub: roundMoney(priceRub),
     priceEur: roundMoney(priceEur),
+    customsPriceRub: customsPriceRub != null ? roundMoney(customsPriceRub) : null,
+    customsPriceEur: customsPriceEur != null ? roundMoney(customsPriceEur) : null,
     chinaExpensesCny: roundMoney(chinaExpensesCny),
     chinaExpensesRub: roundMoney(chinaExpensesRub),
     cityDeliveryUsd: roundMoney(cityDeliveryUsd),

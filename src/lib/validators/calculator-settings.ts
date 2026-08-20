@@ -18,6 +18,7 @@ export const calculatorPresetSchema = z.object({
   powerHp: z.string().max(32),
   volumeCc: z.string().max(32),
   price: z.string().max(32),
+  customsPrice: z.string().max(32).optional(),
   currency: z.enum(["RUB", "USD", "CNY", "KRW"]),
   chinaExpensesCny: z.string().max(32),
   cityDeliveryUsd: z.string().max(32).optional(),
