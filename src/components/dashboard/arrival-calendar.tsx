@@ -15,12 +15,14 @@ import {
   subMonths,
 } from "date-fns";
 import { ru } from "date-fns/locale";
-import { CalendarDays, ChevronLeft, ChevronRight, Package } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Package, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { api } from "@/lib/api-client";
 import { STAGE_COLORS, STAGE_LABELS } from "@/lib/constants";
 import { DashboardArrivalEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -46,11 +48,17 @@ function formatMonthEventsLabel(count: number): string {
 
 interface ArrivalCalendarProps {
   events: DashboardArrivalEvent[];
+  /** Админ может выгрузить даты таможни и напоминания в Google Календарь */
+  canSyncGoogleCalendar?: boolean;
 }
 
-export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
+export function ArrivalCalendar({
+  events,
+  canSyncGoogleCalendar = false,
+}: ArrivalCalendarProps) {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => new Date());
+  const [syncing, setSyncing] = useState(false);
 
   const eventsByDay = useMemo(() => {
     const map = new Map<string, DashboardArrivalEvent[]>();
@@ -86,6 +94,18 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
     const today = new Date();
     setMonth(startOfMonth(today));
     setSelectedDay(today);
+  };
+
+  const handleSyncGoogleCalendar = async () => {
+    setSyncing(true);
+    try {
+      await api.googleCalendar.syncNow();
+      toast.success("События выгружены в Google Календарь");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось синхронизировать календарь");
+    } finally {
+      setSyncing(false);
+    }
   };
 
   return (
@@ -135,6 +155,24 @@ export function ArrivalCalendar({ events }: ArrivalCalendarProps) {
             <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={goToToday}>
               Сегодня
             </Button>
+            {canSyncGoogleCalendar && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                disabled={syncing}
+                onClick={() => void handleSyncGoogleCalendar()}
+                title="Синхронизировать Google Календарь"
+                aria-label="Синхронизировать Google Календарь"
+              >
+                {syncing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-3.5 w-3.5" />
+                )}
+              </Button>
+            )}
           </div>
         </div>
       </CardHeader>

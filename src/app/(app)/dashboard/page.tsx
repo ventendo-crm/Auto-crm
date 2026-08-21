@@ -130,7 +130,13 @@ export default function DashboardPage() {
 
     switch (id) {
       case "arrival_calendar":
-        return <ArrivalCalendar key={id} events={data.arrivalEvents} />;
+        return (
+          <ArrivalCalendar
+            key={id}
+            events={data.arrivalEvents}
+            canSyncGoogleCalendar={isAdmin}
+          />
+        );
       case "today_reminders":
         return isStaff ? <TodayReminders key={id} /> : null;
       case "recent_deals":
