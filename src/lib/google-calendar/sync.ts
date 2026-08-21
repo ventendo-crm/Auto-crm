@@ -4,6 +4,7 @@ import {
   ensureImportCrmCalendar,
   upsertGoogleCalendarEvent,
 } from "@/lib/google-calendar/api";
+import { GOOGLE_CALENDAR_TIMEZONE } from "@/lib/google-calendar/config";
 import { decryptSecret, encryptSecret } from "@/lib/google-calendar/crypto";
 import { refreshGoogleAccessToken } from "@/lib/google-calendar/oauth";
 import { prisma } from "@/lib/prisma";
@@ -23,8 +24,27 @@ function formatCarLabel(deal: Pick<DealEventFields, "carBrand" | "carModel" | "v
   return label || deal.vin;
 }
 
+/** Calendar day in ImportCRM timezone (all-day Google events). */
 function toDateKey(value: Date): string {
-  return value.toISOString().slice(0, 10);
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    throw new Error("Некорректная дата для Google Calendar");
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: GOOGLE_CALENDAR_TIMEZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(value);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  if (!year || !month || !day) {
+    throw new Error("Не удалось сформировать дату для Google Calendar");
+  }
+
+  return `${year}-${month}-${day}`;
 }
 
 function dealUrl(dealId: string): string {
@@ -353,6 +373,8 @@ export async function backfillCompanyGoogleCalendar(companyId: string): Promise<
     },
   });
 
+  const errors: string[] = [];
+
   for (const deal of deals) {
     try {
       if (deal.shipment?.customsCompleted) {
@@ -362,9 +384,19 @@ export async function backfillCompanyGoogleCalendar(companyId: string): Promise<
         await syncReminderToGoogle(reminder.id);
       }
     } catch (error) {
-      await rememberSyncError(companyId, error);
-      throw error;
+      const message = error instanceof Error ? error.message : "Ошибка синхронизации Google Calendar";
+      errors.push(message);
+      console.error(`[google-calendar] deal ${deal.id}:`, error);
     }
+  }
+
+  if (errors.length > 0) {
+    await rememberSyncError(companyId, new Error(errors[0]));
+    throw new Error(
+      errors.length === 1
+        ? errors[0]
+        : `${errors[0]} (ещё ошибок: ${errors.length - 1})`,
+    );
   }
 
   await touchSyncSuccess(companyId);

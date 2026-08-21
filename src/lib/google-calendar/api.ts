@@ -103,13 +103,30 @@ export async function ensureImportCrmCalendar(
   return createImportCrmCalendar(accessToken);
 }
 
+function isAllDayDateKey(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+/**
+ * All-day events must use `date` (YYYY-MM-DD) and clear `dateTime`.
+ * Otherwise Google may keep a previous timed start and return "Invalid start time"
+ * on update (PATCH/PUT merge of date + dateTime).
+ */
 function toEventBody(payload: CalendarEventPayload) {
+  if (!isAllDayDateKey(payload.date)) {
+    throw new Error(`Некорректная дата события для Google Calendar: ${payload.date}`);
+  }
+
   const nextDay = addOneDay(payload.date);
+  if (!isAllDayDateKey(nextDay)) {
+    throw new Error(`Некорректная конечная дата события для Google Calendar: ${nextDay}`);
+  }
+
   return {
     summary: payload.summary,
     description: payload.description,
-    start: { date: payload.date },
-    end: { date: nextDay },
+    start: { date: payload.date, dateTime: null },
+    end: { date: nextDay, dateTime: null },
     colorId: payload.sourceType === "CUSTOMS" ? "9" : "6",
     extendedProperties: {
       private: {
@@ -123,8 +140,15 @@ function toEventBody(payload: CalendarEventPayload) {
 
 function addOneDay(date: string): string {
   const value = new Date(`${date}T12:00:00.000Z`);
+  if (Number.isNaN(value.getTime())) {
+    throw new Error(`Некорректная дата события для Google Calendar: ${date}`);
+  }
   value.setUTCDate(value.getUTCDate() + 1);
   return value.toISOString().slice(0, 10);
+}
+
+function isInvalidStartTimeError(error: unknown): boolean {
+  return error instanceof Error && /invalid start time/i.test(error.message);
 }
 
 export async function upsertGoogleCalendarEvent(
@@ -134,17 +158,25 @@ export async function upsertGoogleCalendarEvent(
   payload: CalendarEventPayload,
 ): Promise<string> {
   const body = toEventBody(payload);
+  const eventUrl = googleEventId
+    ? calendarPath(calendarId, `/events/${encodeURIComponent(googleEventId)}`)
+    : null;
 
-  if (googleEventId) {
+  if (googleEventId && eventUrl) {
     try {
-      const updated = await googleJson<{ id?: string }>(
-        accessToken,
-        `${calendarPath(calendarId, `/events/${encodeURIComponent(googleEventId)}`)}`,
-        { method: "PATCH", body: JSON.stringify(body) },
-      );
+      // PUT replaces start/end cleanly; PATCH can leave both date and dateTime set.
+      const updated = await googleJson<{ id?: string }>(accessToken, eventUrl, {
+        method: "PUT",
+        body: JSON.stringify(body),
+      });
       if (updated.id) return updated.id;
     } catch (error) {
-      if ((error as { status?: number }).status !== 404) {
+      const status = (error as { status?: number }).status;
+      if (status === 404 || status === 410 || isInvalidStartTimeError(error)) {
+        if (status !== 404 && status !== 410) {
+          await deleteGoogleCalendarEvent(accessToken, calendarId, googleEventId);
+        }
+      } else {
         throw error;
       }
     }
