@@ -21,15 +21,15 @@ const FEATURES = [
   },
   {
     title: "Калькулятор растаможки",
-    text: "Считайте авто из Китая, Кореи и Киргизии. Встроенный быстрый поиск информации про авто на базе ИИ, расчёт можно сразу привязать к карточке клиента.",
+    text: "Калькулятор растаможки и утильсбора для авто из Китая, Кореи и Киргизии. Встроенный поиск характеристик на базе ИИ — расчёт сразу привязываете к карточке клиента и КП.",
   },
   {
     title: "Кабинет клиента",
-    text: "Клиент видит прогресс сделки, отслеживает автовоз на карте и сам выбирает доп. услуги — меньше звонков «ну что там?»",
+    text: "Личный кабинет клиента: прогресс сделки, отслеживание автовоза на карте и выбор доп. услуг — меньше звонков «ну что там?»",
   },
   {
     title: "Telegram и команда",
-    text: "Уведомления в Telegram клиенту о всех этапах сделки, отслеживание автовоза и отправка готового ПТС лично клиенту. Плюс роли сотрудников и несколько компаний на одной платформе.",
+    text: "Telegram-уведомления клиенту по этапам, отслеживание автовоза и отправка ПТС. Роли сотрудников и несколько компаний на одной CRM для импорта авто.",
   },
 ] as const;
 
@@ -102,7 +102,7 @@ const FAQ = [
   },
   {
     q: "Как работает калькулятор?",
-    a: "Считает растаможку для Китая, Кореи и Киргизии: пошлины, утильсбор, расходы по стране. Расчёт можно сохранить в сделку и отдать клиенту как коммерческое предложение. На этой странице — упрощённое демо; в CRM больше полей, шаблоны и курсы компании.",
+    a: "Калькулятор растаможки считает пошлину, утильсбор, сбор, акциз и НДС для Китая, Кореи и Киргизии — для физлица и юрлица, бензин, дизель и электро. Расчёт сохраняете в сделку и отдаёте клиенту как коммерческое предложение. На лендинге — расширенное демо; в CRM ещё актуальные курсы, шаблоны и поиск авто.",
   },
   {
     q: "Что за календарь?",
@@ -187,6 +187,35 @@ export function LandingPage() {
           }),
         }}
       />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "ImportCRM",
+            applicationCategory: "BusinessApplication",
+            operatingSystem: "Web",
+            description:
+              "CRM для импорта автомобилей с калькулятором растаможки, канбаном сделок, кабинетом клиента и отслеживанием автовоза.",
+            offers: {
+              "@type": "Offer",
+              price: "5000",
+              priceCurrency: "RUB",
+              description: "Подписка за компанию в месяц, 30 дней бесплатно",
+            },
+            featureList: [
+              "Калькулятор растаможки и утильсбора",
+              "Канбан сделок импорта авто",
+              "Личный кабинет клиента",
+              "Отслеживание автовоза на карте",
+              "Telegram-уведомления",
+              "Календарь таможни",
+            ],
+            url: "https://importcrm.ru/landing",
+          }),
+        }}
+      />
       <header className="relative z-20 mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5 sm:px-8">
         <Link href="/landing" className="flex items-center gap-3 no-underline">
           <AppIconMark size={36} />
@@ -222,7 +251,7 @@ export function LandingPage() {
           <p
             className={`${styles.heroAnim} ${styles.heroAnimD1} mt-3 max-w-xl text-base text-[var(--landing-muted)] sm:text-lg`}
           >
-            Для компаний, которые импортируют авто
+            CRM для импорта автомобилей из Китая, Кореи и Киргизии
           </p>
           <h1
             className={`${styles.heroAnim} ${styles.heroAnimD2} ${styles.fontDisplay} mt-8 max-w-2xl text-[clamp(1.65rem,4.2vw,2.75rem)] font-semibold leading-[1.15] tracking-tight`}
@@ -232,8 +261,8 @@ export function LandingPage() {
           <p
             className={`${styles.heroAnim} ${styles.heroAnimD3} mt-4 max-w-lg text-base leading-relaxed text-[var(--landing-muted)] sm:text-lg`}
           >
-            Канбан, калькулятор растаможки, кабинет клиента и карта автовоза уже внутри. Первые 30
-            дней — бесплатно.
+            Канбан сделок, калькулятор растаможки и утильсбора, кабинет клиента и карта автовоза —
+            уже внутри. Первые 30 дней бесплатно.
           </p>
           <div
             className={`${styles.heroAnim} ${styles.heroAnimD4} mt-8 flex flex-wrap items-center gap-3 sm:gap-4`}
@@ -291,7 +320,7 @@ export function LandingPage() {
             <div className="overflow-hidden border border-[var(--landing-line)] bg-white shadow-[0_20px_60px_rgba(22,24,29,0.08)]">
               <Image
                 src="/landing/features-overview.png"
-                alt="ImportCRM: канбан, калькулятор, КП, поиск с ИИ, кабинет клиента, автовоз, доп. услуги и Telegram"
+                alt="ImportCRM — CRM для импорта авто: канбан сделок, калькулятор растаможки, КП, поиск с ИИ, кабинет клиента, автовоз и Telegram"
                 width={1920}
                 height={1080}
                 className="h-auto w-full"
@@ -307,11 +336,12 @@ export function LandingPage() {
         <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
           <Reveal>
             <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
-              Посчитайте сами
+              Калькулятор растаможки онлайн
             </h2>
             <p className="mt-3 max-w-2xl text-[var(--landing-muted)]">
-              Упрощённый расчёт прямо здесь. В CRM — полный калькулятор, поиск авто и сохранение сметы
-              в сделку клиента.
+              Посчитайте растаможку авто из Китая, Кореи или Киргизии: пошлина, утильсбор, НДС и
+              типовые расходы. В CRM — актуальные курсы, поиск характеристик и сохранение сметы в
+              сделку клиента.
             </p>
           </Reveal>
           <Reveal delayMs={80}>
@@ -636,7 +666,7 @@ export function LandingPage() {
       <footer className="border-t border-[var(--landing-line)] bg-[var(--landing-wash)]">
         <div className="mx-auto flex max-w-6xl flex-col gap-3 px-5 py-8 text-sm text-[var(--landing-muted)] sm:flex-row sm:items-center sm:justify-between sm:px-8">
           <p className={`${styles.fontDisplay} font-medium text-[var(--landing-ink)]`}>ImportCRM</p>
-          <p>CRM для импорта автомобилей</p>
+          <p>CRM для импорта авто · калькулятор растаможки · кабинет клиента</p>
           <Link href="/login" className="hover:text-[var(--landing-brand-deep)] hover:underline">
             Вход в систему
           </Link>
