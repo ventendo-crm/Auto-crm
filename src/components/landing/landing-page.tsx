@@ -70,6 +70,27 @@ const PRICING_INCLUDES = [
   "Расходы и доп. опции по сделке",
 ] as const;
 
+const TESTIMONIALS = [
+  {
+    quote:
+      "Раньше считали растаможку в таблицах, а сделки — в чатах. Сейчас калькулятор сразу уходит в карточку клиента, менеджеры меньше путаются.",
+    name: "Алексей",
+    role: "руководитель импортной компании",
+  },
+  {
+    quote:
+      "Клиенты сами смотрят, где машина на автовозе, и реже звонят «ну что там». Кабинет и Telegram закрыли половину рутины.",
+    name: "Марина",
+    role: "менеджер по работе с клиентами",
+  },
+  {
+    quote:
+      "Пробовали Битрикс — слишком тяжело под наш процесс. Здесь канбан и этапы уже под импорт, подключились за день.",
+    name: "Игорь",
+    role: "основатель компании по поставкам авто",
+  },
+] as const;
+
 const FAQ = [
   {
     q: "Для чего нужна ImportCRM?",
@@ -470,6 +491,42 @@ export function LandingPage() {
                     {item.text}
                   </p>
                 </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="reviews" className="border-y border-[var(--landing-line)] bg-[var(--landing-wash)]/50">
+        <div className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
+          <Reveal>
+            <p
+              className={`${styles.fontDisplay} text-[clamp(3.5rem,12vw,6.5rem)] font-semibold leading-none tracking-tight text-[var(--landing-ink)]`}
+            >
+              15+
+            </p>
+            <h2 className={`${styles.fontDisplay} mt-4 text-3xl font-semibold tracking-tight sm:text-4xl`}>
+              компаний уже работают в ImportCRM
+            </h2>
+            <p className="mt-3 max-w-xl text-[var(--landing-muted)]">
+              Импортёры и команды менеджеров ведут сделки, считают растаможку и показывают клиентам
+              прогресс — без Excel и сборки Битрикс.
+            </p>
+          </Reveal>
+          <div className="mt-14 space-y-0 divide-y divide-[var(--landing-line)] border-y border-[var(--landing-line)]">
+            {TESTIMONIALS.map((item, i) => (
+              <Reveal key={item.name} delayMs={i * 70}>
+                <figure className="grid gap-4 py-8 sm:grid-cols-[minmax(0,0.62fr)_minmax(0,0.38fr)] sm:gap-10 sm:py-10">
+                  <blockquote className="text-lg leading-relaxed text-[var(--landing-ink)] sm:text-xl">
+                    «{item.quote}»
+                  </blockquote>
+                  <figcaption className="sm:pt-1">
+                    <p className={`${styles.fontDisplay} text-base font-semibold tracking-tight`}>
+                      {item.name}
+                    </p>
+                    <p className="mt-1 text-sm text-[var(--landing-muted)]">{item.role}</p>
+                  </figcaption>
+                </figure>
               </Reveal>
             ))}
           </div>
