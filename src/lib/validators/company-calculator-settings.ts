@@ -42,6 +42,7 @@ export const customCalculatorOriginSchema = z.object({
     .regex(CUSTOM_ORIGIN_ID_RE, "ID страны должен начинаться с custom_"),
   label: z.string().trim().min(1, "Укажите название страны").max(80),
   calcProfile: z.literal("china"),
+  inputCurrency: z.enum(["RUB", "USD", "CNY", "KRW"]).optional(),
 });
 
 export const saveCompanyCalculatorExpensesSchema = z.object({

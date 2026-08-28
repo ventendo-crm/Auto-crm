@@ -630,12 +630,15 @@ export const api = {
           }),
         },
       ),
-    addOrigin: (label: string) =>
+    addOrigin: (
+      label: string,
+      inputCurrency?: import("@/lib/customs-calculator/rates").CurrencyCode,
+    ) =>
       request<import("@/lib/services/company-calculator-settings").CompanyCalculatorSettingsDto>(
         "/api/calculator/expense-template",
         {
           method: "POST",
-          body: JSON.stringify({ label }),
+          body: JSON.stringify({ label, inputCurrency }),
         },
       ),
     removeOrigin: (originId: string) =>

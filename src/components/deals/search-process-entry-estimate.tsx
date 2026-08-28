@@ -4,6 +4,10 @@ import { Calculator, Copy, Loader2, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CustomsEstimateSnapshot } from "@/components/calculator/customs-estimate-snapshot";
+import {
+  defaultInputCurrencyForOrigin,
+  type CustomCalculatorOrigin,
+} from "@/lib/customs-calculator/custom-origins";
 import { isChinaLikeOrigin } from "@/lib/customs-calculator";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
@@ -35,10 +39,11 @@ const CURRENCY_OPTIONS = [
   { value: "KRW", label: "Вона" },
 ] as const;
 
-function defaultCurrencyByDealOrigin(origin: string | null | undefined): SearchProcessEntryEstimate["currency"] {
-  if (origin === "korea") return "KRW";
-  if (origin === "kyrgyzstan") return "USD";
-  return "CNY";
+function defaultCurrencyByDealOrigin(
+  origin: string | null | undefined,
+  customOrigins: CustomCalculatorOrigin[] = [],
+): SearchProcessEntryEstimate["currency"] {
+  return defaultInputCurrencyForOrigin(origin ?? "china", customOrigins);
 }
 
 interface SearchProcessEntryEstimateProps {
@@ -46,6 +51,7 @@ interface SearchProcessEntryEstimateProps {
   entry: SearchProcessEstimateEntryLike;
   previousEntry?: SearchProcessEstimateEntryLike | null;
   destinationCountry?: string | null;
+  customOrigins?: CustomCalculatorOrigin[];
   canEdit?: boolean;
   onUpdated?: (estimate: SearchProcessEntryEstimate | null) => void;
 }
@@ -68,6 +74,7 @@ export function SearchProcessEntryEstimatePanel({
   entry,
   previousEntry,
   destinationCountry,
+  customOrigins = [],
   canEdit = false,
   onUpdated,
 }: SearchProcessEntryEstimateProps) {
@@ -83,7 +90,7 @@ export function SearchProcessEntryEstimatePanel({
   const initial = useMemo(
     () => ({
       price: entry.estimate?.price ? String(entry.estimate.price) : "",
-      currency: entry.estimate?.currency ?? defaultCurrencyByDealOrigin(destinationCountry),
+      currency: entry.estimate?.currency ?? defaultCurrencyByDealOrigin(destinationCountry, customOrigins),
       powerHp: entry.estimate?.powerHp ? String(entry.estimate.powerHp) : "",
       volumeCc: entry.estimate?.volumeCc ? String(entry.estimate.volumeCc) : "",
       carYear: entry.estimate?.carYear ? String(entry.estimate.carYear) : "",
@@ -98,7 +105,7 @@ export function SearchProcessEntryEstimatePanel({
       escortRub: String(entry.estimate?.input.escortRub ?? 0),
       note: entry.estimate?.note ?? "",
     }),
-    [destinationCountry, entry.estimate, isChina, isKorea],
+    [destinationCountry, entry.estimate, isChina, isKorea, customOrigins],
   );
 
   const [price, setPrice] = useState(initial.price);

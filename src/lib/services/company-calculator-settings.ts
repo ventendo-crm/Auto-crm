@@ -163,6 +163,7 @@ export async function saveCompanyCalculatorExpenses(
 export async function addCompanyCustomOrigin(
   companyId: string,
   label: string,
+  inputCurrency: CustomCalculatorOrigin["inputCurrency"] = "CNY",
 ): Promise<CompanyCalculatorSettingsDto> {
   const settings = await ensureCompanyCalculatorSettings(companyId);
   const trimmed = label.trim();
@@ -172,16 +173,24 @@ export async function addCompanyCustomOrigin(
 
   const existingIds = new Set(settings.customOrigins.map((item) => item.id));
   const id = ensureUniqueCustomOriginId(createCustomOriginId(trimmed), existingIds);
+  const currency =
+    inputCurrency === "RUB" ||
+    inputCurrency === "USD" ||
+    inputCurrency === "CNY" ||
+    inputCurrency === "KRW"
+      ? inputCurrency
+      : "CNY";
+
   const nextOrigins: CustomCalculatorOrigin[] = [
     ...settings.customOrigins,
-    { id, label: trimmed.slice(0, 80), calcProfile: "china" },
+    { id, label: trimmed.slice(0, 80), calcProfile: "china", inputCurrency: currency },
   ];
 
   const seedExpense: CalculatorExpenseItem = {
     id: createExpenseItemId(),
     label: `Расходы (${trimmed.slice(0, 40)})`,
     defaultAmount: 5000,
-    currency: "CNY",
+    currency,
     origin: id,
     role: "china_local",
     sortOrder: 10,

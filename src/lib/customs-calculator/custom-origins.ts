@@ -1,4 +1,7 @@
 import {
+  CurrencyCode,
+  isKoreaOrigin,
+  isKyrgyzstanOrigin,
   isSystemOriginCountry,
   SYSTEM_ORIGIN_COUNTRIES,
   SystemOriginCountry,
@@ -6,10 +9,31 @@ import {
 
 export type CustomOriginCalcProfile = "china";
 
+const INPUT_CURRENCIES: CurrencyCode[] = ["RUB", "USD", "CNY", "KRW"];
+
 export interface CustomCalculatorOrigin {
   id: string;
   label: string;
   calcProfile: CustomOriginCalcProfile;
+  /** Валюта ввода стоимости авто для этой страны */
+  inputCurrency: CurrencyCode;
+}
+
+function normalizeInputCurrency(value: unknown): CurrencyCode {
+  return typeof value === "string" && INPUT_CURRENCIES.includes(value as CurrencyCode)
+    ? (value as CurrencyCode)
+    : "CNY";
+}
+
+export function defaultInputCurrencyForOrigin(
+  origin: string,
+  customOrigins: CustomCalculatorOrigin[] = [],
+): CurrencyCode {
+  if (isKoreaOrigin(origin)) return "KRW";
+  if (isKyrgyzstanOrigin(origin)) return "USD";
+  if (origin === "china") return "CNY";
+  const custom = customOrigins.find((item) => item.id === origin);
+  return custom?.inputCurrency ?? "CNY";
 }
 
 export const CUSTOM_ORIGIN_ID_RE = /^custom_[a-z0-9_]{1,48}$/;
@@ -83,6 +107,9 @@ export function normalizeCustomOrigins(value: unknown): CustomCalculatorOrigin[]
       id,
       label: label.slice(0, 80),
       calcProfile: "china",
+      inputCurrency: normalizeInputCurrency(
+        (item as Partial<CustomCalculatorOrigin>).inputCurrency,
+      ),
     });
   }
 

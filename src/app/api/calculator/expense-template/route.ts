@@ -29,13 +29,16 @@ export const PUT = withAuth(async (request, { user }) => {
 
 const addOriginSchema = z.object({
   label: z.string().trim().min(1, "Укажите название страны").max(80),
+  inputCurrency: z.enum(["RUB", "USD", "CNY", "KRW"]).optional(),
 });
 
 export const POST = withAuth(async (request, { user }) => {
   assertAllowed(canManageCompanyCalculator(user.role));
   const body = addOriginSchema.parse(await request.json());
   try {
-    return ok(await addCompanyCustomOrigin(user.companyId, body.label));
+    return ok(
+      await addCompanyCustomOrigin(user.companyId, body.label, body.inputCurrency ?? "CNY"),
+    );
   } catch (err) {
     return error(err instanceof Error ? err.message : "Не удалось добавить страну", 400);
   }

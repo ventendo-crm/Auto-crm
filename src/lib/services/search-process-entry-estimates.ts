@@ -130,6 +130,7 @@ async function buildCalculatorInput(entryId: string, body: UpsertInput): Promise
     entry.deal.searchProcessExchangeRate != null
       ? Number(entry.deal.searchProcessExchangeRate)
       : null,
+    settings.customOrigins,
   );
 
   return {

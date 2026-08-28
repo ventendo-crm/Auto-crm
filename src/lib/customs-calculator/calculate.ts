@@ -61,6 +61,11 @@ export interface CustomsCalculatorInput {
   /** Услуги сопровождения, ₽ */
   escortRub?: number;
   /**
+   * Киргизия: автомобиль уже растаможен — таможенная пошлина не считается.
+   * По умолчанию true (растаможен).
+   */
+  kyrgyzstanCustomsCleared?: boolean;
+  /**
    * Дополнительные расходы компании (шаблон калькулятора).
    * Конвертируются в ₽ и прибавляются к итогу.
    */
@@ -518,10 +523,11 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const customsPriceEur = useCustomsCatalog ? customsBaseEur : null;
 
   const originCountry: OriginCountry = input.originCountry?.trim() || "china";
-  const skipFullCustoms = isKyrgyzstanOrigin(originCountry);
+  const isKyrgyzstan = isKyrgyzstanOrigin(originCountry);
+  const skipCustomsDuty = isKyrgyzstan && input.kyrgyzstanCustomsCleared !== false;
 
-  const customsFee = skipFullCustoms ? 0 : calcCustomsFee(customsBaseRub);
-  const dutyResult = skipFullCustoms
+  const customsFee = isKyrgyzstan ? 0 : calcCustomsFee(customsBaseRub);
+  const dutyResult = skipCustomsDuty
     ? { duty: 0, note: "" }
     : calcCustomsDuty({
         importer: input.importer,
@@ -538,7 +544,7 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const paysExciseAndVatIce = input.importer === "legal";
   const paysExciseAndVatEv = true;
   const paysExciseAndVat =
-    !skipFullCustoms &&
+    !isKyrgyzstan &&
     (input.engine === "electric" ? paysExciseAndVatEv : paysExciseAndVatIce);
 
   const excise = paysExciseAndVat ? calcExcise(input.powerHp) : 0;
@@ -552,8 +558,8 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
     volumeCc: input.engine === "electric" ? 0 : input.volumeCc,
   });
 
-  const totalCustoms = skipFullCustoms
-    ? recyclingFee
+  const totalCustoms = isKyrgyzstan
+    ? recyclingFee + customsDuty
     : customsFee + customsDuty + excise + vat + recyclingFee;
 
   const chinaExpensesCny =

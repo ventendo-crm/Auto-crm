@@ -51,6 +51,7 @@ import {
   ImporterType,
   isChinaLikeOrigin,
   isCustomOriginId,
+  isKyrgyzstanOrigin,
   KAZAKHSTAN_DELIVERY_USD,
   listExtraExpenses,
   OriginCountry,
@@ -60,6 +61,7 @@ import {
   roundExchangeRate,
   roundExchangeRates,
   buildOriginOptions,
+  defaultInputCurrencyForOrigin,
   type CalculatorExpenseItem,
   type CustomCalculatorOrigin,
 } from "@/lib/customs-calculator";
@@ -93,6 +95,8 @@ type CalculatorPersistedState = {
   deliveryRub: string;
   deliveryUsd: string;
   escortRub: string;
+  /** Киргизия: автомобиль растаможен (пошлина не считается) */
+  kyrgyzstanCustomsCleared: boolean;
   rates: ExchangeRates;
   ratesUpdatedAt: string | null;
   submitted: boolean;
@@ -125,6 +129,7 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   deliveryRub: String(DEFAULT_DELIVERY_RUB),
   deliveryUsd: String(KAZAKHSTAN_DELIVERY_USD),
   escortRub: String(DEFAULT_ESCORT_RUB),
+  kyrgyzstanCustomsCleared: true,
   rates: DEFAULT_EXCHANGE_RATES,
   ratesUpdatedAt: null,
   submitted: false,
@@ -222,6 +227,10 @@ function loadPersistedState(): CalculatorPersistedState {
       deliveryUsd:
         typeof parsed.deliveryUsd === "string" ? parsed.deliveryUsd : DEFAULT_STATE.deliveryUsd,
       escortRub: typeof parsed.escortRub === "string" ? parsed.escortRub : DEFAULT_STATE.escortRub,
+      kyrgyzstanCustomsCleared:
+        typeof parsed.kyrgyzstanCustomsCleared === "boolean"
+          ? parsed.kyrgyzstanCustomsCleared
+          : DEFAULT_STATE.kyrgyzstanCustomsCleared,
       rates,
       ratesUpdatedAt:
         typeof parsed.ratesUpdatedAt === "string" ? parsed.ratesUpdatedAt : DEFAULT_STATE.ratesUpdatedAt,
@@ -308,6 +317,10 @@ function loadUserPresets(): UserPreset[] {
           deliveryUsd:
             typeof item.deliveryUsd === "string" ? item.deliveryUsd : DEFAULT_STATE.deliveryUsd,
           escortRub: typeof item.escortRub === "string" ? item.escortRub : DEFAULT_STATE.escortRub,
+          kyrgyzstanCustomsCleared:
+            typeof item.kyrgyzstanCustomsCleared === "boolean"
+              ? item.kyrgyzstanCustomsCleared
+              : DEFAULT_STATE.kyrgyzstanCustomsCleared,
         } satisfies UserPreset;
       })
       .slice(0, MAX_USER_PRESETS);
@@ -414,6 +427,8 @@ function inputToCalculatorState(input: CustomsCalculatorInput): CalculatorPersis
     ),
     deliveryUsd: numberToInputString(input.deliveryUsd, DEFAULT_STATE.deliveryUsd),
     escortRub: numberToInputString(input.escortRub, DEFAULT_STATE.escortRub),
+    kyrgyzstanCustomsCleared:
+      originCountry === "kyrgyzstan" ? input.kyrgyzstanCustomsCleared !== false : true,
     rates: roundExchangeRates({
       ...DEFAULT_EXCHANGE_RATES,
       ...(input.rates ?? {}),
@@ -685,6 +700,9 @@ export function CustomsCalculator() {
   const [deliveryRub, setDeliveryRub] = useState(DEFAULT_STATE.deliveryRub);
   const [deliveryUsd, setDeliveryUsd] = useState(DEFAULT_STATE.deliveryUsd);
   const [escortRub, setEscortRub] = useState(DEFAULT_STATE.escortRub);
+  const [kyrgyzstanCustomsCleared, setKyrgyzstanCustomsCleared] = useState(
+    DEFAULT_STATE.kyrgyzstanCustomsCleared,
+  );
   const [expenseTemplate, setExpenseTemplate] = useState<CalculatorExpenseItem[]>(
     getDefaultCompanyCalculatorExpenses,
   );
@@ -735,6 +753,7 @@ export function CustomsCalculator() {
     setDeliveryRub(stored.deliveryRub);
     setDeliveryUsd(stored.deliveryUsd);
     setEscortRub(stored.escortRub);
+    setKyrgyzstanCustomsCleared(stored.kyrgyzstanCustomsCleared);
     setRates(stored.rates);
     setRatesUpdatedAt(stored.ratesUpdatedAt);
     setSubmitted(stored.submitted);
@@ -875,6 +894,7 @@ export function CustomsCalculator() {
       deliveryRub,
       deliveryUsd,
       escortRub,
+      kyrgyzstanCustomsCleared,
       rates,
       ratesUpdatedAt,
       submitted,
@@ -899,6 +919,7 @@ export function CustomsCalculator() {
     deliveryRub,
     deliveryUsd,
     escortRub,
+    kyrgyzstanCustomsCleared,
     rates,
     ratesUpdatedAt,
     submitted,
@@ -930,6 +951,9 @@ export function CustomsCalculator() {
       deliveryRub: amountOrZero(Boolean(expenseRoles.delivery), deliveryRub),
       deliveryUsd: amountOrZero(Boolean(expenseRoles.deliveryUsd), deliveryUsd),
       escortRub: amountOrZero(Boolean(expenseRoles.escort), escortRub),
+      kyrgyzstanCustomsCleared: isKyrgyzstanOrigin(originCountry)
+        ? kyrgyzstanCustomsCleared
+        : undefined,
       extraExpenses: extraExpenseItems.map((item) => ({
         id: item.id,
         label: item.label,
@@ -958,6 +982,7 @@ export function CustomsCalculator() {
     deliveryRub,
     deliveryUsd,
     escortRub,
+    kyrgyzstanCustomsCleared,
     expenseRoles,
     extraExpenseItems,
     extraAmounts,
@@ -985,6 +1010,7 @@ export function CustomsCalculator() {
       deliveryRub,
       deliveryUsd,
       escortRub,
+      kyrgyzstanCustomsCleared,
       totalWithCar: result.totalWithCar,
     });
 
@@ -1013,6 +1039,7 @@ export function CustomsCalculator() {
       deliveryRub,
       deliveryUsd,
       escortRub,
+      kyrgyzstanCustomsCleared,
       rates,
       ratesUpdatedAt,
       submitted: true,
@@ -1045,6 +1072,7 @@ export function CustomsCalculator() {
     deliveryRub,
     deliveryUsd,
     escortRub,
+    kyrgyzstanCustomsCleared,
     rates,
     ratesUpdatedAt,
   ]);
@@ -1178,12 +1206,13 @@ export function CustomsCalculator() {
       setKoreaDocsDeliveryKrw(String(koreaDocs?.defaultAmount ?? 0));
     } else if (next === "kyrgyzstan") {
       setCurrency("USD");
+      setKyrgyzstanCustomsCleared(true);
       setBrokerFeeRub(String(broker?.defaultAmount ?? 0));
       setDeliveryRoute("ussuriysk");
       setDeliveryRub("0");
       setCityDeliveryUsd(String(cityDelivery?.defaultAmount ?? DEFAULT_KYRGYZSTAN_CITY_DELIVERY_USD));
     } else {
-      setCurrency("CNY");
+      setCurrency(defaultInputCurrencyForOrigin(next, customOrigins));
       setBrokerFeeRub(String(broker?.defaultAmount ?? 0));
       setDeliveryRoute("ussuriysk");
       setDeliveryRub(String(delivery?.defaultAmount ?? 0));
@@ -1220,6 +1249,9 @@ export function CustomsCalculator() {
     if (scenario.deliveryRub !== undefined) setDeliveryRub(scenario.deliveryRub);
     if (scenario.deliveryUsd !== undefined) setDeliveryUsd(scenario.deliveryUsd);
     if (scenario.escortRub !== undefined) setEscortRub(scenario.escortRub);
+    if (scenario.kyrgyzstanCustomsCleared !== undefined) {
+      setKyrgyzstanCustomsCleared(scenario.kyrgyzstanCustomsCleared);
+    }
   };
 
   const applyHistoryItem = (item: CalculatorHistoryItem) => {
@@ -1289,6 +1321,7 @@ export function CustomsCalculator() {
       deliveryRub,
       deliveryUsd,
       escortRub,
+      kyrgyzstanCustomsCleared,
     };
 
     const next = [preset, ...userPresets.filter((item) => item.name !== preset.name)].slice(
@@ -1398,6 +1431,19 @@ export function CustomsCalculator() {
   const isKyrgyzstan = originCountry === "kyrgyzstan";
   const isChina = isChinaLikeOrigin(originCountry);
   const originOptions = useMemo(() => buildOriginOptions(customOrigins), [customOrigins]);
+  const displayRateCode = useMemo((): CurrencyCode => {
+    if (isKorea) return "KRW";
+    if (currency === "RUB" || currency === "USD" || currency === "CNY" || currency === "KRW") {
+      return currency;
+    }
+    return defaultInputCurrencyForOrigin(originCountry, customOrigins);
+  }, [isKorea, currency, originCountry, customOrigins]);
+  const foreignRateCode =
+    displayRateCode === "RUB" ? null : (displayRateCode as "CNY" | "KRW" | "USD");
+  const displayRateValue =
+    displayRateCode === "RUB"
+      ? 1
+      : rates[displayRateCode as keyof ExchangeRates];
   const showsCommercialRecyclingHint =
     importer === "personal" &&
     Number.isFinite(powerHpNumber) &&
@@ -1438,6 +1484,7 @@ export function CustomsCalculator() {
     deliveryRub: amountOrZero(Boolean(expenseRoles.delivery), deliveryRub),
     deliveryUsd: amountOrZero(Boolean(expenseRoles.deliveryUsd), deliveryUsd),
     escortRub: amountOrZero(Boolean(expenseRoles.escort), escortRub),
+    kyrgyzstanCustomsCleared: isKyrgyzstan ? kyrgyzstanCustomsCleared : undefined,
     extraExpenses: extraExpenseItems.map((item) => ({
       id: item.id,
       label: item.label,
@@ -1689,6 +1736,24 @@ export function CustomsCalculator() {
                 />
               </div>
             </div>
+
+            {isKyrgyzstan && (
+              <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
+                  checked={kyrgyzstanCustomsCleared}
+                  onChange={(event) => setKyrgyzstanCustomsCleared(event.target.checked)}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="text-sm font-medium leading-snug">Автомобиль растаможен</span>
+                  <FieldHint>
+                    Если авто уже растаможено, таможенная пошлина не включается в расчёт. Снимите
+                    галочку, чтобы посчитать пошлину.
+                  </FieldHint>
+                </span>
+              </label>
+            )}
           </FormSection>
 
           <FormSection
@@ -2079,25 +2144,16 @@ export function CustomsCalculator() {
             {isKorea
               ? "Все суммы в рублях. Первый платёж по инвойсу = авто + стоянка + документы/доставка до РФ."
               : isKyrgyzstan
-                ? "Все суммы в рублях. Итог с комиссией ВТБ = (авто + доставка до города) + 2%. Таможенная пошлина и сбор не считаются — только утилизационный сбор."
+                ? kyrgyzstanCustomsCleared
+                  ? "Все суммы в рублях. Итог с комиссией ВТБ = (авто + доставка до города) + 2%. Авто растаможено — таможенная пошлина не считается, только утилизационный сбор."
+                  : "Все суммы в рублях. Итог с комиссией ВТБ = (авто + доставка до города) + 2%. Авто не растаможено — в расчёт включены таможенная пошлина и утилизационный сбор."
                 : "Все суммы в рублях. Итог с комиссией ВТБ = (авто + расходы страны) + 2%."}
           </p>
           <div className="flex flex-wrap gap-2 pt-2">
             <Badge variant="brand">{originCountryLabel(originCountry, customOrigins)}</Badge>
             <Badge variant="outline">
-              Курс{" "}
-              {isKorea
-                ? "KRW"
-                : isKyrgyzstan || currency === "USD"
-                  ? "USD"
-                  : "CNY"}
-              :{" "}
-              {(isKorea
-                ? rates.KRW
-                : isKyrgyzstan || currency === "USD"
-                  ? rates.USD
-                  : rates.CNY
-              ).toLocaleString("ru-RU", {
+              Курс {displayRateCode}:{" "}
+              {displayRateValue.toLocaleString("ru-RU", {
                 maximumFractionDigits: 2,
                 minimumFractionDigits: 2,
               })}{" "}
@@ -2263,19 +2319,8 @@ export function CustomsCalculator() {
                         Расчёт растаможки · {originCountryLabel(originCountry, customOrigins)}
                       </p>
                       <p className="text-[11px] text-muted-foreground">
-                        Курс{" "}
-                        {isKorea
-                          ? "KRW"
-                          : isKyrgyzstan || currency === "USD"
-                            ? "USD"
-                            : "CNY"}
-                        :{" "}
-                        {(isKorea
-                          ? rates.KRW
-                          : isKyrgyzstan || currency === "USD"
-                            ? rates.USD
-                            : rates.CNY
-                        ).toLocaleString("ru-RU", {
+                        Курс {displayRateCode}:{" "}
+                        {displayRateValue.toLocaleString("ru-RU", {
                           maximumFractionDigits: 2,
                           minimumFractionDigits: 2,
                         })}{" "}
@@ -2288,32 +2333,40 @@ export function CustomsCalculator() {
                         compact
                         label="Стоимость авто в рублях"
                         value={result.priceRub}
-                        note={formatForeignNote(
-                          priceToForeign(
-                            calculatorInput.price,
-                            currency,
-                            result.priceRub,
-                            rates,
-                            isKorea ? "KRW" : isKyrgyzstan ? "USD" : "CNY",
-                          ),
-                          isKorea ? "KRW" : isKyrgyzstan ? "USD" : "CNY",
-                        )}
+                        note={
+                          foreignRateCode
+                            ? formatForeignNote(
+                                priceToForeign(
+                                  calculatorInput.price,
+                                  currency,
+                                  result.priceRub,
+                                  rates,
+                                  foreignRateCode,
+                                ),
+                                foreignRateCode,
+                              )
+                            : undefined
+                        }
                       />
                       {result.customsPriceRub != null && result.customsPriceRub > 0 && (
                         <ResultRow
                           compact
                           label="Стоимость для таможни"
                           value={result.customsPriceRub}
-                          note={formatForeignNote(
-                            priceToForeign(
-                              calculatorInput.customsPrice ?? 0,
-                              currency,
-                              result.customsPriceRub,
-                              rates,
-                              isKorea ? "KRW" : isKyrgyzstan ? "USD" : "CNY",
-                            ),
-                            isKorea ? "KRW" : isKyrgyzstan ? "USD" : "CNY",
-                          )}
+                          note={
+                            foreignRateCode
+                              ? formatForeignNote(
+                                  priceToForeign(
+                                    calculatorInput.customsPrice ?? 0,
+                                    currency,
+                                    result.customsPriceRub,
+                                    rates,
+                                    foreignRateCode,
+                                  ),
+                                  foreignRateCode,
+                                )
+                              : undefined
+                          }
                         />
                       )}
                       {isKorea ? (
@@ -2394,15 +2447,15 @@ export function CustomsCalculator() {
                         />
                       )}
                       {!isKyrgyzstan && (
-                        <>
-                          <ResultRow compact label="Таможенный сбор (ТС)" value={result.customsFee} />
-                          <ResultRow
-                            compact
-                            label="Таможенная пошлина (ТП)"
-                            value={result.customsDuty}
-                            note={result.customsDutyNote}
-                          />
-                        </>
+                        <ResultRow compact label="Таможенный сбор (ТС)" value={result.customsFee} />
+                      )}
+                      {(!isKyrgyzstan || !kyrgyzstanCustomsCleared) && (
+                        <ResultRow
+                          compact
+                          label="Таможенная пошлина (ТП)"
+                          value={result.customsDuty}
+                          note={result.customsDutyNote}
+                        />
                       )}
                       <ResultRow
                         compact

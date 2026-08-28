@@ -7,6 +7,7 @@ import { SearchProcessLinksPanel } from "@/components/deals/search-process-links
 import { DealProcessEntries } from "@/components/deals/deal-process-entries";
 import { MAX_SEARCH_PROCESS_ENTRY_MEDIA } from "@/lib/constants";
 import { api } from "@/lib/api-client";
+import type { CustomCalculatorOrigin } from "@/lib/customs-calculator/custom-origins";
 import { SearchProcessLinks } from "@/lib/types";
 
 interface DealSearchProcessProps {
@@ -29,6 +30,24 @@ export function DealSearchProcess({
   });
   const [estimatesCount, setEstimatesCount] = useState(0);
   const [reloadKey, setReloadKey] = useState(0);
+  const [customOrigins, setCustomOrigins] = useState<CustomCalculatorOrigin[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void api.calculatorExpenseTemplate
+      .get()
+      .then((settings) => {
+        if (!cancelled) {
+          setCustomOrigins(settings.customOrigins ?? []);
+        }
+      })
+      .catch(() => {
+        // шаблон не обязателен для просмотра вариантов
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const entriesApi = useMemo(
     () => ({
@@ -97,6 +116,7 @@ export function DealSearchProcess({
           entry={entry}
           previousEntry={entries[entryIndex - 1] ?? null}
           destinationCountry={destinationCountry}
+          customOrigins={customOrigins}
           canEdit={canEdit}
           onUpdated={(estimate) => updateEntry({ ...entry, estimate })}
         />
@@ -107,6 +127,7 @@ export function DealSearchProcess({
             dealId={dealId}
             links={links}
             destinationCountry={destinationCountry}
+            customOrigins={customOrigins}
             canEdit={canEdit}
             estimatesCount={estimatesCount}
             onLinksUpdated={setLinks}

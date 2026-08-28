@@ -198,14 +198,15 @@ export function CustomsEstimateSnapshot({
       <ResultSection title="Расходы по России">
         <ResultRow label="Услуги брокера" value={result.brokerFeeRub} />
         {!isKyrgyzstan && (
-          <>
-            <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
-            <ResultRow
-              label="Таможенная пошлина (ТП)"
-              value={result.customsDuty}
-              note={result.customsDutyNote}
-            />
-          </>
+          <ResultRow label="Таможенный сбор (ТС)" value={result.customsFee} />
+        )}
+        {(!isKyrgyzstan ||
+          input.kyrgyzstanCustomsCleared === false) && (
+          <ResultRow
+            label="Таможенная пошлина (ТП)"
+            value={result.customsDuty}
+            note={result.customsDutyNote}
+          />
         )}
         <ResultRow
           label="Утилизационный сбор (УС)"

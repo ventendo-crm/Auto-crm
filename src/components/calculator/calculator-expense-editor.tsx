@@ -109,6 +109,8 @@ export function CalculatorExpenseEditor({
   const [saving, setSaving] = useState(false);
   const [addingCountry, setAddingCountry] = useState(false);
   const [newCountryLabel, setNewCountryLabel] = useState("");
+  const [newCountryCurrency, setNewCountryCurrency] =
+    useState<CalculatorExpenseItem["currency"]>("CNY");
   const [originBusy, setOriginBusy] = useState(false);
 
   useEffect(() => {
@@ -243,7 +245,7 @@ export function CalculatorExpenseEditor({
     }
     setOriginBusy(true);
     try {
-      const saved = await api.calculatorExpenseTemplate.addOrigin(label);
+      const saved = await api.calculatorExpenseTemplate.addOrigin(label, newCountryCurrency);
       const nextItems = cloneItems(saved.expenseItems);
       const nextOrigins = saved.customOrigins ?? [];
       setItems(nextItems);
@@ -251,8 +253,9 @@ export function CalculatorExpenseEditor({
       const created = nextOrigins[nextOrigins.length - 1];
       if (created) setSelectedOrigin(created.id);
       setNewCountryLabel("");
+      setNewCountryCurrency("CNY");
       setAddingCountry(false);
-      toast.success(`Страна «${label}» добавлена (расчёт как Китай)`);
+      toast.success(`Страна «${label}» добавлена (расчёт как Китай, валюта ${newCountryCurrency})`);
       onSaved?.(nextItems, nextOrigins);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось добавить страну");
@@ -404,6 +407,27 @@ export function CalculatorExpenseEditor({
               }}
             />
           </div>
+          <div className="w-full space-y-1.5 sm:w-[7rem]">
+            <Label className="text-xs text-muted-foreground">Валюта ввода</Label>
+            <Select
+              value={newCountryCurrency}
+              disabled={originBusy}
+              onValueChange={(value) =>
+                setNewCountryCurrency(value as CalculatorExpenseItem["currency"])
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {CALCULATOR_EXPENSE_CURRENCIES.map((currency) => (
+                  <SelectItem key={currency} value={currency}>
+                    {currency}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <Button
             type="button"
             variant="brand"
@@ -422,6 +446,7 @@ export function CalculatorExpenseEditor({
             onClick={() => {
               setAddingCountry(false);
               setNewCountryLabel("");
+              setNewCountryCurrency("CNY");
             }}
           >
             Отмена

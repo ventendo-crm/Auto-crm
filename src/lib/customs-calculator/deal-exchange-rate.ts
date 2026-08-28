@@ -1,21 +1,25 @@
 import {
+  defaultInputCurrencyForOrigin,
+  type CustomCalculatorOrigin,
+} from "@/lib/customs-calculator/custom-origins";
+import {
   CurrencyCode,
   ExchangeRates,
-  isChinaLikeOrigin,
-  isKoreaOrigin,
-  isKyrgyzstanOrigin,
   roundExchangeRate,
 } from "@/lib/customs-calculator/rates";
 
-export function exchangeRateCurrencyForOrigin(origin: string): CurrencyCode {
-  if (isKoreaOrigin(origin)) return "KRW";
-  if (isKyrgyzstanOrigin(origin)) return "USD";
-  if (isChinaLikeOrigin(origin)) return "CNY";
-  return "CNY";
+export function exchangeRateCurrencyForOrigin(
+  origin: string,
+  customOrigins: CustomCalculatorOrigin[] = [],
+): CurrencyCode {
+  return defaultInputCurrencyForOrigin(origin, customOrigins);
 }
 
-export function exchangeRateLabelForOrigin(origin: string): string {
-  const currency = exchangeRateCurrencyForOrigin(origin);
+export function exchangeRateLabelForOrigin(
+  origin: string,
+  customOrigins: CustomCalculatorOrigin[] = [],
+): string {
+  const currency = exchangeRateCurrencyForOrigin(origin, customOrigins);
   const labels: Record<CurrencyCode, string> = {
     CNY: "Курс юаня (CNY), ₽",
     KRW: "Курс воны (KRW), ₽",
@@ -29,12 +33,13 @@ export function applyDealExchangeRate(
   rates: ExchangeRates,
   originCountry: string,
   dealRate: number | null | undefined,
+  customOrigins: CustomCalculatorOrigin[] = [],
 ): ExchangeRates {
   if (dealRate == null || !Number.isFinite(dealRate) || dealRate <= 0) {
     return rates;
   }
 
-  const currency = exchangeRateCurrencyForOrigin(originCountry);
+  const currency = exchangeRateCurrencyForOrigin(originCountry, customOrigins);
   return {
     ...rates,
     [currency]: roundExchangeRate(dealRate),

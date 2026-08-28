@@ -29,6 +29,7 @@ export const calculatorPresetSchema = z.object({
   deliveryRub: z.string().max(32),
   deliveryUsd: z.string().max(32),
   escortRub: z.string().max(32),
+  kyrgyzstanCustomsCleared: z.boolean().optional(),
   rates: exchangeRatesSchema.optional(),
 });
 

@@ -3,6 +3,7 @@
 import { Loader2, RefreshCw } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import type { CustomCalculatorOrigin } from "@/lib/customs-calculator/custom-origins";
 import { exchangeRateLabelForOrigin } from "@/lib/customs-calculator/deal-exchange-rate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,6 +23,7 @@ interface SearchProcessExchangeRatePanelProps {
   dealId: string;
   links: SearchProcessLinks;
   destinationCountry?: string | null;
+  customOrigins?: CustomCalculatorOrigin[];
   canEdit?: boolean;
   estimatesCount?: number;
   onLinksUpdated?: (links: SearchProcessLinks) => void;
@@ -32,13 +34,14 @@ export function SearchProcessExchangeRatePanel({
   dealId,
   links,
   destinationCountry,
+  customOrigins = [],
   canEdit = false,
   estimatesCount = 0,
   onLinksUpdated,
   onRecalculated,
 }: SearchProcessExchangeRatePanelProps) {
   const origin = destinationCountry ?? "china";
-  const rateLabel = exchangeRateLabelForOrigin(origin);
+  const rateLabel = exchangeRateLabelForOrigin(origin, customOrigins);
   const [value, setValue] = useState(links.exchangeRate != null ? String(links.exchangeRate) : "");
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);

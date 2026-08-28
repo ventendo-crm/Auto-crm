@@ -26,6 +26,7 @@ export const customsEstimateInputSchema = z.object({
   deliveryRub: z.number().nonnegative().optional(),
   deliveryUsd: z.number().nonnegative().optional(),
   escortRub: z.number().nonnegative().optional(),
+  kyrgyzstanCustomsCleared: z.boolean().optional(),
 });
 
 export const createCustomsEstimateSchema = z.object({
