@@ -1,23 +1,14 @@
+import { ProxyAgent } from "undici";
+
 const CHINA_FETCH_TIMEOUT_MS = 30_000;
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
-type Dispatcher = object;
-type ProxyAgentCtor = new (uri: string) => Dispatcher;
+type Dispatcher = InstanceType<typeof ProxyAgent>;
 
-let proxyAgentClassPromise: Promise<ProxyAgentCtor> | null = null;
 let chinaProxyAgent: Dispatcher | null = null;
 let chinaProxyAgentUrl: string | null = null;
-
-async function loadProxyAgentClass(): Promise<ProxyAgentCtor> {
-  if (!proxyAgentClassPromise) {
-    proxyAgentClassPromise = import(/* webpackIgnore: true */ "undici").then(
-      (mod) => mod.ProxyAgent as ProxyAgentCtor,
-    );
-  }
-  return proxyAgentClassPromise;
-}
 
 export class ChinaFetchError extends Error {
   constructor(
@@ -42,7 +33,6 @@ async function getChinaFetchDispatcher(): Promise<Dispatcher | undefined> {
   const proxyUrl = getChinaProxyUrl();
   if (!proxyUrl) return undefined;
   if (!chinaProxyAgent || chinaProxyAgentUrl !== proxyUrl) {
-    const ProxyAgent = await loadProxyAgentClass();
     chinaProxyAgent = new ProxyAgent(proxyUrl);
     chinaProxyAgentUrl = proxyUrl;
   }
