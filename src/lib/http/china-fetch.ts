@@ -3,10 +3,26 @@ const CHINA_FETCH_TIMEOUT_MS = 30_000;
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
+type Dispatcher = object;
+type ProxyAgentCtor = new (uri: string) => Dispatcher;
+
+let proxyAgentClassPromise: Promise<ProxyAgentCtor> | null = null;
+let chinaProxyAgent: Dispatcher | null = null;
+let chinaProxyAgentUrl: string | null = null;
+
+async function loadProxyAgentClass(): Promise<ProxyAgentCtor> {
+  if (!proxyAgentClassPromise) {
+    proxyAgentClassPromise = import(/* webpackIgnore: true */ "undici").then(
+      (mod) => mod.ProxyAgent as ProxyAgentCtor,
+    );
+  }
+  return proxyAgentClassPromise;
+}
+
 export class ChinaFetchError extends Error {
   constructor(
     message: string,
-    readonly code: "NETWORK" | "TIMEOUT" | "HTTP" | "ANTIBOT" | "EMPTY",
+    readonly code: "NETWORK" | "TIMEOUT" | "HTTP" | "ANTIBOT" | "EMPTY" | "NO_PROXY",
     readonly status?: number,
   ) {
     super(message);
@@ -14,15 +30,35 @@ export class ChinaFetchError extends Error {
   }
 }
 
+/** Прокси только для китайских сайтов (Che168 и CDN фото). */
+export function getChinaProxyUrl(): string | null {
+  const china = process.env.CHINA_PROXY_URL?.trim();
+  if (china) return china;
+  // Обратная совместимость, если отдельный прокси ещё не задан
+  return process.env.TELEGRAM_PROXY_URL?.trim() || null;
+}
+
+async function getChinaFetchDispatcher(): Promise<Dispatcher | undefined> {
+  const proxyUrl = getChinaProxyUrl();
+  if (!proxyUrl) return undefined;
+  if (!chinaProxyAgent || chinaProxyAgentUrl !== proxyUrl) {
+    const ProxyAgent = await loadProxyAgentClass();
+    chinaProxyAgent = new ProxyAgent(proxyUrl);
+    chinaProxyAgentUrl = proxyUrl;
+  }
+  return chinaProxyAgent;
+}
+
 function getProxyHint(): string {
-  const hasProxy = Boolean(
-    process.env.HTTPS_PROXY?.trim() ||
-      process.env.HTTP_PROXY?.trim() ||
-      process.env.TELEGRAM_PROXY_URL?.trim(),
-  );
-  return hasProxy
-    ? "Проверьте TELEGRAM_PROXY_URL / HTTPS_PROXY и доступность прокси."
-    : "На VPS в РФ добавьте HTTP-прокси в deploy/.env: TELEGRAM_PROXY_URL=http://хост:порт";
+  const hasChina = Boolean(process.env.CHINA_PROXY_URL?.trim());
+  const hasFallback = Boolean(process.env.TELEGRAM_PROXY_URL?.trim());
+  if (hasChina) {
+    return "Проверьте CHINA_PROXY_URL и доступность китайского прокси.";
+  }
+  if (hasFallback) {
+    return "Задайте CHINA_PROXY_URL для Che168 или проверьте TELEGRAM_PROXY_URL (используется как запасной).";
+  }
+  return "На VPS добавьте в deploy/.env: CHINA_PROXY_URL=http://логин:пароль@хост:порт";
 }
 
 function describeNetworkError(error: unknown): string {
@@ -55,6 +91,23 @@ function looksLikeChe168Listing(html: string): boolean {
   return /og:image|万元|排量|车源|infophoto|autohome/i.test(html);
 }
 
+type ChinaFetchInit = RequestInit & { dispatcher?: Dispatcher };
+
+async function chinaFetch(url: string, init: ChinaFetchInit = {}): Promise<Response> {
+  const dispatcher = await getChinaFetchDispatcher();
+  if (!dispatcher) {
+    throw new ChinaFetchError(
+      "Не задан CHINA_PROXY_URL для доступа к китайским сайтам.",
+      "NO_PROXY",
+    );
+  }
+
+  return fetch(url, {
+    ...init,
+    dispatcher,
+  } as RequestInit);
+}
+
 export type ChinaFetchResult = {
   html: string;
   status: number;
@@ -66,7 +119,7 @@ export async function fetchChinaPage(url: string): Promise<ChinaFetchResult> {
   const timeout = setTimeout(() => controller.abort(), CHINA_FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const response = await chinaFetch(url, {
       signal: controller.signal,
       headers: {
         "User-Agent": DEFAULT_USER_AGENT,
@@ -89,7 +142,7 @@ export async function fetchChinaPage(url: string): Promise<ChinaFetchResult> {
     }
     if (looksLikeAntibot(html)) {
       throw new ChinaFetchError(
-        "Сайт вернул антибот-страницу (EdgeOne). Нужен рабочий прокси или другой способ импорта.",
+        "Сайт вернул антибот-страницу (EdgeOne). Нужен рабочий китайский прокси или другой способ импорта.",
         "ANTIBOT",
         response.status,
       );
@@ -123,7 +176,7 @@ export async function fetchChinaBinary(url: string): Promise<ArrayBuffer> {
   const timeout = setTimeout(() => controller.abort(), CHINA_FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const response = await chinaFetch(url, {
       signal: controller.signal,
       headers: { "User-Agent": DEFAULT_USER_AGENT },
     });

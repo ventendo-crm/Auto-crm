@@ -380,8 +380,8 @@ export function CatalogPageContent() {
               onChange={(e) => setImportUrl(e.target.value)}
             />
             <p className="text-xs text-muted-foreground">
-              Страница загружается через прокси сервера (TELEGRAM_PROXY_URL). Описание переводится
-              на русский автоматически.
+              Страница загружается через китайский прокси сервера (CHINA_PROXY_URL). Описание
+              переводится на русский автоматически.
             </p>
           </div>
           <div className="flex justify-end gap-2">

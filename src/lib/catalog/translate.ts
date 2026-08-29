@@ -1,4 +1,4 @@
-import { fetchChinaPage } from "@/lib/http/china-fetch";
+import { fetchChinaPage, getChinaProxyUrl } from "@/lib/http/china-fetch";
 
 const TRANSLATE_TIMEOUT_MS = 15_000;
 
@@ -66,16 +66,30 @@ export async function translateCatalogFields(fields: {
   return { titleRu, descriptionRu };
 }
 
-/** Проверка доступности прокси для китайских сайтов (Che168). */
 export async function checkChinaProxyHealth(): Promise<{
   ok: boolean;
   message: string;
+  proxy: "CHINA_PROXY_URL" | "TELEGRAM_PROXY_URL" | "none";
 }> {
+  const proxyUrl = getChinaProxyUrl();
+  if (!proxyUrl) {
+    return {
+      ok: false,
+      message: "Не задан CHINA_PROXY_URL для доступа к Che168.",
+      proxy: "none",
+    };
+  }
+  const proxy = process.env.CHINA_PROXY_URL?.trim() ? "CHINA_PROXY_URL" : "TELEGRAM_PROXY_URL";
+
   try {
     await fetchChinaPage("https://www.che168.com/");
-    return { ok: true, message: "Прокси и доступ к Che168 работают." };
+    return {
+      ok: true,
+      message: `Прокси (${proxy}) и доступ к Che168 работают.`,
+      proxy,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return { ok: false, message };
+    return { ok: false, message, proxy };
   }
 }

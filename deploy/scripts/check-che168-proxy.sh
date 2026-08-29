@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Проверка: открывается ли che168 с сервера CRM через TELEGRAM_PROXY_URL.
+# Проверка: открывается ли che168 с сервера CRM через CHINA_PROXY_URL.
 # Запуск на VPS:
 #   cd /opt/auto-crm   # или /opt/Auto-crm
 #   bash deploy/scripts/check-che168-proxy.sh
@@ -19,22 +19,31 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-# shellcheck disable=SC1090
-set -a
-# Берём только нужную строку, без source всего .env (там могут быть спецсимволы)
-PROXY_LINE="$(grep -E '^TELEGRAM_PROXY_URL=' "$ENV_FILE" | tail -n1 || true)"
-set +a
+read_env_var() {
+  local key="$1"
+  local line
+  line="$(grep -E "^${key}=" "$ENV_FILE" | tail -n1 || true)"
+  local val="${line#${key}=}"
+  val="${val%\"}"
+  val="${val#\"}"
+  val="${val%\'}"
+  val="${val#\'}"
+  printf '%s' "$val"
+}
 
-PROXY_URL="${PROXY_LINE#TELEGRAM_PROXY_URL=}"
-PROXY_URL="${PROXY_URL%\"}"
-PROXY_URL="${PROXY_URL#\"}"
-PROXY_URL="${PROXY_URL%\'}"
-PROXY_URL="${PROXY_URL#\'}"
+CHINA_PROXY_URL="$(read_env_var CHINA_PROXY_URL)"
+TELEGRAM_PROXY_URL="$(read_env_var TELEGRAM_PROXY_URL)"
+PROXY_URL="${CHINA_PROXY_URL:-${TELEGRAM_PROXY_URL:-}}"
 
 echo "== Che168 proxy check =="
 echo "URL: $URL"
-if [[ -n "${PROXY_URL}" ]]; then
-  echo "TELEGRAM_PROXY_URL: задан (длина ${#PROXY_URL})"
+if [[ -n "${CHINA_PROXY_URL}" ]]; then
+  echo "CHINA_PROXY_URL: задан (длина ${#CHINA_PROXY_URL})"
+else
+  echo "CHINA_PROXY_URL: пусто"
+fi
+if [[ -n "${TELEGRAM_PROXY_URL}" ]]; then
+  echo "TELEGRAM_PROXY_URL: задан (длина ${#TELEGRAM_PROXY_URL}) — только fallback"
 else
   echo "TELEGRAM_PROXY_URL: пусто"
 fi
@@ -88,21 +97,23 @@ run_fetch "direct" || true
 echo
 
 if [[ -z "${PROXY_URL}" ]]; then
-  echo "Прокси не задан — проверка через TELEGRAM_PROXY_URL невозможна."
+  echo "Прокси не задан — задайте CHINA_PROXY_URL в deploy/.env"
   exit 2
 fi
 
-echo "2) Через TELEGRAM_PROXY_URL"
+if [[ -n "${CHINA_PROXY_URL}" ]]; then
+  echo "2) Через CHINA_PROXY_URL"
+else
+  echo "2) Через TELEGRAM_PROXY_URL (fallback, лучше задать CHINA_PROXY_URL)"
+fi
 run_fetch "proxy" -x "$PROXY_URL" || true
 echo
 
-# Итог по файлам
-DIRECT_SIZE="$(wc -c < "$TMP_DIR/direct.html" 2>/dev/null | tr -d ' ' || echo 0)"
 PROXY_SIZE="$(wc -c < "$TMP_DIR/proxy.html" 2>/dev/null | tr -d ' ' || echo 0)"
 
 echo "== Вердикт =="
 if [[ -f "$TMP_DIR/proxy.html" ]] && grep -qiE 'og:image|万元|排量|车源|infophoto|autohome' "$TMP_DIR/proxy.html"; then
-  echo "OK: через текущий прокси похоже на реальное объявление. Можно делать MVP-парсер."
+  echo "OK: через текущий прокси похоже на реальное объявление."
   exit 0
 fi
 

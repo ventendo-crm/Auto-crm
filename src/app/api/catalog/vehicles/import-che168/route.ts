@@ -14,6 +14,9 @@ export const POST = withAuth(async (request, { user }) => {
     return ok(serialize(result));
   } catch (err) {
     if (err instanceof ChinaFetchError) {
+      if (err.code === "NO_PROXY") {
+        return error(err.message, 503);
+      }
       return error(err.message, 502);
     }
     if (err instanceof Error) {

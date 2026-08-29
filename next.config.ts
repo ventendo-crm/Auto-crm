@@ -15,6 +15,7 @@ const nextConfig: NextConfig = {
     "@prisma/client",
     "prisma",
     "firebase-admin",
+    "undici",
   ],
   images: {
     remotePatterns: [
