@@ -164,20 +164,18 @@ export default function DashboardPage() {
   return (
     <>
       <Header title="Дашборд" subtitle={subtitle} />
-      <div className="flex-1 space-y-6 overflow-y-auto p-4 sm:p-6">
+      <div className="flex-1 space-y-6 overflow-x-hidden overflow-y-auto p-4 sm:p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           {isAdmin && managers.length > 0 ? (
-            <Tabs value={selectedManagerId} onValueChange={setSelectedManagerId}>
-              <div className="-mx-1 overflow-x-auto pb-1">
-                <TabsList className="inline-flex h-auto w-max min-w-full justify-start gap-0.5 p-1 sm:min-w-0">
-                  <TabsTrigger value={ALL_MANAGERS}>Все менеджеры</TabsTrigger>
-                  {managers.map((manager) => (
-                    <TabsTrigger key={manager.id} value={manager.id}>
-                      {manager.name}
-                    </TabsTrigger>
-                  ))}
-                </TabsList>
-              </div>
+            <Tabs value={selectedManagerId} onValueChange={setSelectedManagerId} className="min-w-0 flex-1">
+              <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-1 p-1 sm:inline-flex sm:w-max sm:max-w-none sm:flex-nowrap sm:gap-0.5">
+                <TabsTrigger value={ALL_MANAGERS}>Все менеджеры</TabsTrigger>
+                {managers.map((manager) => (
+                  <TabsTrigger key={manager.id} value={manager.id}>
+                    {manager.name}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
             </Tabs>
           ) : (
             <div />
