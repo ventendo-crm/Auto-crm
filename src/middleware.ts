@@ -8,10 +8,11 @@ const PUBLIC_API_PATHS = [
   "/api/auth/password-reset",
   "/api/telegram/webhook",
   "/api/google-calendar/callback",
+  "/api/public/",
 ];
-const PUBLIC_PAGE_PATHS = ["/login", "/forgot-password", "/reset-password", "/landing"];
+const PUBLIC_PAGE_PATHS = ["/login", "/forgot-password", "/reset-password", "/landing", "/s/"];
 
-const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals", "/calculator"];
+const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals", "/calculator", "/catalog"];
 const CLIENT_PAGE_PREFIXES = ["/my-deal"];
 const ADMIN_PAGE_PREFIXES: string[] = [];
 

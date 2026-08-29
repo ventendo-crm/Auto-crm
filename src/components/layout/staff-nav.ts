@@ -1,5 +1,6 @@
 import {
   Calculator,
+  CarFront,
   Kanban,
   LayoutDashboard,
   Settings,
@@ -12,6 +13,7 @@ export type StaffNavItem = {
   shortLabel?: string;
   icon: LucideIcon;
   calculatorOnly?: boolean;
+  catalogOnly?: boolean;
 };
 
 export const staffPrimaryNavItems: StaffNavItem[] = [
@@ -23,6 +25,12 @@ export const staffPrimaryNavItems: StaffNavItem[] = [
     shortLabel: "Кальк.",
     icon: Calculator,
     calculatorOnly: true,
+  },
+  {
+    href: "/catalog",
+    label: "Каталог",
+    icon: CarFront,
+    catalogOnly: true,
   },
 ];
 

@@ -198,6 +198,10 @@ export function canAccessCalculator(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
 
+export function canAccessCatalog(role: RoleName): boolean {
+  return role === ROLES.ADMIN || role === ROLES.MANAGER;
+}
+
 export function canAccessHelp(role: RoleName): boolean {
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }

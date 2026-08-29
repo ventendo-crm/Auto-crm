@@ -32,6 +32,8 @@ model Company {
   appearanceSettings     CompanyAppearanceSettings?
   googleCalendarSettings CompanyGoogleCalendarSettings?
   googleCalendarEvents   GoogleCalendarEventMap[]
+  catalogVehicles        CatalogVehicle[]
+  catalogSelections      CatalogSelection[]
 
   @@map("companies")
 }
@@ -79,6 +81,10 @@ model User {
   dealManagerAssignments DealManagerAssignment[] @relation("DealManagerAssignmentUser")
   managerLinksAsA   ManagerLink[]  @relation("ManagerLinkUserA")
   managerLinksAsB   ManagerLink[]  @relation("ManagerLinkUserB")
+  createdCatalogVehicles CatalogVehicle[] @relation("CatalogVehicleCreatedBy")
+  createdCatalogSelections CatalogSelection[] @relation("CatalogSelectionCreatedBy")
+  createdCatalogShareTokens CatalogSelectionShareToken[] @relation("CatalogShareTokenCreatedBy")
+  createdCatalogEstimates CatalogVehicleCustomsEstimate[] @relation("CatalogEstimateCreatedBy")
 
   @@unique([companyId, email])
   @@index([roleId])
@@ -205,6 +211,7 @@ model MediaFile {
   searchProcessEntryId String?
   importProcessEntryId String?
   carCarrierTrackingPointId String?
+  catalogVehicleId     String?
   uploadedById         String
   uploadedAt             DateTime            @default(now())
   deal                 Deal?               @relation(fields: [dealId], references: [id], onDelete: Cascade)
@@ -212,6 +219,7 @@ model MediaFile {
   searchProcessEntry   SearchProcessEntry? @relation(fields: [searchProcessEntryId], references: [id], onDelete: Cascade)
   importProcessEntry   ImportProcessEntry? @relation(fields: [importProcessEntryId], references: [id], onDelete: Cascade)
   carCarrierTrackingPoint CarCarrierTrackingPoint? @relation(fields: [carCarrierTrackingPointId], references: [id], onDelete: Cascade)
+  catalogVehicle       CatalogVehicle?     @relation(fields: [catalogVehicleId], references: [id], onDelete: Cascade)
   uploadedBy           User                @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
 
   @@index([dealId])
@@ -219,6 +227,7 @@ model MediaFile {
   @@index([searchProcessEntryId])
   @@index([importProcessEntryId])
   @@index([carCarrierTrackingPointId])
+  @@index([catalogVehicleId])
   @@index([uploadedById])
   @@map("media_files")
 }
@@ -226,6 +235,7 @@ model MediaFile {
 model SearchProcessEntry {
   id               String      @id @default(cuid())
   dealId           String
+  catalogVehicleId String?
   description      String      @default("")
   clientFeedback   String?
   clientFeedbackAt DateTime?
@@ -234,10 +244,12 @@ model SearchProcessEntry {
   createdAt        DateTime    @default(now())
   updatedAt        DateTime    @updatedAt
   deal             Deal        @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  catalogVehicle   CatalogVehicle? @relation(fields: [catalogVehicleId], references: [id], onDelete: SetNull)
   media            MediaFile[]
   customsEstimate  SearchProcessEntryCustomsEstimate?
 
   @@index([dealId])
+  @@index([catalogVehicleId])
   @@index([sortOrder])
   @@map("search_process_entries")
 }
@@ -610,6 +622,138 @@ model ClientStageMessage {
   @@unique([companyId, stage])
   @@index([companyId])
   @@map("client_stage_messages")
+}
+
+enum CatalogVehicleSource {
+  MANUAL
+  CHE168
+}
+
+enum CatalogVehicleStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+model CatalogVehicle {
+  id              String               @id @default(cuid())
+  companyId       String
+  source          CatalogVehicleSource @default(MANUAL)
+  sourceUrl       String?
+  externalId      String?
+  titleZh         String               @default("")
+  titleRu         String               @default("")
+  descriptionZh   String               @default("") @db.Text
+  descriptionRu   String               @default("") @db.Text
+  brand           String?
+  model           String?
+  carYear         Int?
+  mileageKm       Int?
+  priceCny        Decimal?             @db.Decimal(14, 2)
+  volumeCc        Int?
+  powerHp         Int?
+  fuelType        String?
+  transmission    String?
+  color           String?
+  location        String?
+  vin             String?
+  coverImageUrl   String?
+  galleryUrls     Json                 @default("[]")
+  videoUrl        String?
+  rawPayload      Json?
+  status          CatalogVehicleStatus @default(ACTIVE)
+  importedAt      DateTime?
+  createdById     String
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  company         Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy       User                 @relation("CatalogVehicleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  media           MediaFile[]
+  selectionItems  CatalogSelectionItem[]
+  customsEstimate CatalogVehicleCustomsEstimate?
+  searchProcessEntries SearchProcessEntry[]
+
+  @@unique([companyId, source, externalId])
+  @@index([companyId, status])
+  @@index([companyId, brand])
+  @@index([companyId, carYear])
+  @@index([createdById])
+  @@map("catalog_vehicles")
+}
+
+model CatalogVehicleCustomsEstimate {
+  id               String         @id @default(cuid())
+  catalogVehicleId String         @unique
+  createdById      String
+  price            Decimal        @db.Decimal(14, 2)
+  currency         String
+  powerHp          Int
+  volumeCc         Int
+  carYear          Int
+  input            Json
+  result           Json
+  totalWithCar     Decimal        @db.Decimal(14, 2)
+  note             String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  catalogVehicle   CatalogVehicle @relation(fields: [catalogVehicleId], references: [id], onDelete: Cascade)
+  createdBy        User           @relation("CatalogEstimateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([createdById])
+  @@map("catalog_vehicle_customs_estimates")
+}
+
+model CatalogSelection {
+  id          String   @id @default(cuid())
+  companyId   String
+  dealId      String?
+  title       String
+  note        String   @default("") @db.Text
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation("CatalogSelectionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  items       CatalogSelectionItem[]
+  shareTokens CatalogSelectionShareToken[]
+
+  @@index([companyId])
+  @@index([dealId])
+  @@index([createdById])
+  @@map("catalog_selections")
+}
+
+model CatalogSelectionItem {
+  id               String           @id @default(cuid())
+  selectionId      String
+  catalogVehicleId String
+  sortOrder        Int              @default(0)
+  note             String           @default("")
+  selection        CatalogSelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  catalogVehicle   CatalogVehicle   @relation(fields: [catalogVehicleId], references: [id], onDelete: Cascade)
+
+  @@unique([selectionId, catalogVehicleId])
+  @@index([selectionId])
+  @@index([catalogVehicleId])
+  @@map("catalog_selection_items")
+}
+
+model CatalogSelectionShareToken {
+  id           String           @id @default(cuid())
+  selectionId  String
+  tokenHash    String           @unique
+  label        String?
+  expiresAt    DateTime?
+  revokedAt    DateTime?
+  viewCount    Int              @default(0)
+  lastViewedAt DateTime?
+  createdById  String
+  createdAt    DateTime         @default(now())
+  selection    CatalogSelection @relation(fields: [selectionId], references: [id], onDelete: Cascade)
+  createdBy    User             @relation("CatalogShareTokenCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([selectionId])
+  @@index([createdById])
+  @@map("catalog_selection_share_tokens")
 }
 
 enum GoogleCalendarSourceType {

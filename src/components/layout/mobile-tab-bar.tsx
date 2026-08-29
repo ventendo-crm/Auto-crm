@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { canAccessCalculator, getClientRoleName } from "@/lib/permissions";
+import { canAccessCalculator, canAccessCatalog, getClientRoleName } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { staffPrimaryNavItems } from "@/components/layout/staff-nav";
 
@@ -12,9 +12,12 @@ export function MobileTabBar() {
   const { user } = useAuth();
   const role = getClientRoleName(user);
   const showCalculator = role ? canAccessCalculator(role) : false;
+  const showCatalog = role ? canAccessCatalog(role) : false;
 
   const items = staffPrimaryNavItems.filter(
-    (item) => !item.calculatorOnly || showCalculator,
+    (item) =>
+      (!item.calculatorOnly || showCalculator) &&
+      (!item.catalogOnly || showCatalog),
   );
 
   return (
