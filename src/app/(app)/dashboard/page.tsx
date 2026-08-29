@@ -165,9 +165,9 @@ export default function DashboardPage() {
     <>
       <Header title="Дашборд" subtitle={subtitle} />
       <div className="flex-1 space-y-6 overflow-x-hidden overflow-y-auto p-4 sm:p-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {isAdmin && managers.length > 0 ? (
-            <Tabs value={selectedManagerId} onValueChange={setSelectedManagerId} className="min-w-0 flex-1">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          {isAdmin && managers.length > 0 && (
+            <Tabs value={selectedManagerId} onValueChange={setSelectedManagerId} className="min-w-0 w-full md:flex-1">
               <TabsList className="flex h-auto w-full max-w-full flex-wrap justify-start gap-1 p-1 sm:inline-flex sm:w-max sm:max-w-none sm:flex-nowrap sm:gap-0.5">
                 <TabsTrigger value={ALL_MANAGERS}>Все менеджеры</TabsTrigger>
                 {managers.map((manager) => (
@@ -177,8 +177,6 @@ export default function DashboardPage() {
                 ))}
               </TabsList>
             </Tabs>
-          ) : (
-            <div />
           )}
 
           {canEditLayout && !editingLayout && (
@@ -186,7 +184,7 @@ export default function DashboardPage() {
               type="button"
               variant="outline"
               size="sm"
-              className="shrink-0"
+              className="shrink-0 self-start md:self-auto"
               disabled={layoutLoading}
               onClick={() => setEditingLayout(true)}
             >

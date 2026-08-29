@@ -1,4 +1,5 @@
 import { DealWithManagerAssignments, getDealManagerIds, normalizeManagerIds } from "@/lib/deal-managers";
+import { CATALOG_ENABLED } from "@/lib/features";
 
 export const ROLES = {
   ADMIN: "ADMIN",
@@ -199,6 +200,7 @@ export function canAccessCalculator(role: RoleName): boolean {
 }
 
 export function canAccessCatalog(role: RoleName): boolean {
+  if (!CATALOG_ENABLED) return false;
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
 
