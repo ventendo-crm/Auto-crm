@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { CalculatorExpenseEditor } from "@/components/calculator/calculator-expense-editor";
 import { CalculatorPresetsPanel } from "@/components/calculator/calculator-presets-panel";
 import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-to-deal-button";
+import { MOBILE_TAB_BAR_OFFSET_CLASS } from "@/components/layout/staff-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -2604,7 +2605,12 @@ export function CustomsCalculator() {
       </Card>
 
       {result && result.totalWithCar !== 0 && (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 p-3 backdrop-blur xl:hidden">
+        <div
+          className={cn(
+            "fixed inset-x-0 z-40 border-t bg-card/95 p-3 backdrop-blur xl:hidden",
+            MOBILE_TAB_BAR_OFFSET_CLASS,
+          )}
+        >
           <div className="mx-auto flex max-w-lg items-center justify-between gap-3">
             <div className="min-w-0">
               <p className="text-xs text-muted-foreground">Итого</p>

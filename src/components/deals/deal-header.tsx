@@ -4,6 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
+import { HeaderUtilityActions } from "@/components/layout/header-utility-actions";
 import { SidebarToggle } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,12 +44,15 @@ export function DealHeader({ deal, canDelete }: DealHeaderProps) {
           </Button>
         </div>
 
-        <DeleteDealDialog
-          dealId={deal.id}
-          clientName={deal.clientName}
-          canDelete={canDelete}
-          redirectTo="/kanban"
-        />
+        <div className="flex items-center gap-0.5 sm:gap-1">
+          <HeaderUtilityActions />
+          <DeleteDealDialog
+            dealId={deal.id}
+            clientName={deal.clientName}
+            canDelete={canDelete}
+            redirectTo="/kanban"
+          />
+        </div>
       </div>
 
       <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-4">

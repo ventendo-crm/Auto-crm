@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { SidebarToggle } from "@/components/layout/sidebar";
+import { HeaderUtilityActions } from "@/components/layout/header-utility-actions";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -109,6 +110,8 @@ export function Header({ title, subtitle, search, onSearchChange }: HeaderProps)
             </Badge>
           )}
         </Button>
+
+        <HeaderUtilityActions />
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

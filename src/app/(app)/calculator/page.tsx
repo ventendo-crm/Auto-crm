@@ -46,7 +46,7 @@ export default function CalculatorPage() {
   return (
     <>
       <Header title="Калькулятор" subtitle="Растаможка и утильсбор по правилам 2026 года" />
-      <div className="flex-1 space-y-6 overflow-y-auto p-4 pb-28 sm:p-6 xl:pb-6">
+      <div className="flex-1 space-y-6 overflow-y-auto p-4 pb-36 sm:p-6 md:pb-6 xl:pb-6">
         <Suspense
           fallback={
             <div className="space-y-4">

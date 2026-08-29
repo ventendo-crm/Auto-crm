@@ -3,7 +3,10 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
+import { MOBILE_TAB_BAR_PADDING_CLASS } from "@/components/layout/staff-nav";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { SidebarProvider } from "@/hooks/use-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 import { getClientRoleName, getDefaultRouteForRole, ROLES } from "@/lib/permissions";
@@ -50,7 +53,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <div className="flex h-[100dvh] overflow-hidden">
         <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden">{children}</div>
+        <div
+          className={cn(
+            "flex min-w-0 flex-1 flex-col overflow-hidden",
+            MOBILE_TAB_BAR_PADDING_CLASS,
+            "md:pb-0",
+          )}
+        >
+          {children}
+          <MobileTabBar />
+        </div>
       </div>
     </SidebarProvider>
   );
