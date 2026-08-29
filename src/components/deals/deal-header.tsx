@@ -4,7 +4,7 @@ import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 import { DeleteDealDialog } from "@/components/deals/delete-deal-dialog";
-import { HeaderUtilityActions } from "@/components/layout/header-utility-actions";
+import { AccountMenu } from "@/components/layout/account-menu";
 import { SidebarToggle } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,7 +45,7 @@ export function DealHeader({ deal, canDelete }: DealHeaderProps) {
         </div>
 
         <div className="flex items-center gap-0.5 sm:gap-1">
-          <HeaderUtilityActions />
+          <AccountMenu compact className="md:hidden" />
           <DeleteDealDialog
             dealId={deal.id}
             clientName={deal.clientName}
