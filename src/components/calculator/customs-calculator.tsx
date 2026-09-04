@@ -2246,7 +2246,10 @@ export function CustomsCalculator() {
           )}
 
           {result && (
-            <div className="space-y-4">
+            <div
+              key={`${result.totalWithCar}-${result.priceRub}-${displayRateValue}`}
+              className="result-enter space-y-4"
+            >
               {result.totalWithCar !== 0 && (
                 <div className="rounded-xl border border-brand/20 bg-brand-muted/40 px-4 py-4">
                   <p className="text-sm text-muted-foreground">Итого со всеми расходами</p>

@@ -35,7 +35,7 @@ export default function CalculatorPage() {
     return (
       <>
         <Header title="Калькулятор" subtitle="Расчёт растаможки автомобиля" />
-        <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
+        <div className="page-content space-y-4">
           <Skeleton className="h-40 w-full rounded-xl" />
           <Skeleton className="h-96 w-full rounded-xl" />
         </div>
@@ -46,7 +46,7 @@ export default function CalculatorPage() {
   return (
     <>
       <Header title="Калькулятор" subtitle="Растаможка и утильсбор по правилам 2026 года" />
-      <div className="flex-1 space-y-6 overflow-y-auto p-4 pb-36 sm:p-6 md:pb-6 xl:pb-6">
+      <div className="page-content pb-36 md:pb-6 xl:pb-6">
         <Suspense
           fallback={
             <div className="space-y-4">

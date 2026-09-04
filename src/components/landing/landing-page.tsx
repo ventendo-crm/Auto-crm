@@ -18,6 +18,20 @@ const FEATURES = [
   {
     title: "Сокращение времени",
     text: "Без CRM вы ищете объявление, сохраняете картинки, отправляете в мессенджеры, считаете в Excel и делаете скриншот расчёта. С ImportCRM достаточно сохранить фото — актуальный расчёт уже привязывается к карточке клиента.",
+    beforeAfter: {
+      before: [
+        "Ищете объявление на площадке",
+        "Сохраняете картинки вручную",
+        "Пересылаете в мессенджеры",
+        "Считаете в Excel",
+        "Делаете скриншот расчёта",
+      ],
+      after: [
+        "Сохраняете фото в сделку",
+        "Актуальный расчёт уже в карточке",
+        "Клиент видит всё в кабинете",
+      ],
+    },
   },
   {
     title: "Раздел «Клиенты»",
@@ -318,9 +332,54 @@ export function LandingPage() {
                 <h3 className={`${styles.fontDisplay} text-xl font-semibold tracking-tight sm:text-2xl`}>
                   {feature.title}
                 </h3>
-                <p className="text-base leading-relaxed text-[var(--landing-muted)] sm:pt-1">
-                  {feature.text}
-                </p>
+                <div className="sm:pt-1">
+                  {"beforeAfter" in feature && feature.beforeAfter ? (
+                    <div className="grid gap-6 sm:grid-cols-2 sm:gap-8">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
+                          Было
+                        </p>
+                        <ul className="mt-3 space-y-2.5">
+                          {feature.beforeAfter.before.map((item) => (
+                            <li
+                              key={item}
+                              className="flex items-start gap-2.5 text-sm leading-snug text-[var(--landing-muted)] sm:text-base"
+                            >
+                              <span
+                                className="mt-2 h-1.5 w-1.5 shrink-0 bg-[var(--landing-muted)]/50"
+                                aria-hidden
+                              />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--landing-brand-deep)]">
+                          Стало
+                        </p>
+                        <ul className="mt-3 space-y-2.5">
+                          {feature.beforeAfter.after.map((item) => (
+                            <li
+                              key={item}
+                              className="flex items-start gap-2.5 text-sm leading-snug text-[var(--landing-ink)] sm:text-base"
+                            >
+                              <span
+                                className="mt-2 h-1.5 w-1.5 shrink-0 bg-[var(--landing-brand)]"
+                                aria-hidden
+                              />
+                              {item}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-base leading-relaxed text-[var(--landing-muted)]">
+                      {feature.text}
+                    </p>
+                  )}
+                </div>
               </div>
             </Reveal>
           ))}
@@ -588,35 +647,46 @@ export function LandingPage() {
         </Reveal>
         <div className="mt-12 grid gap-0 border-y border-[var(--landing-line)] lg:grid-cols-2">
           <Reveal delayMs={60}>
-            <div className="border-b border-[var(--landing-line)] py-10 lg:border-b-0 lg:border-r lg:pr-10 lg:py-12">
-              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--landing-brand-deep)]">
-                Подписка
-              </p>
-              <p
-                className={`${styles.fontDisplay} mt-4 text-[clamp(2.25rem,6vw,3.5rem)] font-semibold leading-none tracking-tight`}
-              >
-                10 000 ₽
-              </p>
-              <p className="mt-3 text-lg text-[var(--landing-muted)]">в месяц за компанию</p>
-              <p className="mt-2 text-sm font-medium text-[var(--landing-brand-deep)]">
-                30 дней бесплатно
-              </p>
-              <ul className="mt-8 space-y-3">
-                {PRICING_INCLUDES.map((item) => (
-                  <li key={item} className="flex items-baseline gap-3 text-base text-[var(--landing-ink)]">
-                    <span className="h-1.5 w-1.5 shrink-0 bg-[var(--landing-brand)]" aria-hidden />
-                    {item}
-                  </li>
-                ))}
-              </ul>
-              <a
-                href={TELEGRAM_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="mt-10 inline-flex h-11 items-center justify-center bg-[var(--landing-brand)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-brand-deep)]"
-              >
-                Подключить пробный период
-              </a>
+            <div className="relative border-b border-[var(--landing-line)] bg-[var(--landing-surface)] py-10 lg:border-b-0 lg:border-r lg:pr-10 lg:py-12">
+              <div
+                className="absolute inset-y-0 left-0 w-1 bg-[var(--landing-brand)] lg:w-1.5"
+                aria-hidden
+              />
+              <div className="flex flex-wrap items-center gap-2 pl-4 lg:pl-5">
+                <p className="text-sm font-semibold uppercase tracking-wide text-[var(--landing-brand-deep)]">
+                  Подписка
+                </p>
+                <span className="rounded-sm bg-[var(--landing-brand)] px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white">
+                  Выгодно
+                </span>
+              </div>
+              <div className="pl-4 lg:pl-5">
+                <p
+                  className={`${styles.fontDisplay} mt-4 text-[clamp(2.25rem,6vw,3.5rem)] font-semibold leading-none tracking-tight`}
+                >
+                  10 000 ₽
+                </p>
+                <p className="mt-3 text-lg text-[var(--landing-muted)]">в месяц за компанию</p>
+                <p className="mt-2 text-sm font-medium text-[var(--landing-brand-deep)]">
+                  30 дней бесплатно
+                </p>
+                <ul className="mt-8 space-y-3">
+                  {PRICING_INCLUDES.map((item) => (
+                    <li key={item} className="flex items-baseline gap-3 text-base text-[var(--landing-ink)]">
+                      <span className="h-1.5 w-1.5 shrink-0 bg-[var(--landing-brand)]" aria-hidden />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <a
+                  href={TELEGRAM_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-10 inline-flex h-11 items-center justify-center bg-[var(--landing-brand)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-brand-deep)]"
+                >
+                  Подключить пробный период
+                </a>
+              </div>
             </div>
           </Reveal>
           <Reveal delayMs={120}>
@@ -625,12 +695,12 @@ export function LandingPage() {
                 Разовая покупка
               </p>
               <p
-                className={`${styles.fontDisplay} mt-4 text-[clamp(2.25rem,6vw,3.5rem)] font-semibold leading-none tracking-tight`}
+                className={`${styles.fontDisplay} mt-4 text-[clamp(2.25rem,6vw,3.5rem)] font-semibold leading-none tracking-tight text-[var(--landing-ink)]`}
               >
                 100 000 ₽
               </p>
               <p className="mt-3 text-lg text-[var(--landing-muted)]">один раз за компанию</p>
-              <p className="mt-2 text-sm font-medium text-[var(--landing-ink)]">
+              <p className="mt-2 text-sm font-medium text-[var(--landing-muted)]">
                 Без ежемесячных платежей
               </p>
               <ul className="mt-8 space-y-3">
@@ -639,7 +709,7 @@ export function LandingPage() {
                     key={`once-${item}`}
                     className="flex items-baseline gap-3 text-base text-[var(--landing-ink)]"
                   >
-                    <span className="h-1.5 w-1.5 shrink-0 bg-[var(--landing-brand)]" aria-hidden />
+                    <span className="h-1.5 w-1.5 shrink-0 bg-[var(--landing-muted)]/40" aria-hidden />
                     {item}
                   </li>
                 ))}
@@ -648,7 +718,7 @@ export function LandingPage() {
                 href={TELEGRAM_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="mt-10 inline-flex h-11 items-center justify-center border border-[var(--landing-ink)] px-5 text-sm font-semibold text-[var(--landing-ink)] transition-colors hover:bg-[var(--landing-ink)] hover:text-white"
+                className="mt-10 inline-flex h-11 items-center justify-center border border-[var(--landing-ink)]/30 px-5 text-sm font-semibold text-[var(--landing-ink)] transition-colors hover:border-[var(--landing-ink)] hover:bg-[var(--landing-ink)] hover:text-white"
               >
                 Купить разово
               </a>

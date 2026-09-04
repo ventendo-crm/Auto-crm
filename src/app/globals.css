@@ -93,12 +93,16 @@
     @apply text-[11px] leading-snug;
   }
 
+  .page-content {
+    @apply flex-1 space-y-6 overflow-x-hidden overflow-y-auto p-4 sm:p-6;
+  }
+
   .surface-muted {
     @apply rounded-xl border bg-muted/20;
   }
 
   .collapsible-panel {
-    @apply grid transition-[grid-template-rows,opacity] duration-normal ease-out;
+    @apply grid transition-[grid-template-rows,opacity] duration-slow ease-out;
   }
 
   .collapsible-panel[data-open="true"] {
@@ -112,6 +116,10 @@
   .tab-panel-enter {
     @apply animate-in fade-in-0 duration-normal;
   }
+
+  .result-enter {
+    @apply animate-in fade-in-0 slide-in-from-bottom-2 duration-500;
+  }
 }
 
 @layer utilities {
@@ -120,7 +128,7 @@
   }
 
   .deal-card {
-    @apply cursor-grab rounded-lg border bg-card p-3 shadow-card transition-all duration-normal active:cursor-grabbing hover:shadow-card-hover;
+    @apply cursor-grab rounded-lg border bg-card p-3 shadow-card transition-all duration-normal ease-out active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-card-hover;
   }
 
   .deal-card-compact {

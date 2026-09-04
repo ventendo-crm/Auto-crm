@@ -4,6 +4,7 @@ import { MediaType } from "@prisma/client";
 import { useCallback, useEffect, useState } from "react";
 import {
   Download,
+  MapPin,
   Play,
   Search,
 } from "lucide-react";
@@ -32,11 +33,11 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useScrollToTabPanel } from "@/hooks/use-scroll-to-tab-panel";
 import { api } from "@/lib/api-client";
-import { STAGE_COLORS } from "@/lib/constants";
+import { CLIENT_STAGE_NOTIFICATIONS, STAGE_COLORS } from "@/lib/constants";
 import { getMediaDownloadUrl } from "@/lib/media-urls";
 import { ClientPortalDeal, MediaItem } from "@/lib/types";
 import { DealActivityItem } from "@/lib/services/deal-activity";
-import { cn, formatFileSize } from "@/lib/utils";
+import { cn, formatDate, formatFileSize } from "@/lib/utils";
 
 interface PreviewState {
   items: MediaItem[];
@@ -92,9 +93,10 @@ export function ClientDealView() {
 
   if (loading) {
     return (
-      <div className="space-y-4 p-4 sm:p-6">
-        <Skeleton className="h-28 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="page-content">
+        <Skeleton className="h-40 w-full rounded-xl" />
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
       </div>
     );
   }
@@ -107,58 +109,105 @@ export function ClientDealView() {
     );
   }
 
+  const lastTrackingPoint =
+    deal.carCarrierTracking.length > 0
+      ? deal.carCarrierTracking[deal.carCarrierTracking.length - 1]
+      : null;
+  const locationTitle =
+    lastTrackingPoint?.title ||
+    deal.carCarrierDestination?.title ||
+    [deal.destinationCity, deal.destinationCountry].filter(Boolean).join(", ");
+  const locationHint = lastTrackingPoint
+    ? "Последняя точка маршрута"
+    : deal.carCarrierDestination
+      ? "Город назначения"
+      : "Куда везём";
+  const stageMessage = CLIENT_STAGE_NOTIFICATIONS[deal.currentStage];
+  const carLine = [deal.carBrand, deal.carModel, deal.carYear].filter(Boolean).join(" ");
+
   return (
-    <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-      <Card className="mb-6 border-0 shadow-card">
-        <CardHeader className="pb-3">
-          <CollapsibleTrigger
-            open={detailsOpen}
-            onToggle={() => setDetailsOpen((open) => !open)}
-          >
-            <CardTitle className="text-page-title min-w-0 flex-1 truncate">
-              {deal.clientName}
-            </CardTitle>
+    <div className="page-content">
+      <section className="overflow-hidden rounded-xl border-0 bg-card shadow-card">
+        <div className="border-b border-border/60 bg-gradient-to-br from-brand-muted/80 via-card to-card px-4 py-6 sm:px-6 sm:py-8">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            Ваша сделка
+          </p>
+          <h1 className="mt-1 text-page-title">{deal.clientName}</h1>
+          {carLine && (
+            <p className="mt-1 text-sm text-muted-foreground sm:text-base">{carLine}</p>
+          )}
+
+          <div className="mt-5 flex flex-wrap items-center gap-2">
             <Badge
               variant="outline"
-              className={cn("shrink-0", STAGE_COLORS[deal.currentStage])}
+              className={cn(
+                "px-3 py-1 text-sm font-semibold sm:text-base",
+                STAGE_COLORS[deal.currentStage],
+              )}
             >
               {deal.stageLabel}
             </Badge>
+            {deal.expectedArrival && (
+              <span className="text-sm text-muted-foreground">
+                Ожидаем к {formatDate(deal.expectedArrival)}
+              </span>
+            )}
+          </div>
+
+          <p className="mt-4 max-w-2xl text-base leading-relaxed text-foreground/90 sm:text-lg">
+            {stageMessage}
+          </p>
+
+          <div className="mt-5 flex items-start gap-3 rounded-lg border bg-background/70 px-3 py-3 sm:px-4">
+            <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-muted text-brand">
+              <MapPin className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-xs text-muted-foreground">{locationHint}</p>
+              <p className="text-base font-semibold leading-snug sm:text-lg">{locationTitle}</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 py-3 sm:px-6">
+          <CollapsibleTrigger
+            open={detailsOpen}
+            onToggle={() => setDetailsOpen((open) => !open)}
+            className="w-full"
+          >
+            <p className="text-sm font-medium text-muted-foreground">Подробности сделки</p>
           </CollapsibleTrigger>
-        </CardHeader>
-        <CollapsiblePanel open={detailsOpen}>
-          <CardContent className="grid gap-4 border-t pt-4 sm:grid-cols-2">
-            <div>
-              <p className="text-field-label">VIN</p>
-              <p className="font-mono text-field-value">{deal.vin}</p>
+          <CollapsiblePanel open={detailsOpen}>
+            <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+              <div>
+                <p className="text-field-label">VIN</p>
+                <p className="font-mono text-field-value">{deal.vin}</p>
+              </div>
+              <div>
+                <p className="text-field-label">Автомобиль</p>
+                <p className="text-field-value">{carLine || "—"}</p>
+              </div>
+              <div>
+                <p className="text-field-label">Город / страна экспорта</p>
+                <p className="text-field-value">
+                  {deal.destinationCity}, {deal.destinationCountry}
+                </p>
+              </div>
+              <div>
+                <p className="text-field-label">Менеджер</p>
+                <p className="text-field-value">{deal.manager?.name ?? "Не назначен"}</p>
+                {deal.manager?.email && (
+                  <p className="text-field-label">{deal.manager.email}</p>
+                )}
+              </div>
             </div>
-            <div>
-              <p className="text-field-label">Автомобиль</p>
-              <p className="text-field-value">
-                {deal.carBrand} {deal.carModel} {deal.carYear ? `· ${deal.carYear}` : ""}
-              </p>
-            </div>
-            <div>
-              <p className="text-field-label">Город / страна экспорта</p>
-              <p className="text-field-value">
-                {deal.destinationCity}, {deal.destinationCountry}
-              </p>
-            </div>
-            <div>
-              <p className="text-field-label">Менеджер</p>
-              <p className="text-field-value">{deal.manager?.name ?? "Не назначен"}</p>
-              {deal.manager?.email && (
-                <p className="text-field-label">{deal.manager.email}</p>
-              )}
-            </div>
-          </CardContent>
-        </CollapsiblePanel>
-      </Card>
+          </CollapsiblePanel>
+        </div>
+      </section>
 
       <ClientDealProgress
         currentStage={deal.currentStage}
         stageLabel={deal.stageLabel}
-        className="mb-6"
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
@@ -215,18 +264,18 @@ export function ClientDealView() {
                 />
               ) : (
                 deal.searchProcess.map((entry) => (
-                  <div key={entry.id} className="rounded-xl border bg-muted/10 p-4">
-                    <h3 className="mb-2 text-base font-semibold">Вариант {entry.variantNumber}</h3>
+                  <div key={entry.id} className="rounded-xl border bg-muted/10 p-4 sm:p-5">
+                    <h3 className="mb-2 text-lg font-semibold">Вариант {entry.variantNumber}</h3>
                     {entry.description ? (
-                      <p className="mb-3 whitespace-pre-wrap text-base leading-relaxed text-foreground sm:text-lg">
+                      <p className="mb-4 whitespace-pre-wrap text-base leading-relaxed text-foreground sm:text-lg">
                         {entry.description}
                       </p>
                     ) : (
-                      <p className="mb-3 text-base text-muted-foreground">Без описания</p>
+                      <p className="mb-4 text-base text-muted-foreground">Без описания</p>
                     )}
 
                     {entry.media.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                         {entry.media.map((item) => (
                           <ClientMediaThumb
                             key={item.id}
@@ -332,16 +381,16 @@ function ClientMediaThumb({
   const isVideo = item.type === MediaType.VIDEO;
 
   return (
-    <div className="group relative overflow-hidden rounded-lg border bg-muted/30 text-left shadow-sm transition-shadow hover:shadow-md">
+    <div className="group relative overflow-hidden rounded-xl border bg-muted/30 text-left shadow-sm transition-all duration-normal hover:shadow-card-hover">
       <button type="button" onClick={onPreview} className="block w-full">
-        <div className="relative aspect-square w-full overflow-hidden">
+        <div className="relative aspect-[4/3] w-full overflow-hidden">
           <MediaThumb
             item={item}
-            className="transition-transform group-hover:scale-105"
+            className="transition-transform duration-slow group-hover:scale-[1.03]"
           />
           {isVideo && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
-              <Play className="h-8 w-8 text-white/90 drop-shadow" />
+              <Play className="h-10 w-10 text-white/90 drop-shadow" />
             </div>
           )}
         </div>

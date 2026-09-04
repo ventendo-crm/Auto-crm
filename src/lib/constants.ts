@@ -71,13 +71,13 @@ export const STAGE_COLORS: Record<DealStageType, string> = {
 };
 
 export const STAGE_COLUMN_BG: Record<DealStageType, string> = {
-  [DealStageType.LEADS]: "border-t-amber-400",
-  [DealStageType.SEARCH]: "border-t-blue-400",
-  [DealStageType.INVOICE]: "border-t-orange-400",
-  [DealStageType.PREPARATION]: "border-t-purple-400",
-  [DealStageType.CUSTOMS]: "border-t-rose-400",
-  [DealStageType.TRANSPORT]: "border-t-emerald-400",
-  [DealStageType.DELIVERY]: "border-t-teal-400",
+  [DealStageType.LEADS]: "border-t-amber-400 bg-amber-50/40 dark:bg-amber-950/20",
+  [DealStageType.SEARCH]: "border-t-blue-400 bg-blue-50/40 dark:bg-blue-950/20",
+  [DealStageType.INVOICE]: "border-t-orange-400 bg-orange-50/40 dark:bg-orange-950/20",
+  [DealStageType.PREPARATION]: "border-t-purple-400 bg-purple-50/40 dark:bg-purple-950/20",
+  [DealStageType.CUSTOMS]: "border-t-rose-400 bg-rose-50/40 dark:bg-rose-950/20",
+  [DealStageType.TRANSPORT]: "border-t-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20",
+  [DealStageType.DELIVERY]: "border-t-teal-400 bg-teal-50/40 dark:bg-teal-950/20",
 };
 
 export const STAGE_LEFT_BORDER: Record<DealStageType, string> = {

@@ -90,12 +90,12 @@ export function DealCard({
     <div
       ref={setNodeRef}
       style={isOverlay ? undefined : style}
-      className={cn(
+        className={cn(
         "deal-card group relative border-l-4",
         STAGE_LEFT_BORDER[deal.currentStage],
         compact && "deal-card-compact",
-        dragging && "opacity-40",
-        isOverlay && "rotate-2 cursor-grabbing shadow-card-hover ring-2 ring-brand/30",
+        dragging && "opacity-40 scale-[0.98]",
+        isOverlay && "rotate-1 cursor-grabbing shadow-card-hover ring-2 ring-brand/30 scale-105",
         canDrag && !isOverlay && !dragFromHandleOnly && "cursor-grab active:cursor-grabbing",
         !canDrag && "cursor-default",
         overdue && "bg-rose-50/40 ring-1 ring-rose-200 dark:bg-rose-950/30 dark:ring-rose-900",

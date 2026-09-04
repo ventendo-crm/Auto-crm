@@ -164,7 +164,7 @@ export default function DashboardPage() {
   return (
     <>
       <Header title="Дашборд" subtitle={subtitle} />
-      <div className="flex-1 space-y-6 overflow-x-hidden overflow-y-auto p-4 sm:p-6">
+      <div className="page-content">
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           {isAdmin && managers.length > 0 && (
             <Tabs value={selectedManagerId} onValueChange={setSelectedManagerId} className="min-w-0 w-full md:flex-1">

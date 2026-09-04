@@ -354,11 +354,11 @@ export function KanbanBoard() {
   if (loading && deals.length === 0) {
     return (
       <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="border-b bg-card px-3 py-3 sm:px-6">
+        <div className="border-b bg-card px-4 py-3 sm:px-6">
           <Skeleton className="h-9 w-full max-w-md" />
           <Skeleton className="mt-3 h-8 w-full max-w-xl" />
         </div>
-        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:gap-4 sm:p-6">
+        <div className="flex snap-x snap-mandatory gap-3 overflow-x-auto p-4 sm:gap-4 sm:p-6">
           {STAGE_ORDER.map((stage) => (
             <Skeleton
               key={stage}
@@ -402,7 +402,7 @@ export function KanbanBoard() {
         <div
           ref={scrollRef}
           className={cn(
-            "flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto p-3 sm:gap-4 sm:p-6",
+            "flex flex-1 snap-x snap-mandatory gap-3 overflow-x-auto p-4 sm:gap-4 sm:p-6",
             isAndroidApp && "kanban-android-scroll",
           )}
           onScroll={handleBoardScroll}

@@ -152,8 +152,8 @@ export default function DealPage() {
     <div className="flex flex-1 flex-col overflow-hidden">
       <DealHeader deal={deal} canDelete={canDeleteDeal} />
 
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <div className="mb-4 flex flex-col gap-3 sm:mb-6 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+      <div className="page-content">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
             <span className="text-sm text-muted-foreground">Этап:</span>
             <DealStageSelector
