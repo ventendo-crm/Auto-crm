@@ -59,6 +59,7 @@ import {
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
+  exchangeRateDecimals,
   roundExchangeRate,
   roundExchangeRates,
   buildOriginOptions,
@@ -1422,7 +1423,7 @@ export function CustomsCalculator() {
   const updateRate = (key: keyof ExchangeRates, value: string) => {
     const next = Number(value.replace(",", "."));
     if (!Number.isFinite(next) || next <= 0) return;
-    setRates((current) => ({ ...current, [key]: roundExchangeRate(next) }));
+    setRates((current) => ({ ...current, [key]: roundExchangeRate(next, key) }));
   };
 
   const powerHpNumber = Number(powerHp.replace(",", "."));
@@ -2122,8 +2123,8 @@ export function CustomsCalculator() {
                   <Input
                     id={`rate-${code}`}
                     type="number"
-                    min={0.01}
-                    step="0.01"
+                    min={code === "KRW" ? 0.001 : 0.01}
+                    step={code === "KRW" ? "0.001" : "0.01"}
                     value={rates[code]}
                     onChange={(event) => updateRate(code, event.target.value)}
                   />
@@ -2155,8 +2156,8 @@ export function CustomsCalculator() {
             <Badge variant="outline">
               Курс {displayRateCode}:{" "}
               {displayRateValue.toLocaleString("ru-RU", {
-                maximumFractionDigits: 2,
-                minimumFractionDigits: 2,
+                maximumFractionDigits: exchangeRateDecimals(displayRateCode),
+                minimumFractionDigits: exchangeRateDecimals(displayRateCode),
               })}{" "}
               ₽
             </Badge>
@@ -2322,8 +2323,8 @@ export function CustomsCalculator() {
                       <p className="text-[11px] text-muted-foreground">
                         Курс {displayRateCode}:{" "}
                         {displayRateValue.toLocaleString("ru-RU", {
-                          maximumFractionDigits: 2,
-                          minimumFractionDigits: 2,
+                          maximumFractionDigits: exchangeRateDecimals(displayRateCode),
+                          minimumFractionDigits: exchangeRateDecimals(displayRateCode),
                         })}{" "}
                         ₽
                       </p>

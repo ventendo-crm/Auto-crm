@@ -123,7 +123,7 @@ async function fetchAllPairs(
 
   const result: Partial<Record<RateCode, number>> = {};
   for (const [code, rate] of entries) {
-    if (rate != null) result[code] = roundExchangeRate(rate);
+    if (rate != null) result[code] = roundExchangeRate(rate, code);
   }
   return result;
 }
@@ -265,10 +265,10 @@ async function fetchRatesFromYahoo(): Promise<ExchangeRates | null> {
   const krw = usd / usdKrw;
 
   return {
-    USD: roundExchangeRate(usd),
-    EUR: roundExchangeRate(eur),
-    CNY: roundExchangeRate(cny),
-    KRW: roundExchangeRate(krw),
+    USD: roundExchangeRate(usd, "USD"),
+    EUR: roundExchangeRate(eur, "EUR"),
+    CNY: roundExchangeRate(cny, "CNY"),
+    KRW: roundExchangeRate(krw, "KRW"),
   };
 }
 
@@ -285,7 +285,7 @@ async function fetchFromConfiguredUrl(): Promise<ExchangeRates | null> {
     for (const code of PAIRS) {
       const value = raw[code];
       if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-        partial[code] = roundExchangeRate(value);
+        partial[code] = roundExchangeRate(value, code);
       }
     }
     return toExchangeRates(partial);

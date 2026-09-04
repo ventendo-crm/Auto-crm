@@ -16,7 +16,11 @@ const PHONE_HREF = "tel:+79053024499";
 
 const FEATURES = [
   {
-    title: "Сделки на канбане",
+    title: "Сокращение времени",
+    text: "Без CRM вы ищете объявление, сохраняете картинки, отправляете в мессенджеры, считаете в Excel и делаете скриншот расчёта. С ImportCRM достаточно сохранить фото — актуальный расчёт уже привязывается к карточке клиента.",
+  },
+  {
+    title: "Раздел «Клиенты»",
     text: "Весь импорт в одном потоке: от лида до выдачи. Этапы, приоритеты и менеджеры — без таблиц в Excel и без сборки воронок в Битрикс.",
   },
   {
@@ -35,7 +39,7 @@ const FEATURES = [
 
 const STEPS = [
   { n: "01", title: "Создаёте сделку", text: "Клиент, VIN, маршрут и менеджер — в одной карточке." },
-  { n: "02", title: "Ведете по этапам", text: "Поиск, оплата, таможня, доставка — канбан показывает, где машина." },
+  { n: "02", title: "Ведете по этапам", text: "Поиск, оплата, таможня, доставка — раздел «Клиенты» показывает, где машина." },
   { n: "03", title: "Клиент смотрит прогресс", text: "Личный кабинет и сообщения по стадии без ручной переписки." },
   { n: "04", title: "Считаете и закрываете", text: "Расчёт из калькулятора привязываете к клиенту — вместе с расходами и документами." },
 ] as const;
@@ -49,7 +53,7 @@ const AUDIENCE = [
 const VS_BITRIX = [
   {
     title: "Готовый процесс, а не конструктор",
-    text: "В Битрикс месяцами собирают воронки, поля и виджеты. В ImportCRM канбан импорта уже настроен: от лида до выдачи.",
+    text: "В Битрикс месяцами собирают воронки, поля и виджеты. В ImportCRM этапы импорта уже настроены: от лида до выдачи.",
   },
   {
     title: "Всё связанно, а не модулями",
@@ -62,7 +66,7 @@ const VS_BITRIX = [
 ] as const;
 
 const PRICING_INCLUDES = [
-  "Канбан сделок и роли сотрудников",
+  "Раздел «Клиенты» и роли сотрудников",
   "Калькулятор растаможки с привязкой к клиенту",
   "Личный кабинет и Telegram",
   "Календарь прибытий",
@@ -85,7 +89,7 @@ const TESTIMONIALS = [
   },
   {
     quote:
-      "Пробовали Битрикс — слишком тяжело под наш процесс. Здесь канбан и этапы уже под импорт, подключились за день.",
+      "Пробовали Битрикс — слишком тяжело под наш процесс. Здесь этапы уже под импорт, подключились за день.",
     name: "Игорь",
     role: "основатель компании по поставкам авто",
   },
@@ -98,7 +102,7 @@ const FAQ = [
   },
   {
     q: "Чем это проще Битрикса?",
-    a: "Битрикс — конструктор: его собирают под вас, часто долго и дорого. ImportCRM сразу заточена под импорт авто. Канбан, калькулятор, кабинет, карта и уведомления уже связаны — без модулей и интегратора.",
+    a: "Битрикс — конструктор: его собирают под вас, часто долго и дорого. ImportCRM сразу заточена под импорт авто. Раздел «Клиенты», калькулятор, кабинет, карта и уведомления уже связаны — без модулей и интегратора.",
   },
   {
     q: "Как работает калькулятор?",
@@ -122,7 +126,7 @@ const FAQ = [
   },
   {
     q: "Сколько стоит и что входит?",
-    a: "5 000 ₽ в месяц за компанию. Входит весь функционал, без доплат за модули. Первые 30 дней — бесплатно: напишите в Telegram или позвоните, подключим доступ.",
+    a: "Два варианта: подписка 10 000 ₽ в месяц за компанию или разовая покупка 100 000 ₽. В обоих случаях — весь функционал, без доплат за модули. Первые 30 дней — бесплатно: напишите в Telegram или позвоните, подключим доступ.",
   },
 ] as const;
 
@@ -197,16 +201,24 @@ export function LandingPage() {
             applicationCategory: "BusinessApplication",
             operatingSystem: "Web",
             description:
-              "CRM для импорта автомобилей с калькулятором растаможки, канбаном сделок, кабинетом клиента и отслеживанием автовоза.",
-            offers: {
-              "@type": "Offer",
-              price: "5000",
-              priceCurrency: "RUB",
-              description: "Подписка за компанию в месяц, 30 дней бесплатно",
-            },
+              "CRM для импорта автомобилей с калькулятором растаможки, разделом «Клиенты», кабинетом клиента и отслеживанием автовоза.",
+            offers: [
+              {
+                "@type": "Offer",
+                price: "10000",
+                priceCurrency: "RUB",
+                description: "Подписка за компанию в месяц, 30 дней бесплатно",
+              },
+              {
+                "@type": "Offer",
+                price: "100000",
+                priceCurrency: "RUB",
+                description: "Разовая покупка за компанию",
+              },
+            ],
             featureList: [
               "Калькулятор растаможки и утильсбора",
-              "Канбан сделок импорта авто",
+              "Раздел «Клиенты» — сделки по этапам",
               "Личный кабинет клиента",
               "Отслеживание автовоза на карте",
               "Telegram-уведомления",
@@ -261,7 +273,7 @@ export function LandingPage() {
           <p
             className={`${styles.heroAnim} ${styles.heroAnimD3} mt-4 max-w-lg text-base leading-relaxed text-[var(--landing-muted)] sm:text-lg`}
           >
-            Канбан сделок, калькулятор растаможки и утильсбора, кабинет клиента и карта автовоза —
+            Раздел «Клиенты», калькулятор растаможки и утильсбора, кабинет клиента и карта автовоза —
             уже внутри. Первые 30 дней бесплатно.
           </p>
           <div
@@ -320,7 +332,7 @@ export function LandingPage() {
             <div className="overflow-hidden border border-[var(--landing-line)] bg-white shadow-[0_20px_60px_rgba(22,24,29,0.08)]">
               <Image
                 src="/landing/features-overview.png"
-                alt="ImportCRM — CRM для импорта авто: канбан сделок, калькулятор растаможки, КП, поиск с ИИ, кабинет клиента, автовоз и Telegram"
+                alt="ImportCRM — CRM для импорта авто: раздел Клиенты, калькулятор растаможки, КП, поиск с ИИ, кабинет клиента, автовоз и Telegram"
                 width={1920}
                 height={1080}
                 className="h-auto w-full"
@@ -566,39 +578,82 @@ export function LandingPage() {
       <section id="pricing" className="mx-auto max-w-6xl px-5 py-20 sm:px-8 sm:py-28">
         <Reveal>
           <h2 className={`${styles.fontDisplay} text-3xl font-semibold tracking-tight sm:text-4xl`}>
-            Один тариф. Весь функционал
+            Два варианта. Весь функционал
           </h2>
           <p className="mt-3 max-w-xl text-[var(--landing-muted)]">
-            Без модулей, пакетов и скрытых доплат. Сначала 30 дней бесплатно, потом — подписка.
+            Без модулей, пакетов и скрытых доплат. Сначала 30 дней бесплатно, потом — подписка или
+            разовая покупка.
           </p>
         </Reveal>
-        <Reveal delayMs={80}>
-          <div className="mt-12 border-y border-[var(--landing-line)] py-10">
-            <p className={`${styles.fontDisplay} text-[clamp(2.5rem,8vw,4.5rem)] font-semibold leading-none tracking-tight`}>
-              5 000 ₽
-            </p>
-            <p className="mt-3 text-lg text-[var(--landing-muted)]">в месяц за компанию</p>
-            <p className="mt-2 text-sm font-medium text-[var(--landing-brand-deep)]">
-              30 дней бесплатно
-            </p>
-            <ul className="mt-8 grid gap-3 sm:grid-cols-2">
-              {PRICING_INCLUDES.map((item) => (
-                <li key={item} className="flex items-baseline gap-3 text-base text-[var(--landing-ink)]">
-                  <span className="h-1.5 w-1.5 shrink-0 bg-[var(--landing-brand)]" aria-hidden />
-                  {item}
-                </li>
-              ))}
-            </ul>
-            <a
-              href={TELEGRAM_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-10 inline-flex h-11 items-center justify-center bg-[var(--landing-brand)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-brand-deep)]"
-            >
-              Подключить пробный период
-            </a>
-          </div>
-        </Reveal>
+        <div className="mt-12 grid gap-0 border-y border-[var(--landing-line)] lg:grid-cols-2">
+          <Reveal delayMs={60}>
+            <div className="border-b border-[var(--landing-line)] py-10 lg:border-b-0 lg:border-r lg:pr-10 lg:py-12">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--landing-brand-deep)]">
+                Подписка
+              </p>
+              <p
+                className={`${styles.fontDisplay} mt-4 text-[clamp(2.25rem,6vw,3.5rem)] font-semibold leading-none tracking-tight`}
+              >
+                10 000 ₽
+              </p>
+              <p className="mt-3 text-lg text-[var(--landing-muted)]">в месяц за компанию</p>
+              <p className="mt-2 text-sm font-medium text-[var(--landing-brand-deep)]">
+                30 дней бесплатно
+              </p>
+              <ul className="mt-8 space-y-3">
+                {PRICING_INCLUDES.map((item) => (
+                  <li key={item} className="flex items-baseline gap-3 text-base text-[var(--landing-ink)]">
+                    <span className="h-1.5 w-1.5 shrink-0 bg-[var(--landing-brand)]" aria-hidden />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={TELEGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-10 inline-flex h-11 items-center justify-center bg-[var(--landing-brand)] px-5 text-sm font-semibold text-white transition-colors hover:bg-[var(--landing-brand-deep)]"
+              >
+                Подключить пробный период
+              </a>
+            </div>
+          </Reveal>
+          <Reveal delayMs={120}>
+            <div className="py-10 lg:pl-10 lg:py-12">
+              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--landing-muted)]">
+                Разовая покупка
+              </p>
+              <p
+                className={`${styles.fontDisplay} mt-4 text-[clamp(2.25rem,6vw,3.5rem)] font-semibold leading-none tracking-tight`}
+              >
+                100 000 ₽
+              </p>
+              <p className="mt-3 text-lg text-[var(--landing-muted)]">один раз за компанию</p>
+              <p className="mt-2 text-sm font-medium text-[var(--landing-ink)]">
+                Без ежемесячных платежей
+              </p>
+              <ul className="mt-8 space-y-3">
+                {PRICING_INCLUDES.map((item) => (
+                  <li
+                    key={`once-${item}`}
+                    className="flex items-baseline gap-3 text-base text-[var(--landing-ink)]"
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 bg-[var(--landing-brand)]" aria-hidden />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <a
+                href={TELEGRAM_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-10 inline-flex h-11 items-center justify-center border border-[var(--landing-ink)] px-5 text-sm font-semibold text-[var(--landing-ink)] transition-colors hover:bg-[var(--landing-ink)] hover:text-white"
+              >
+                Купить разово
+              </a>
+            </div>
+          </Reveal>
+        </div>
       </section>
 
       <section id="faq" className="border-y border-[var(--landing-line)] bg-[var(--landing-wash)]/60">

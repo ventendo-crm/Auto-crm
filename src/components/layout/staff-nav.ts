@@ -18,7 +18,7 @@ export type StaffNavItem = {
 
 export const staffPrimaryNavItems: StaffNavItem[] = [
   { href: "/dashboard", label: "Дашборд", icon: LayoutDashboard },
-  { href: "/kanban", label: "Канбан", icon: Kanban },
+  { href: "/kanban", label: "Клиенты", icon: Kanban },
   {
     href: "/calculator",
     label: "Калькулятор",

@@ -14,7 +14,7 @@ export function RecentDeals({ deals }: { deals: DashboardRecentDeal[] }) {
         <CardTitle className="text-base">Последние сделки</CardTitle>
         <Button variant="ghost" size="sm" asChild>
           <Link href="/kanban">
-            Канбан <ArrowRight className="h-4 w-4" />
+            Клиенты <ArrowRight className="h-4 w-4" />
           </Link>
         </Button>
       </CardHeader>

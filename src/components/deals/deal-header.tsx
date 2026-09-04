@@ -39,7 +39,7 @@ export function DealHeader({ deal, canDelete }: DealHeaderProps) {
           <Button variant="ghost" size="sm" asChild className="h-8 px-2 text-muted-foreground sm:h-9 sm:px-3">
             <Link href="/kanban">
               <ArrowLeft className="h-4 w-4" />
-              <span className="sr-only sm:not-sr-only">Канбан</span>
+              <span className="sr-only sm:not-sr-only">Клиенты</span>
             </Link>
           </Button>
         </div>

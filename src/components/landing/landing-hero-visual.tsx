@@ -24,7 +24,7 @@ export function LandingHeroVisual() {
             <span className="h-2 w-2 rounded-sm bg-white/25" />
             <span className="h-2 w-2 rounded-sm bg-white/15" />
             <span className="ml-3 text-[11px] font-medium tracking-wide text-white/50">
-              ImportCRM · Канбан сделок
+              ImportCRM · Клиенты
             </span>
           </div>
 

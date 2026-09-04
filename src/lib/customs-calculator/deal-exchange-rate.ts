@@ -42,6 +42,6 @@ export function applyDealExchangeRate(
   const currency = exchangeRateCurrencyForOrigin(originCountry, customOrigins);
   return {
     ...rates,
-    [currency]: roundExchangeRate(dealRate),
+    [currency]: roundExchangeRate(dealRate, currency),
   };
 }

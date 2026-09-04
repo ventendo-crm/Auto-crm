@@ -43,17 +43,28 @@ export interface ExchangeRates {
   KRW: number;
 }
 
-/** Округление курса до 2 знаков после запятой. */
-export function roundExchangeRate(value: number): number {
-  return Math.round(value * 100) / 100;
+export type ExchangeRateCode = keyof ExchangeRates;
+
+/** KRW мелкий (~0.05–0.08 ₽), для него — 3 знака; остальные курсы — 2. */
+export function exchangeRateDecimals(code?: ExchangeRateCode | CurrencyCode): number {
+  return code === "KRW" ? 3 : 2;
+}
+
+/** Округление курса: KRW — 3 знака после запятой, остальные — 2. */
+export function roundExchangeRate(
+  value: number,
+  code?: ExchangeRateCode | CurrencyCode,
+): number {
+  const factor = 10 ** exchangeRateDecimals(code);
+  return Math.round(value * factor) / factor;
 }
 
 export function roundExchangeRates(rates: ExchangeRates): ExchangeRates {
   return {
-    USD: roundExchangeRate(rates.USD),
-    EUR: roundExchangeRate(rates.EUR),
-    CNY: roundExchangeRate(rates.CNY),
-    KRW: roundExchangeRate(rates.KRW),
+    USD: roundExchangeRate(rates.USD, "USD"),
+    EUR: roundExchangeRate(rates.EUR, "EUR"),
+    CNY: roundExchangeRate(rates.CNY, "CNY"),
+    KRW: roundExchangeRate(rates.KRW, "KRW"),
   };
 }
 

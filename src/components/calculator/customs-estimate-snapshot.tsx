@@ -6,6 +6,7 @@ import type {
   CustomsCalculatorInput,
   CustomsCalculatorResult,
 } from "@/lib/customs-calculator";
+import { exchangeRateDecimals } from "@/lib/customs-calculator";
 
 function formatForeignNote(amount: number, code: "CNY" | "KRW" | "USD"): string | undefined {
   if (!Number.isFinite(amount) || amount <= 0) return undefined;
@@ -105,8 +106,8 @@ export function CustomsEstimateSnapshot({
             createdByName,
             originLabel,
             `Курс ${rateCode}: ${rateValue.toLocaleString("ru-RU", {
-              maximumFractionDigits: 2,
-              minimumFractionDigits: 2,
+              maximumFractionDigits: exchangeRateDecimals(rateCode),
+              minimumFractionDigits: exchangeRateDecimals(rateCode),
             })} ₽`,
           ]
             .filter(Boolean)
