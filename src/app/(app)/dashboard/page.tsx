@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { api } from "@/lib/api-client";
 import {
   isDashboardWidgetId,
@@ -28,6 +29,7 @@ const ALL_MANAGERS = "all";
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const [data, setData] = useState<DashboardData | null>(null);
   const [managers, setManagers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,7 +136,7 @@ export default function DashboardPage() {
           <ArrivalCalendar
             key={id}
             events={data.arrivalEvents}
-            canSyncGoogleCalendar={isAdmin}
+            canSyncGoogleCalendar={isAdmin && settings.modules.googleCalendar}
           />
         );
       case "today_reminders":

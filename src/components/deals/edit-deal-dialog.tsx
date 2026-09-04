@@ -18,7 +18,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { api } from "@/lib/api-client";
+import { enabledCustomDealFields, parseCustomFieldValues } from "@/lib/company-workspace/helpers";
 import { canAssignDealManager, canManageDealClient, getClientRoleName } from "@/lib/permissions";
 import { DealDetail } from "@/lib/types";
 
@@ -29,6 +31,7 @@ interface EditDealForm {
   vin: string;
   carBrand: string;
   carModel: string;
+  carYear: string;
   destinationCity: string;
   destinationCountry: string;
   expectedArrival: string;
@@ -36,6 +39,7 @@ interface EditDealForm {
   prepayment: string;
   balance: string;
   managerIds: string[];
+  extra: Record<string, string>;
 }
 
 interface Props {
@@ -56,6 +60,7 @@ function toForm(deal: DealDetail): EditDealForm {
     vin: deal.vin ?? "",
     carBrand: deal.carBrand ?? "",
     carModel: deal.carModel ?? "",
+    carYear: deal.carYear != null ? String(deal.carYear) : "",
     destinationCity: deal.destinationCity ?? "",
     destinationCountry: deal.destinationCountry ?? "",
     expectedArrival: toDate(deal.expectedArrival),
@@ -63,6 +68,7 @@ function toForm(deal: DealDetail): EditDealForm {
     prepayment: deal.prepayment != null ? String(deal.prepayment) : "",
     balance: deal.balance != null ? String(deal.balance) : "",
     managerIds: deal.managerIds ?? (deal.managerId ? [deal.managerId] : []),
+    extra: parseCustomFieldValues(deal.customFields),
   };
 }
 
@@ -73,6 +79,8 @@ export function EditDealDialog({
   canViewFinances = false,
 }: Props) {
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
+  const customFields = enabledCustomDealFields(settings.customDealFields);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState<EditDealForm>(() => toForm(deal));
@@ -102,16 +110,23 @@ export function EditDealDialog({
         clientName: form.clientName,
         phone: form.phone || null,
         email: form.email || null,
-        vin: form.vin || null,
+        vin: settings.dealFields.vin.enabled ? form.vin || null : undefined,
         carBrand: form.carBrand || null,
         carModel: form.carModel || null,
-        destinationCity: form.destinationCity,
+        carYear:
+          settings.dealFields.carYear.enabled
+            ? form.carYear
+              ? Number(form.carYear)
+              : null
+            : undefined,
+        destinationCity: settings.dealFields.destinationCity.enabled ? form.destinationCity : undefined,
         destinationCountry: form.destinationCountry,
         expectedArrival: form.expectedArrival || null,
         actualArrival: form.actualArrival || null,
         prepayment: form.prepayment ? Number(form.prepayment) : null,
         ...(canViewFinances ? { balance: form.balance ? Number(form.balance) : null } : {}),
         ...(canAssignManager ? { managerIds: form.managerIds } : {}),
+        customFields: Object.fromEntries(customFields.map((field) => [field.id, form.extra[field.id] ?? ""])),
       });
 
       toast.success("Данные сделки обновлены");
@@ -185,16 +200,19 @@ export function EditDealDialog({
               />
             </div>
 
+            {settings.dealFields.vin.enabled && (
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="edit-vin">VIN</Label>
               <Input
                 id="edit-vin"
                 value={form.vin}
+                required={settings.dealFields.vin.required}
                 onChange={(e) =>
                   setForm({ ...form, vin: e.target.value.toUpperCase() })
                 }
               />
             </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="edit-carBrand">Марка</Label>
@@ -214,17 +232,34 @@ export function EditDealDialog({
               />
             </div>
 
+            {settings.dealFields.carYear.enabled && (
+            <div className="space-y-2">
+              <Label htmlFor="edit-carYear">Год</Label>
+              <Input
+                id="edit-carYear"
+                type="number"
+                min={1900}
+                max={2100}
+                value={form.carYear}
+                required={settings.dealFields.carYear.required}
+                onChange={(e) => setForm({ ...form, carYear: e.target.value })}
+              />
+            </div>
+            )}
+
+            {settings.dealFields.destinationCity.enabled && (
             <div className="space-y-2">
               <Label htmlFor="edit-destinationCity">Город</Label>
               <Input
                 id="edit-destinationCity"
                 value={form.destinationCity}
+                required={settings.dealFields.destinationCity.required}
                 onChange={(e) =>
                   setForm({ ...form, destinationCity: e.target.value })
                 }
-                required
               />
             </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="edit-destinationCountry">Страна экспорта</Label>
@@ -236,6 +271,23 @@ export function EditDealDialog({
                 }
               />
             </div>
+
+            {customFields.map((field) => (
+              <div key={field.id} className="space-y-2 sm:col-span-2">
+                <Label htmlFor={`edit-custom-${field.id}`}>
+                  {field.label}
+                  {field.required ? "" : " (необязательно)"}
+                </Label>
+                <Input
+                  id={`edit-custom-${field.id}`}
+                  value={form.extra[field.id] ?? ""}
+                  required={field.required}
+                  onChange={(e) =>
+                    setForm({ ...form, extra: { ...form.extra, [field.id]: e.target.value } })
+                  }
+                />
+              </div>
+            ))}
 
             <div className="space-y-2">
               <Label htmlFor="edit-expectedArrival">Ожидаемое прибытие</Label>

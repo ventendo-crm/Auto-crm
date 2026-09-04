@@ -1,10 +1,14 @@
+"use client";
+
 import { ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { STAGE_LABELS } from "@/lib/constants";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { StageHistoryItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
 export function DealStageTimeline({ history }: { history: StageHistoryItem[] }) {
+  const { stageLabel } = useCompanyWorkspace();
+
   return (
     <Card className="border-0 shadow-card">
       <CardHeader>
@@ -20,9 +24,9 @@ export function DealStageTimeline({ history }: { history: StageHistoryItem[] }) 
               <div className="relative z-10 mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-brand bg-background" />
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2 text-sm">
-                  <span className="font-medium">{STAGE_LABELS[item.fromStage]}</span>
+                  <span className="font-medium">{stageLabel(item.fromStage)}</span>
                   <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                  <span className="font-medium text-brand">{STAGE_LABELS[item.toStage]}</span>
+                  <span className="font-medium text-brand">{stageLabel(item.toStage)}</span>
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
                   {item.changedBy.name} · {formatDateTime(item.createdAt)}

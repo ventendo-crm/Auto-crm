@@ -1,9 +1,11 @@
-import { DocumentStatus, DocumentType } from "@prisma/client";
+import { DocumentStatus } from "@prisma/client";
 import { unlink } from "fs/promises";
 import { AuthUser, canDeleteDealDocuments, canUpdateDeal, canViewDeal } from "@/lib/permissions";
 import { dealAccessSelect } from "@/lib/deal-managers";
+import { getEnabledDocumentTypeKeys, isDocumentTypeKey } from "@/lib/company-workspace/helpers";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
+import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { getManagerPeerIdsForUser } from "@/lib/services/deal-access";
 import {
   isLocalUploadUrl,
@@ -11,19 +13,40 @@ import {
   openLocalUploadFile,
 } from "@/lib/storage/local-uploads";
 
-export function buildDocumentFileUrl(
-  dealId: string,
-  type: DocumentType,
-  download = false,
-): string {
-  const base = `/api/deals/${dealId}/documents/${type}/file`;
+export function buildDocumentFileUrl(dealId: string, type: string, download = false): string {
+  const base = `/api/deals/${dealId}/documents/${encodeURIComponent(type)}/file`;
   return download ? `${base}?download=1` : base;
+}
+
+export async function assertDealDocumentType(
+  companyId: string,
+  dealId: string,
+  type: string,
+  options: { allowExisting?: boolean } = { allowExisting: true },
+) {
+  if (!isDocumentTypeKey(type)) {
+    throw new Error("Недопустимый тип документа");
+  }
+
+  if (options.allowExisting) {
+    const existing = await prisma.document.findUnique({
+      where: { dealId_type: { dealId, type } },
+      select: { id: true },
+    });
+    if (existing) return;
+  }
+
+  const settings = await getCompanyWorkspaceSettings(companyId);
+  const allowed = new Set(getEnabledDocumentTypeKeys(settings.documentTypes));
+  if (!allowed.has(type)) {
+    throw new Error("Недопустимый тип документа");
+  }
 }
 
 export async function updateDocumentStatus(
   user: AuthUser,
   dealId: string,
-  type: DocumentType,
+  type: string,
   status: DocumentStatus,
 ) {
   const deal = await prisma.deal.findUnique({
@@ -68,7 +91,7 @@ export async function updateDocumentStatus(
   return updated;
 }
 
-export async function deleteDealDocument(user: AuthUser, dealId: string, type: DocumentType) {
+export async function deleteDealDocument(user: AuthUser, dealId: string, type: string) {
   const deal = await prisma.deal.findUnique({
     where: { id: dealId },
     select: dealAccessSelect,
@@ -118,7 +141,7 @@ export async function deleteDealDocument(user: AuthUser, dealId: string, type: D
 export async function streamDealDocumentFile(
   user: AuthUser,
   dealId: string,
-  type: DocumentType,
+  type: string,
   download = false,
 ) {
   const deal = await prisma.deal.findUnique({

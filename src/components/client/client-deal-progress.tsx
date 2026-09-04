@@ -2,8 +2,9 @@
 
 import { DealStageType } from "@prisma/client";
 import { Check } from "lucide-react";
-import { CLIENT_STAGE_SHORT_LABELS, STAGE_ORDER } from "@/lib/constants";
+import { clientProgressStages } from "@/lib/company-workspace/helpers";
 import { cn } from "@/lib/utils";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 
 const STAGE_DOT_COLORS: Record<DealStageType, string> = {
   [DealStageType.LEADS]: "bg-amber-400",
@@ -17,29 +18,29 @@ const STAGE_DOT_COLORS: Record<DealStageType, string> = {
 
 interface ClientDealProgressProps {
   currentStage: DealStageType;
-  stageLabel: string;
   className?: string;
 }
 
 export function ClientDealProgress({
   currentStage,
-  stageLabel,
   className,
 }: ClientDealProgressProps) {
-  const currentIndex = STAGE_ORDER.indexOf(currentStage);
+  const { settings, stageLabel } = useCompanyWorkspace();
+  const stages = clientProgressStages(settings.clientVisibleStages, currentStage);
+  const currentIndex = stages.indexOf(currentStage);
 
   return (
     <div className={cn("rounded-xl border bg-muted/20 p-4", className)}>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm font-medium">Прогресс импорта</p>
         <p className="text-sm text-muted-foreground">
-          Сейчас: <span className="font-medium text-foreground">{stageLabel}</span>
+          Сейчас: <span className="font-medium text-foreground">{stageLabel(currentStage)}</span>
         </p>
       </div>
 
       <div className="-mx-1 overflow-x-auto pb-1">
         <div className="flex min-w-max items-start px-1">
-          {STAGE_ORDER.map((stage, index) => {
+          {stages.map((stage, index) => {
             const isComplete = currentIndex >= 0 && index < currentIndex;
             const isCurrent = stage === currentStage;
             const isUpcoming = currentIndex >= 0 && index > currentIndex;
@@ -71,11 +72,11 @@ export function ClientDealProgress({
                       isUpcoming && "text-muted-foreground/70",
                     )}
                   >
-                    {CLIENT_STAGE_SHORT_LABELS[stage]}
+                    {stageLabel(stage)}
                   </p>
                 </div>
 
-                {index < STAGE_ORDER.length - 1 && (
+                {index < stages.length - 1 && (
                   <div
                     className={cn(
                       "mt-3.5 h-0.5 w-4 shrink-0 sm:w-6",

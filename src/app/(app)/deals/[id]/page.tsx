@@ -9,7 +9,7 @@ import { DealActivityTimeline } from "@/components/deals/deal-activity-timeline"
 import { DealClientAccount } from "@/components/deals/deal-client-account";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
-import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
+import { DealDocuments } from "@/components/deals/deal-documents";
 import { DealExpenses } from "@/components/deals/deal-expenses";
 import { DealFinancialSummaryCard } from "@/components/deals/deal-financial-summary";
 import { DealReminders } from "@/components/deals/deal-reminders";
@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { useScrollToTabPanel } from "@/hooks/use-scroll-to-tab-panel";
 import { api } from "@/lib/api-client";
 import { canClearDealHistory, canManageDealClient, canManageDealExpenses, canManageDealReminders, canUploadDealDocuments, canViewDealFinances, getClientRoleName } from "@/lib/permissions";
@@ -38,6 +39,7 @@ import { DealDetail } from "@/lib/types";
 export default function DealPage() {
   const params = useParams<{ id: string }>();
   const { user, loading: authLoading } = useAuth();
+  const { settings } = useCompanyWorkspace();
 
   const [deal, setDeal] = useState<DealDetail | null>(null);
   const [activity, setActivity] = useState<DealActivityItem[]>([]);
@@ -195,7 +197,7 @@ export default function DealPage() {
             <DealCustomsEstimatesPanel
               dealId={deal.id}
               active={activeTab === "overview"}
-              showCalculatorLink={canManageDeal}
+              showCalculatorLink={canManageDeal && settings.modules.calculator}
               canDelete={canManageDeal}
             />
 
@@ -207,12 +209,14 @@ export default function DealPage() {
                 canEdit={canManageDeal}
                 canViewFinances={canViewFinances}
               />
-              <DealImportProcessToggle
-                dealId={deal.id}
-                enabled={deal.importProcessEnabled}
-                canManage={canManageDeal}
-                onChanged={refreshDeal}
-              />
+              {settings.dealTabs.importProcess && (
+                <DealImportProcessToggle
+                  dealId={deal.id}
+                  enabled={deal.importProcessEnabled}
+                  canManage={canManageDeal}
+                  onChanged={refreshDeal}
+                />
+              )}
             </div>
 
             <div className="space-y-4">
@@ -223,12 +227,14 @@ export default function DealPage() {
                 canManage={canManageDeal}
                 onUpdated={refreshDeal}
               />
-              <DealLogistics
-                dealId={deal.id}
-                shipment={deal.shipment}
-                canEdit={canManageDeal}
-                onUpdated={refreshDeal}
-              />
+              {settings.dealTabs.logistics && (
+                <DealLogistics
+                  dealId={deal.id}
+                  shipment={deal.shipment}
+                  canEdit={canManageDeal}
+                  onUpdated={refreshDeal}
+                />
+              )}
             </div>
             </div>
           </TabsContent>
@@ -251,8 +257,8 @@ export default function DealPage() {
               managerId={deal.managerId}
               managerIds={deal.managerIds}
               clientUserId={deal.clientUserId}
-              title="Полученные документы"
-              documentTypes={RECEIVED_DEAL_DOCUMENT_TYPES}
+            title="Полученные документы"
+            group="received"
               onUpdated={refreshDeal}
               canUpload={canUploadDocuments}
               canVerify={canManageDeal}
@@ -260,6 +266,7 @@ export default function DealPage() {
             />
           </TabsContent>
 
+          {settings.dealTabs.searchProcess && (
           <TabsContent value="search-process">
             <DealSearchProcess
               dealId={deal.id}
@@ -268,7 +275,9 @@ export default function DealPage() {
               destinationCountry={deal.destinationCountry}
             />
           </TabsContent>
+          )}
 
+          {settings.dealTabs.additionalOptions && (
           <TabsContent value="additional-options">
             <DealAdditionalOptions
               dealId={deal.id}
@@ -277,6 +286,7 @@ export default function DealPage() {
               onChanged={refreshActivity}
             />
           </TabsContent>
+          )}
 
           {canViewExpenses && (
             <TabsContent value="expenses">
@@ -284,7 +294,7 @@ export default function DealPage() {
             </TabsContent>
           )}
 
-          {deal.importProcessEnabled && (
+          {settings.dealTabs.importProcess && deal.importProcessEnabled && (
             <TabsContent value="import-process">
               <DealImportProcess dealId={deal.id} canEdit={canManageDeal} />
             </TabsContent>
