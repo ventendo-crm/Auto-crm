@@ -615,8 +615,6 @@ function exportFilename(extension: "pdf" | "jpg") {
   return `rastamozhka-${stamp}.${extension}`;
 }
 
-const JPEG_EXPORT_WIDTH = 1650;
-
 async function captureResultCanvas(element: HTMLElement, scale = 2) {
   if (typeof document !== "undefined" && document.fonts?.ready) {
     await document.fonts.ready;
@@ -647,61 +645,8 @@ async function captureResultCanvas(element: HTMLElement, scale = 2) {
   });
 }
 
-/** JPEG/шаринг: фиксированная ширина, высота по содержимому (не зависит от ориентации экрана). */
-async function captureResultJpegCanvas(element: HTMLElement) {
-  if (typeof document !== "undefined" && document.fonts?.ready) {
-    await document.fonts.ready;
-  }
-  await new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  });
-
-  const html2canvas = (await import("html2canvas")).default;
-  const canvas = await html2canvas(element, {
-    scale: 1,
-    useCORS: true,
-    backgroundColor: "#ffffff",
-    logging: false,
-    width: JPEG_EXPORT_WIDTH,
-    windowWidth: JPEG_EXPORT_WIDTH,
-    onclone: (_doc, cloned) => {
-      cloned.style.width = `${JPEG_EXPORT_WIDTH}px`;
-      cloned.style.maxWidth = `${JPEG_EXPORT_WIDTH}px`;
-      cloned.style.minWidth = `${JPEG_EXPORT_WIDTH}px`;
-      cloned.style.boxSizing = "border-box";
-      cloned.style.backgroundColor = "#ffffff";
-      cloned.style.color = "#1f2937";
-      cloned.style.fontFamily = "Arial, Helvetica, sans-serif";
-      cloned.style.letterSpacing = "0";
-      cloned.style.wordSpacing = "0";
-      cloned.querySelectorAll<HTMLElement>("*").forEach((node) => {
-        node.style.letterSpacing = "0";
-        node.style.wordSpacing = "normal";
-        node.style.fontVariantNumeric = "tabular-nums";
-        node.style.fontFamily = "Arial, Helvetica, sans-serif";
-      });
-    },
-  });
-
-  if (canvas.width === JPEG_EXPORT_WIDTH) {
-    return canvas;
-  }
-
-  const resized = document.createElement("canvas");
-  resized.width = JPEG_EXPORT_WIDTH;
-  resized.height = Math.max(1, Math.round((canvas.height * JPEG_EXPORT_WIDTH) / canvas.width));
-  const ctx = resized.getContext("2d");
-  if (!ctx) {
-    throw new Error("Не удалось подготовить изображение");
-  }
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, resized.width, resized.height);
-  ctx.drawImage(canvas, 0, 0, resized.width, resized.height);
-  return resized;
-}
-
 async function saveResultAsJpeg(element: HTMLElement) {
-  const canvas = await captureResultJpegCanvas(element);
+  const canvas = await captureResultCanvas(element, 5);
   downloadBlob(exportFilename("jpg"), canvas.toDataURL("image/jpeg", 1));
 }
 
@@ -741,7 +686,7 @@ async function shareResultAsJpeg(element: HTMLElement) {
     throw new Error("На этом устройстве шаринг недоступен");
   }
 
-  const canvas = await captureResultJpegCanvas(element);
+  const canvas = await captureResultCanvas(element, 5);
   const file = await canvasToJpegFile(canvas, exportFilename("jpg"));
   const data: ShareData = {
     files: [file],
