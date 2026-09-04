@@ -10,8 +10,11 @@ import {
 } from "react";
 import {
   applyBrandCssVars,
+  clearBrandCache,
   clearBrandCssVars,
   DEFAULT_BRAND_HSL,
+  persistBrandCache,
+  readBrandCache,
 } from "@/lib/appearance/presets";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
@@ -52,6 +55,7 @@ export function CompanyAppearanceProvider({ children }: { children: React.ReactN
   const [hasLogo, setHasLogo] = useState(false);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cacheReady, setCacheReady] = useState(false);
 
   const applyLocal = useCallback(
     (next: {
@@ -70,6 +74,15 @@ export function CompanyAppearanceProvider({ children }: { children: React.ReactN
     [],
   );
 
+  // После гидрации подтягиваем кэш — иначе SSR/hydrate затрут inline-скрипт дефолтом
+  useEffect(() => {
+    const cached = readBrandCache();
+    if (cached) {
+      setBrandHsl(cached.brandHsl);
+    }
+    setCacheReady(true);
+  }, []);
+
   const refresh = useCallback(async () => {
     if (!user) {
       setPresetId("classic");
@@ -79,7 +92,13 @@ export function CompanyAppearanceProvider({ children }: { children: React.ReactN
       setUpdatedAt(null);
       setLoading(false);
       clearBrandCssVars();
+      clearBrandCache();
       return;
+    }
+
+    const cached = readBrandCache(user.companyId);
+    if (cached) {
+      setBrandHsl(cached.brandHsl);
     }
 
     setLoading(true);
@@ -92,25 +111,44 @@ export function CompanyAppearanceProvider({ children }: { children: React.ReactN
         hasLogo: data.hasLogo,
         updatedAt: data.updatedAt,
       });
+      if (user.companyId) {
+        persistBrandCache(user.companyId, data.brandHsl);
+      }
     } catch {
-      // оставляем значения по умолчанию
+      // оставляем кэш / текущие значения
     } finally {
       setLoading(false);
     }
   }, [user, applyLocal]);
 
   useEffect(() => {
-    if (authLoading) return;
+    if (authLoading || !cacheReady) return;
     void refresh();
-  }, [authLoading, refresh]);
+  }, [authLoading, cacheReady, refresh]);
 
   useEffect(() => {
+    if (!cacheReady) return;
+
     if (!user) {
       clearBrandCssVars();
+      clearBrandCache();
       return;
     }
+
+    // Пока ждём API — не перезаписываем кэшированный цвет дефолтным classic
+    if (loading) {
+      const cached = readBrandCache(user.companyId);
+      if (cached) {
+        applyBrandCssVars(cached.brandHsl, theme === "dark");
+        return;
+      }
+    }
+
     applyBrandCssVars(brandHsl, theme === "dark");
-  }, [user, brandHsl, theme]);
+    if (user.companyId) {
+      persistBrandCache(user.companyId, brandHsl);
+    }
+  }, [user, brandHsl, theme, loading, cacheReady]);
 
   const value = useMemo(
     () => ({

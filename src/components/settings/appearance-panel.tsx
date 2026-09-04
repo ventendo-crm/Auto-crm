@@ -16,12 +16,15 @@ import {
   applyBrandCssVars,
   brandHslToHex,
   hexToBrandHsl,
+  persistBrandCache,
   resolveBrandHsl,
 } from "@/lib/appearance/presets";
 import { api } from "@/lib/api-client";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
 export function AppearancePanel() {
+  const { user } = useAuth();
   const { applyLocal, logoSrc, hasLogo: ctxHasLogo } = useCompanyAppearance();
   const { theme } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -92,6 +95,10 @@ export function AppearancePanel() {
         hasLogo: data.hasLogo,
         updatedAt: data.updatedAt,
       });
+      const companyId = user?.companyId ?? user?.company?.id;
+      if (companyId) {
+        persistBrandCache(companyId, data.brandHsl);
+      }
       toast.success("Оформление сохранено");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Не удалось сохранить");

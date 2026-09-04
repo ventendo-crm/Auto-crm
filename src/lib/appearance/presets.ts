@@ -175,3 +175,45 @@ export function clearBrandCssVars() {
   root.style.removeProperty("--brand-muted");
   root.style.removeProperty("--brand-foreground");
 }
+
+/** Кэш акцента, чтобы не мигал дефолтный оранжевый до ответа API. */
+export const BRAND_STORAGE_KEY = "autocrm-brand";
+
+type BrandCachePayload = {
+  companyId: string;
+  brandHsl: string;
+};
+
+export function persistBrandCache(companyId: string, brandHsl: string) {
+  if (typeof window === "undefined") return;
+  if (!companyId || !isValidBrandHsl(brandHsl)) return;
+  try {
+    const payload: BrandCachePayload = { companyId, brandHsl };
+    localStorage.setItem(BRAND_STORAGE_KEY, JSON.stringify(payload));
+  } catch {
+    // localStorage недоступен
+  }
+}
+
+export function clearBrandCache() {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(BRAND_STORAGE_KEY);
+  } catch {
+    // localStorage недоступен
+  }
+}
+
+export function readBrandCache(companyId?: string | null): BrandCachePayload | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(BRAND_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<BrandCachePayload>;
+    if (!parsed.companyId || !isValidBrandHsl(parsed.brandHsl)) return null;
+    if (companyId && parsed.companyId !== companyId) return null;
+    return { companyId: parsed.companyId, brandHsl: parsed.brandHsl };
+  } catch {
+    return null;
+  }
+}
