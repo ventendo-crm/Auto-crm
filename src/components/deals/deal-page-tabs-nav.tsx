@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useDealCommentsUnread } from "@/hooks/use-deal-comments-unread";
 import { countUploadedDealDocuments } from "@/lib/deal-tab-badges";
 import { DealDetail } from "@/lib/types";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 
 interface DealPageTabsNavProps {
   deal: DealDetail;
@@ -26,6 +27,7 @@ interface DealPageTabsNavProps {
 
 export function DealPageTabsNav({ deal, canViewExpenses, activeTab }: DealPageTabsNavProps) {
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const unreadComments = useDealCommentsUnread(
     deal.id,
     user?.id,
@@ -44,8 +46,11 @@ export function DealPageTabsNav({ deal, canViewExpenses, activeTab }: DealPageTa
         icon: FileText,
         badge: uploadedDocuments > 0 ? uploadedDocuments : undefined,
       },
-      { value: "additional-options", label: "Доп. опции", icon: ListChecks },
     ];
+
+    if (settings.dealTabs.additionalOptions) {
+      mainItems.push({ value: "additional-options", label: "Доп. опции", icon: ListChecks });
+    }
 
     if (canViewExpenses) {
       mainItems.push({ value: "expenses", label: "Расходы", icon: Receipt });
@@ -56,11 +61,13 @@ export function DealPageTabsNav({ deal, canViewExpenses, activeTab }: DealPageTa
       items: mainItems,
     };
 
-    const processItems: GroupedTabGroup["items"] = [
-      { value: "search-process", label: "Поиск авто", icon: Search },
-    ];
+    const processItems: GroupedTabGroup["items"] = [];
 
-    if (deal.importProcessEnabled) {
+    if (settings.dealTabs.searchProcess) {
+      processItems.push({ value: "search-process", label: "Поиск авто", icon: Search });
+    }
+
+    if (settings.dealTabs.importProcess && deal.importProcessEnabled) {
       processItems.push({ value: "import-process", label: "Доставка", icon: Truck });
     }
 
@@ -88,8 +95,13 @@ export function DealPageTabsNav({ deal, canViewExpenses, activeTab }: DealPageTa
       ],
     };
 
-    return [mainGroup, processGroup, moreGroup];
-  }, [canViewExpenses, deal, unreadComments]);
+    const result: GroupedTabGroup[] = [mainGroup];
+    if (processItems.length > 0) {
+      result.push(processGroup);
+    }
+    result.push(moreGroup);
+    return result;
+  }, [canViewExpenses, deal, unreadComments, settings.dealTabs]);
 
   return <GroupedTabsNav groups={groups} />;
 }

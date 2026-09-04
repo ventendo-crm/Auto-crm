@@ -1,6 +1,7 @@
 import { MediaType } from "@prisma/client";
 import { fetchChinaBinary } from "@/lib/http/china-fetch";
-import { AuthUser, canAccessCatalog } from "@/lib/permissions";
+import { AuthUser } from "@/lib/permissions";
+import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { assertDealMediaAccess } from "@/lib/services/media";
@@ -72,7 +73,7 @@ export async function addCatalogVehicleToDeal(
   vehicleId: string,
   body: AddToDealInput,
 ) {
-  if (!canAccessCatalog(user.role)) throw new Error("Forbidden");
+  await assertCompanyCatalogAccess(user);
   const data = addCatalogVehicleToDealSchema.parse(body);
 
   await assertDealMediaAccess(user, data.dealId, true);

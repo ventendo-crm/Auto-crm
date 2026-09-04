@@ -21,11 +21,12 @@ import { ALL_MANAGERS, ALL_ORIGINS, KanbanFilters } from "@/components/kanban/ka
 import { KanbanColumn } from "@/components/kanban/kanban-column";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { useIsAndroidWebView } from "@/hooks/use-is-android-webview";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { api } from "@/lib/api-client";
 import { androidBridge } from "@/lib/android-webview";
-import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
+import { STAGE_ORDER } from "@/lib/constants";
 import {
   canDragDeal,
   resolveDragEndStage,
@@ -97,6 +98,7 @@ interface KanbanQuery {
 
 export function KanbanBoard() {
   const { user } = useAuth();
+  const { stageLabel } = useCompanyWorkspace();
   const isAndroidApp = useIsAndroidWebView();
   const isMobile = useIsMobile();
   const dragEnabled = !isMobile;
@@ -318,8 +320,8 @@ export function KanbanBoard() {
     const toStage = resolveDragEndStage(event, deals);
     if (!toStage || deal.currentStage === toStage) return;
 
-    const fromLabel = STAGE_LABELS[deal.currentStage];
-    const toLabel = STAGE_LABELS[toStage];
+    const fromLabel = stageLabel(deal.currentStage);
+    const toLabel = stageLabel(toStage);
     const previousStage = deal.currentStage;
 
     setSavingDealId(dealId);

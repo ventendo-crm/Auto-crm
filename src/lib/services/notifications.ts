@@ -13,6 +13,7 @@ import {
   STAGE_LABELS,
 } from "@/lib/constants";
 import { getClientStageMessage } from "@/lib/services/client-stage-messages";
+import { getCompanyStageLabels } from "@/lib/services/company-workspace";
 import {
   formatCarCarrierTrackingPointMessage,
   formatClientStageNotificationMessage,
@@ -131,6 +132,7 @@ export async function notifyStageChange(params: {
   changedBy: AuthUser;
 }) {
   const companyId = (await resolveDealCompanyId(params.dealId)) ?? params.changedBy.companyId;
+  const labels = await getCompanyStageLabels(companyId);
   const title = "Сделка переведена";
   const managerLabel =
     params.managers.length > 0
@@ -139,7 +141,7 @@ export async function notifyStageChange(params: {
   const message = [
     `Клиент: ${params.clientName}`,
     `VIN: ${params.vin}`,
-    `Этап: ${formatStage(params.fromStage)} → ${formatStage(params.toStage)}`,
+    `Этап: ${formatStage(params.fromStage, labels)} → ${formatStage(params.toStage, labels)}`,
     `Менеджер: ${managerLabel}`,
     `Изменил: ${params.changedBy.name}`,
   ].join("\n");
@@ -205,7 +207,8 @@ async function notifyClientStageChange(params: {
   }
 
   const body = await getClientStageMessage(params.companyId, params.toStage);
-  const stageLabel = STAGE_LABELS[params.toStage];
+  const labels = await getCompanyStageLabels(params.companyId);
+  const stageLabel = labels[params.toStage];
   const carLabel = [params.carBrand, params.carModel].filter(Boolean).join(" ").trim() || null;
   const title = `Этап: ${stageLabel}`;
 
@@ -873,7 +876,8 @@ export async function markAllNotificationsRead(userId: string) {
   return result.count;
 }
 
-function formatStage(stage: string): string {
+function formatStage(stage: string, labels?: Record<string, string>): string {
+  if (labels?.[stage]) return labels[stage];
   if (isDealStageType(stage)) {
     return STAGE_LABELS[stage];
   }

@@ -1,6 +1,7 @@
 import { DealStageType } from "@prisma/client";
-import { CLIENT_STAGE_NOTIFICATIONS, STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
+import { CLIENT_STAGE_NOTIFICATIONS, STAGE_ORDER } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
+import { getCompanyStageLabels } from "@/lib/services/company-workspace";
 
 export interface ClientStageMessageRecord {
   stage: DealStageType;
@@ -32,6 +33,7 @@ export async function listClientStageMessages(
 ): Promise<ClientStageMessageRecord[]> {
   await ensureClientStageMessages(companyId);
 
+  const labels = await getCompanyStageLabels(companyId);
   const items = await prisma.clientStageMessage.findMany({ where: { companyId } });
   const byStage = new Map(items.map((item) => [item.stage, item]));
 
@@ -39,7 +41,7 @@ export async function listClientStageMessages(
     const record = byStage.get(stage);
     return {
       stage,
-      label: STAGE_LABELS[stage],
+      label: labels[stage],
       textBody: record?.textBody ?? CLIENT_STAGE_NOTIFICATIONS[stage],
       updatedAt: record?.updatedAt ?? new Date(),
       updatedById: record?.updatedById ?? null,

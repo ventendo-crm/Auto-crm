@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { canAccessCalculator, canAccessCatalog, getClientRoleName } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { staffPrimaryNavItems } from "@/components/layout/staff-nav";
@@ -10,9 +11,10 @@ import { staffPrimaryNavItems } from "@/components/layout/staff-nav";
 export function MobileTabBar() {
   const pathname = usePathname();
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const role = getClientRoleName(user);
-  const showCalculator = role ? canAccessCalculator(role) : false;
-  const showCatalog = role ? canAccessCatalog(role) : false;
+  const showCalculator = role ? canAccessCalculator(role, settings.modules.calculator) : false;
+  const showCatalog = role ? canAccessCatalog(role, settings.modules.catalog) : false;
 
   const items = staffPrimaryNavItems.filter(
     (item) =>

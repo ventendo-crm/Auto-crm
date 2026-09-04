@@ -1,13 +1,13 @@
 import {
-  ADDITIONAL_OPTION_GROUPS,
   createCustomAdditionalOptionKey,
   getAdditionalOptionLabel,
   isCustomAdditionalOptionKey,
-  isValidAdditionalOptionKey,
+  type AdditionalOptionGroupDefinition,
 } from "@/lib/additional-options";
 import { prisma } from "@/lib/prisma";
 import { AuthUser } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
+import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { serialize } from "@/lib/serialize";
 
 export interface AdditionalOptionState {
@@ -23,6 +23,15 @@ export interface AdditionalOptionGroupState {
   id: string;
   title: string;
   options: AdditionalOptionState[];
+}
+
+function catalogMaps(groups: AdditionalOptionGroupDefinition[]) {
+  const keys = new Set(groups.flatMap((group) => group.options.map((option) => option.key)));
+  const labels = new Map(
+    groups.flatMap((group) => group.options.map((option) => [option.key, option.label] as const)),
+  );
+  const groupIds = new Set(groups.map((group) => group.id));
+  return { keys, labels, groupIds };
 }
 
 function toOptionState(input: {
@@ -44,6 +53,15 @@ function toOptionState(input: {
 }
 
 export async function listAdditionalOptions(dealId: string): Promise<AdditionalOptionGroupState[]> {
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { companyId: true },
+  });
+  if (!deal) return [];
+
+  const settings = await getCompanyWorkspaceSettings(deal.companyId);
+  const catalog = settings.additionalOptionGroups;
+
   const records = await prisma.dealAdditionalOption.findMany({
     where: { dealId },
     include: {
@@ -53,16 +71,22 @@ export async function listAdditionalOptions(dealId: string): Promise<AdditionalO
   });
 
   const recordMap = new Map(records.map((record) => [record.optionKey, record]));
+  const catalogKeys = new Set(catalog.flatMap((group) => group.options.map((option) => option.key)));
   const customByGroup = new Map<string, typeof records>();
+  const orphans: typeof records = [];
 
   for (const record of records) {
-    if (!record.isCustom || !record.groupId) continue;
-    const list = customByGroup.get(record.groupId) ?? [];
-    list.push(record);
-    customByGroup.set(record.groupId, list);
+    if (catalogKeys.has(record.optionKey)) continue;
+    if (record.isCustom && record.groupId && catalog.some((group) => group.id === record.groupId)) {
+      const list = customByGroup.get(record.groupId) ?? [];
+      list.push(record);
+      customByGroup.set(record.groupId, list);
+      continue;
+    }
+    orphans.push(record);
   }
 
-  return ADDITIONAL_OPTION_GROUPS.map((group) => {
+  const groups: AdditionalOptionGroupState[] = catalog.map((group) => {
     const staticOptions = group.options.map((option) => {
       const record = recordMap.get(option.key);
       return toOptionState({
@@ -92,6 +116,25 @@ export async function listAdditionalOptions(dealId: string): Promise<AdditionalO
       options: [...staticOptions, ...customOptions],
     };
   });
+
+  if (orphans.length > 0) {
+    groups.push({
+      id: "other",
+      title: "Другое",
+      options: orphans.map((record) =>
+        toOptionState({
+          key: record.optionKey,
+          label: record.label?.trim() || getAdditionalOptionLabel(record.optionKey),
+          checked: record.checked,
+          isCustom: record.isCustom,
+          updatedAt: record.updatedAt,
+          updatedBy: record.updatedBy,
+        }),
+      ),
+    });
+  }
+
+  return groups;
 }
 
 export async function createCustomAdditionalOption(
@@ -100,9 +143,18 @@ export async function createCustomAdditionalOption(
   label: string,
   groupId: string,
 ) {
-  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { id: true } });
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { id: true, companyId: true },
+  });
   if (!deal) {
     throw new Error("NOT_FOUND");
+  }
+
+  const settings = await getCompanyWorkspaceSettings(deal.companyId);
+  const { groupIds } = catalogMaps(settings.additionalOptionGroups);
+  if (!groupIds.has(groupId)) {
+    throw new Error("UNKNOWN_GROUP");
   }
 
   const optionKey = createCustomAdditionalOptionKey();
@@ -147,10 +199,16 @@ export async function toggleAdditionalOption(
   optionKey: string,
   checked: boolean,
 ) {
-  const deal = await prisma.deal.findUnique({ where: { id: dealId }, select: { id: true } });
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { id: true, companyId: true },
+  });
   if (!deal) {
     throw new Error("NOT_FOUND");
   }
+
+  const settings = await getCompanyWorkspaceSettings(deal.companyId);
+  const { keys, labels } = catalogMaps(settings.additionalOptionGroups);
 
   const existing = await prisma.dealAdditionalOption.findUnique({
     where: {
@@ -162,12 +220,12 @@ export async function toggleAdditionalOption(
     if (!existing?.isCustom) {
       throw new Error("UNKNOWN_OPTION");
     }
-  } else if (!isValidAdditionalOptionKey(optionKey)) {
+  } else if (!keys.has(optionKey) && !existing) {
     throw new Error("UNKNOWN_OPTION");
   }
 
   const previousChecked = existing?.checked ?? false;
-  const optionLabel = getAdditionalOptionLabel(optionKey, existing?.label);
+  const optionLabel = existing?.label?.trim() || labels.get(optionKey) || getAdditionalOptionLabel(optionKey);
 
   const record = await prisma.dealAdditionalOption.upsert({
     where: {

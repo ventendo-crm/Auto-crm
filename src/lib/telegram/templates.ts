@@ -1,4 +1,6 @@
 import { renderTemplateString } from "@/lib/email/render";
+import { STAGE_LABELS } from "@/lib/constants";
+import { getCompanyStageLabels } from "@/lib/services/company-workspace";
 import { getTelegramTemplateRecord } from "@/lib/telegram/template-store";
 
 export const TELEGRAM_TEMPLATE_PLACEHOLDERS = {
@@ -23,18 +25,8 @@ export const TELEGRAM_TEMPLATE_PLACEHOLDERS = {
 
 export type TelegramTemplateKey = keyof typeof TELEGRAM_TEMPLATE_PLACEHOLDERS;
 
-const STAGE_LABELS: Record<string, string> = {
-  LEADS: "Лиды",
-  SEARCH: "Поиск авто",
-  INVOICE: "Инвойс",
-  PREPARATION: "Подготовка",
-  CUSTOMS: "Таможня",
-  TRANSPORT: "Транспортировка",
-  DELIVERY: "Получение",
-};
-
-export function formatStageLabel(stage: string): string {
-  return STAGE_LABELS[stage] ?? stage;
+export function formatStageLabel(stage: string, labels?: Record<string, string>): string {
+  return labels?.[stage] ?? STAGE_LABELS[stage as keyof typeof STAGE_LABELS] ?? stage;
 }
 
 function escapeHtml(value: string): string {
@@ -75,11 +67,13 @@ export async function formatStageChangeMessage(params: {
     minute: "2-digit",
   }).format(date);
 
+  const labels = await getCompanyStageLabels(params.companyId);
+
   return renderTelegramTemplate(params.companyId, "STAGE_CHANGE", {
     clientName: params.clientName,
     vin: params.vin,
-    fromStage: formatStageLabel(params.fromStage),
-    toStage: formatStageLabel(params.toStage),
+    fromStage: formatStageLabel(params.fromStage, labels),
+    toStage: formatStageLabel(params.toStage, labels),
     managerName: params.managerName,
     changedByName: params.changedByName,
     date: formattedDate,

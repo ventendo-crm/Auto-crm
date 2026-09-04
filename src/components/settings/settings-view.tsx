@@ -10,6 +10,7 @@ import {
   Mail,
   MessageCircle,
   Palette,
+  SlidersHorizontal,
   User,
   UserCog,
   Users,
@@ -18,6 +19,7 @@ import { toast } from "sonner";
 import { AppearancePanel } from "@/components/settings/appearance-panel";
 import { CalculatorExpensesPanel } from "@/components/settings/calculator-expenses-panel";
 import { CompaniesPanel } from "@/components/settings/companies-panel";
+import { CompanyWorkspacePanel } from "@/components/settings/company-workspace-panel";
 import { EmailTemplatesPanel } from "@/components/settings/email-templates-panel";
 import { GoogleCalendarSettingsCard } from "@/components/settings/google-calendar-settings-card";
 import { TelegramBotSettingsCard } from "@/components/settings/telegram-bot-settings-card";
@@ -30,12 +32,14 @@ import { ProfilePanel } from "@/components/settings/profile-panel";
 import { GroupedTabGroup, GroupedTabsNav } from "@/components/ui/grouped-tabs-nav";
 import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { getClientRoleName } from "@/lib/permissions";
 
 const SETTINGS_TABS = new Set([
   "profile",
   "notifications",
   "appearance",
+  "workspace",
   "managers",
   "users",
   "email",
@@ -55,6 +59,7 @@ export function SettingsView() {
 
 function SettingsViewInner() {
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const role = getClientRoleName(user);
   const isAdmin = role === "ADMIN";
   const isClient = role === "CLIENT";
@@ -67,7 +72,7 @@ function SettingsViewInner() {
   const subtitle = isPlatformAdmin
     ? "Профиль, компании, письма, Telegram, календарь, калькулятор и пользователи"
     : isAdmin
-      ? "Профиль, оформление, уведомления, письма, Telegram, календарь, калькулятор и пользователи"
+      ? "Профиль, компания, оформление, уведомления, письма, Telegram, календарь, калькулятор и пользователи"
       : canManageManagersTab
         ? "Профиль, уведомления и менеджеры"
         : isClient
@@ -94,12 +99,17 @@ function SettingsViewInner() {
     const companyItems: GroupedTabGroup["items"] = [];
     if (isAdmin) {
       companyItems.push(
+        { value: "workspace", label: "Компания", icon: SlidersHorizontal },
         { value: "appearance", label: "Оформление", icon: Palette },
         { value: "email", label: "Письма", icon: Mail },
         { value: "telegram", label: "Telegram", icon: MessageCircle },
-        { value: "calendar", label: "Календарь", icon: CalendarDays },
-        { value: "calculator", label: "Калькулятор", icon: Calculator },
       );
+      if (settings.modules.googleCalendar) {
+        companyItems.push({ value: "calendar", label: "Календарь", icon: CalendarDays });
+      }
+      if (settings.modules.calculator) {
+        companyItems.push({ value: "calculator", label: "Калькулятор", icon: Calculator });
+      }
     }
 
     const result: GroupedTabGroup[] = [accountGroup];
@@ -117,7 +127,7 @@ function SettingsViewInner() {
     }
 
     return result;
-  }, [canManageManagersTab, isAdmin, isPlatformAdmin]);
+  }, [canManageManagersTab, isAdmin, isPlatformAdmin, settings.modules.calculator, settings.modules.googleCalendar]);
 
   const allowedTabs = useMemo(
     () => new Set(groups.flatMap((group) => group.items.map((item) => item.value))),
@@ -179,6 +189,12 @@ function SettingsViewInner() {
           </TabsContent>
 
           {isAdmin && (
+            <TabsContent value="workspace" className="mt-4">
+              <CompanyWorkspacePanel />
+            </TabsContent>
+          )}
+
+          {isAdmin && (
             <TabsContent value="appearance" className="mt-4">
               <AppearancePanel />
             </TabsContent>
@@ -209,13 +225,13 @@ function SettingsViewInner() {
             </TabsContent>
           )}
 
-          {isAdmin && (
+          {isAdmin && settings.modules.googleCalendar && (
             <TabsContent value="calendar" className="mt-4">
               <GoogleCalendarSettingsCard />
             </TabsContent>
           )}
 
-          {isAdmin && (
+          {isAdmin && settings.modules.calculator && (
             <TabsContent value="calculator" className="mt-4">
               <CalculatorExpensesPanel />
             </TabsContent>

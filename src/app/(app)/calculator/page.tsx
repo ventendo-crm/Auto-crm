@@ -7,6 +7,7 @@ import { CustomsCalculator } from "@/components/calculator/customs-calculator";
 import { Header } from "@/components/layout/header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { canAccessCalculator, getClientRoleName } from "@/lib/permissions";
 
 function CalculatorContent() {
@@ -20,9 +21,10 @@ function CalculatorContent() {
 
 export default function CalculatorPage() {
   const { user, loading } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const router = useRouter();
   const role = getClientRoleName(user);
-  const allowed = role ? canAccessCalculator(role) : false;
+  const allowed = role ? canAccessCalculator(role, settings.modules.calculator) : false;
 
   useEffect(() => {
     if (loading) return;

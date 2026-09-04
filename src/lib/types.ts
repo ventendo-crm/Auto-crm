@@ -1,7 +1,6 @@
 import {
   DealStageType,
   DocumentStatus,
-  DocumentType,
   MediaType,
   NotificationType,
 } from "@prisma/client";
@@ -94,6 +93,7 @@ export interface DealListItem {
   balance?: number | null;
   destinationCity: string;
   destinationCountry: string;
+  customFields?: Record<string, string>;
   managerId: string | null;
   managerIds: string[];
   clientUserId?: string | null;
@@ -239,7 +239,7 @@ export interface DealDetail extends DealListItem {
 export interface DocumentItem {
   id: string;
   dealId: string;
-  type: DocumentType;
+  type: string;
   status: DocumentStatus;
   fileUrl?: string | null;
   uploadedAt?: string | null;
@@ -418,8 +418,10 @@ export interface ClientPortalDeal {
   carYear?: number | null;
   destinationCity: string;
   destinationCountry: string;
+  customFields?: Record<string, string>;
   currentStage: DealStageType;
   stageLabel: string;
+  stageMessage: string;
   expectedArrival?: string | null;
   actualArrival?: string | null;
   managerId: string | null;
@@ -429,7 +431,7 @@ export interface ClientPortalDeal {
   documents: {
     id: string;
     dealId: string;
-    type: DocumentType;
+    type: string;
     label: string;
     status: DocumentStatus;
     fileUrl?: string | null;

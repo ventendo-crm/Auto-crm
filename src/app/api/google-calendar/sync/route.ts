@@ -1,12 +1,12 @@
-import { withAuth, assertAllowed } from "@/lib/api-handler";
+import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
-import { canManageCompanyGoogleCalendar } from "@/lib/permissions";
 import { getCompanyGoogleCalendarSettings } from "@/lib/services/google-calendar-settings";
+import { assertCompanyGoogleCalendarAccess } from "@/lib/services/company-workspace";
 import { backfillCompanyGoogleCalendar } from "@/lib/google-calendar/sync";
 import { prisma } from "@/lib/prisma";
 
 export const POST = withAuth(async (_request, { user }) => {
-  assertAllowed(canManageCompanyGoogleCalendar(user.role));
+  await assertCompanyGoogleCalendarAccess(user);
 
   const connected = await prisma.companyGoogleCalendarSettings.findUnique({
     where: { companyId: user.companyId },

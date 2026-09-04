@@ -4,7 +4,8 @@ import {
   createShareToken,
   hashShareToken,
 } from "@/lib/catalog/share-token";
-import { AuthUser, canAccessCatalog } from "@/lib/permissions";
+import { AuthUser } from "@/lib/permissions";
+import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { serializeGalleryUrls } from "@/lib/services/catalog-serialize";
@@ -21,10 +22,8 @@ type UpdateInput = z.infer<typeof updateCatalogSelectionSchema>;
 type AddItemInput = z.infer<typeof addSelectionItemSchema>;
 type ShareInput = z.infer<typeof createShareTokenSchema>;
 
-function assertCatalogAccess(user: AuthUser) {
-  if (!canAccessCatalog(user.role)) {
-    throw new Error("Forbidden");
-  }
+async function assertCatalogAccess(user: AuthUser) {
+  await assertCompanyCatalogAccess(user);
 }
 
 const selectionInclude = {
@@ -146,7 +145,7 @@ function serializeSelection(record: {
 }
 
 export async function listCatalogSelections(user: AuthUser) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const rows = await prisma.catalogSelection.findMany({
     where: { companyId: user.companyId },
     orderBy: { updatedAt: "desc" },
@@ -170,7 +169,7 @@ export async function listCatalogSelections(user: AuthUser) {
 }
 
 export async function getCatalogSelection(user: AuthUser, id: string) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const record = await prisma.catalogSelection.findFirst({
     where: { id, companyId: user.companyId },
     include: selectionInclude,
@@ -180,7 +179,7 @@ export async function getCatalogSelection(user: AuthUser, id: string) {
 }
 
 export async function createCatalogSelection(user: AuthUser, body: CreateInput) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const data = createCatalogSelectionSchema.parse(body);
 
   if (data.dealId) {
@@ -228,7 +227,7 @@ export async function createCatalogSelection(user: AuthUser, body: CreateInput) 
 }
 
 export async function updateCatalogSelection(user: AuthUser, id: string, body: UpdateInput) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const data = updateCatalogSelectionSchema.parse(body);
 
   const existing = await prisma.catalogSelection.findFirst({
@@ -259,7 +258,7 @@ export async function updateCatalogSelection(user: AuthUser, id: string, body: U
 }
 
 export async function deleteCatalogSelection(user: AuthUser, id: string) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const existing = await prisma.catalogSelection.findFirst({
     where: { id, companyId: user.companyId },
     select: { id: true, title: true },
@@ -277,7 +276,7 @@ export async function deleteCatalogSelection(user: AuthUser, id: string) {
 }
 
 export async function addCatalogSelectionItem(user: AuthUser, selectionId: string, body: AddItemInput) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const data = addSelectionItemSchema.parse(body);
 
   const selection = await prisma.catalogSelection.findFirst({
@@ -324,7 +323,7 @@ export async function removeCatalogSelectionItem(
   selectionId: string,
   itemId: string,
 ) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const item = await prisma.catalogSelectionItem.findFirst({
     where: { id: itemId, selection: { id: selectionId, companyId: user.companyId } },
     select: { id: true },
@@ -339,7 +338,7 @@ export async function createCatalogSelectionShareToken(
   selectionId: string,
   body: ShareInput,
 ) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const data = createShareTokenSchema.parse(body);
 
   const selection = await prisma.catalogSelection.findFirst({
@@ -388,7 +387,7 @@ export async function revokeCatalogSelectionShareToken(
   selectionId: string,
   tokenId: string,
 ) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const record = await prisma.catalogSelectionShareToken.findFirst({
     where: {
       id: tokenId,

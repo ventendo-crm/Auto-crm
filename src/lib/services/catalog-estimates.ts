@@ -11,7 +11,8 @@ import {
 } from "@/lib/customs-calculator";
 import { fetchGoogleFinanceRates } from "@/lib/customs-calculator/google-finance-rates";
 import { applyDealExchangeRate } from "@/lib/customs-calculator/deal-exchange-rate";
-import { AuthUser, canAccessCatalog } from "@/lib/permissions";
+import { AuthUser } from "@/lib/permissions";
+import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
@@ -144,7 +145,7 @@ async function buildCalculatorInput(
 }
 
 export async function getCatalogVehicleEstimate(user: AuthUser, vehicleId: string) {
-  if (!canAccessCatalog(user.role)) throw new Error("Forbidden");
+  await assertCompanyCatalogAccess(user);
 
   const record = await prisma.catalogVehicleCustomsEstimate.findFirst({
     where: { catalogVehicleId: vehicleId, catalogVehicle: { companyId: user.companyId } },
@@ -158,7 +159,7 @@ export async function upsertCatalogVehicleEstimate(
   vehicleId: string,
   body: EstimateInput,
 ) {
-  if (!canAccessCatalog(user.role)) throw new Error("Forbidden");
+  await assertCompanyCatalogAccess(user);
   const parsed = catalogEstimateSchema.parse(body);
 
   const vehicle = await prisma.catalogVehicle.findFirst({
@@ -216,7 +217,7 @@ export async function upsertCatalogVehicleEstimate(
 }
 
 export async function autoEstimateCatalogVehicle(user: AuthUser, vehicleId: string) {
-  if (!canAccessCatalog(user.role)) throw new Error("Forbidden");
+  await assertCompanyCatalogAccess(user);
 
   const vehicle = await prisma.catalogVehicle.findFirst({
     where: { id: vehicleId, companyId: user.companyId },
