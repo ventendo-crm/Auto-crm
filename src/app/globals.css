@@ -102,15 +102,19 @@
   }
 
   .collapsible-panel {
-    @apply grid transition-[grid-template-rows,opacity] duration-slow ease-out;
+    @apply grid transition-[grid-template-rows] duration-slow ease-out;
   }
 
   .collapsible-panel[data-open="true"] {
-    @apply grid-rows-[1fr] opacity-100;
+    @apply grid-rows-[1fr];
   }
 
   .collapsible-panel[data-open="false"] {
-    @apply grid-rows-[0fr] opacity-0;
+    @apply grid-rows-[0fr];
+  }
+
+  .collapsible-panel > * {
+    @apply min-h-0 overflow-hidden;
   }
 
   .tab-panel-enter {

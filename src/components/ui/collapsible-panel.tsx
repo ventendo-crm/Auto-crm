@@ -13,7 +13,7 @@ interface CollapsiblePanelProps {
 export function CollapsiblePanel({ open, children, className }: CollapsiblePanelProps) {
   return (
     <div className="collapsible-panel" data-open={open} aria-hidden={!open}>
-      <div className={cn("overflow-hidden", className)}>{children}</div>
+      <div className={cn(className)}>{children}</div>
     </div>
   );
 }

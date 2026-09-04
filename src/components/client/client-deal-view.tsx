@@ -263,51 +263,62 @@ export function ClientDealView() {
                   description="Когда менеджер подберёт автомобили, они появятся здесь с фото и описанием."
                 />
               ) : (
-                deal.searchProcess.map((entry) => (
-                  <div key={entry.id} className="rounded-xl border bg-muted/10 p-4 sm:p-5">
-                    <h3 className="mb-2 text-lg font-semibold">Вариант {entry.variantNumber}</h3>
-                    {entry.description ? (
-                      <p className="mb-4 whitespace-pre-wrap text-base leading-relaxed text-foreground sm:text-lg">
-                        {entry.description}
-                      </p>
-                    ) : (
-                      <p className="mb-4 text-base text-muted-foreground">Без описания</p>
-                    )}
+                <div className="space-y-6">
+                  <p className="text-sm text-muted-foreground">
+                    Показано вариантов:{" "}
+                    <span className="font-medium text-foreground">{deal.searchProcess.length}</span>
+                  </p>
+                  {deal.searchProcess.map((entry) => (
+                    <div
+                      key={entry.id}
+                      className="relative z-0 rounded-xl border bg-muted/10 p-4 sm:p-5"
+                    >
+                      <h3 className="mb-2 text-lg font-semibold">
+                        Вариант {entry.variantNumber}
+                      </h3>
+                      {entry.description ? (
+                        <p className="mb-4 whitespace-pre-wrap text-base leading-relaxed text-foreground sm:text-lg">
+                          {entry.description}
+                        </p>
+                      ) : (
+                        <p className="mb-4 text-base text-muted-foreground">Без описания</p>
+                      )}
 
-                    {entry.media.length > 0 ? (
-                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                        {entry.media.map((item) => (
-                          <ClientMediaThumb
-                            key={item.id}
-                            item={item}
-                            hideCaption
-                            onPreview={() => openPreview(entry.media, item)}
-                          />
-                        ))}
+                      {entry.media.length > 0 ? (
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                          {entry.media.map((item) => (
+                            <ClientMediaThumb
+                              key={item.id}
+                              item={item}
+                              hideCaption
+                              onPreview={() => openPreview(entry.media, item)}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Фото и видео не загружены</p>
+                      )}
+
+                      <div className="mt-4">
+                        <SearchProcessEntryEstimatePanel
+                          dealId={deal.id}
+                          entry={entry}
+                          previousEntry={null}
+                          destinationCountry={deal.destinationCountry}
+                        />
                       </div>
-                    ) : (
-                      <p className="text-xs text-muted-foreground">Фото и видео не загружены</p>
-                    )}
 
-                    <div className="mt-4">
-                      <SearchProcessEntryEstimatePanel
+                      <SearchProcessVariantFeedback
                         dealId={deal.id}
-                        entry={entry}
-                        previousEntry={null}
-                        destinationCountry={deal.destinationCountry}
+                        entryId={entry.id}
+                        variantNumber={entry.variantNumber}
+                        initialFeedback={entry.clientFeedback}
+                        initialFeedbackAt={entry.clientFeedbackAt}
+                        onSaved={refreshDeal}
                       />
                     </div>
-
-                    <SearchProcessVariantFeedback
-                      dealId={deal.id}
-                      entryId={entry.id}
-                      variantNumber={entry.variantNumber}
-                      initialFeedback={entry.clientFeedback}
-                      initialFeedbackAt={entry.clientFeedbackAt}
-                      onSaved={refreshDeal}
-                    />
-                  </div>
-                ))
+                  ))}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -381,16 +392,16 @@ function ClientMediaThumb({
   const isVideo = item.type === MediaType.VIDEO;
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border bg-muted/30 text-left shadow-sm transition-all duration-normal hover:shadow-card-hover">
+    <div className="group relative overflow-hidden rounded-lg border bg-muted/30 text-left shadow-sm transition-all duration-normal hover:shadow-md">
       <button type="button" onClick={onPreview} className="block w-full">
-        <div className="relative aspect-[4/3] w-full overflow-hidden">
+        <div className="relative aspect-square w-full overflow-hidden">
           <MediaThumb
             item={item}
             className="transition-transform duration-slow group-hover:scale-[1.03]"
           />
           {isVideo && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
-              <Play className="h-10 w-10 text-white/90 drop-shadow" />
+              <Play className="h-7 w-7 text-white/90 drop-shadow sm:h-8 sm:w-8" />
             </div>
           )}
         </div>

@@ -277,14 +277,16 @@ export function SearchProcessEntryEstimatePanel({
             </div>
           </CollapsibleTrigger>
 
-          <CollapsiblePanel open={detailsOpen} className="border-t px-3 pb-3 pt-3">
-            <CustomsEstimateSnapshot
-              input={entry.estimate.input}
-              result={entry.estimate.result}
-              createdAt={entry.estimate.updatedAt}
-              createdByName={entry.estimate.createdByName}
-              note={entry.estimate.note}
-            />
+          <CollapsiblePanel open={detailsOpen}>
+            <div className="border-t px-3 pb-3 pt-3">
+              <CustomsEstimateSnapshot
+                input={entry.estimate.input}
+                result={entry.estimate.result}
+                createdAt={entry.estimate.updatedAt}
+                createdByName={entry.estimate.createdByName}
+                note={entry.estimate.note}
+              />
+            </div>
           </CollapsiblePanel>
         </div>
       ) : (
