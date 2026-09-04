@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, Pencil, RefreshCw, X } from "lucide-react";
+import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, Pencil, RefreshCw, Share2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { toast } from "sonner";
@@ -29,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
+import { useIsMobile } from "@/hooks/use-is-mobile";
 import { api } from "@/lib/api-client";
 import {
   calculateCustoms,
@@ -614,6 +615,8 @@ function exportFilename(extension: "pdf" | "jpg") {
   return `rastamozhka-${stamp}.${extension}`;
 }
 
+const JPEG_EXPORT_WIDTH = 1650;
+
 async function captureResultCanvas(element: HTMLElement, scale = 2) {
   if (typeof document !== "undefined" && document.fonts?.ready) {
     await document.fonts.ready;
@@ -644,9 +647,113 @@ async function captureResultCanvas(element: HTMLElement, scale = 2) {
   });
 }
 
+/** JPEG/шаринг: фиксированная ширина, высота по содержимому (не зависит от ориентации экрана). */
+async function captureResultJpegCanvas(element: HTMLElement) {
+  if (typeof document !== "undefined" && document.fonts?.ready) {
+    await document.fonts.ready;
+  }
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+
+  const html2canvas = (await import("html2canvas")).default;
+  const canvas = await html2canvas(element, {
+    scale: 1,
+    useCORS: true,
+    backgroundColor: "#ffffff",
+    logging: false,
+    width: JPEG_EXPORT_WIDTH,
+    windowWidth: JPEG_EXPORT_WIDTH,
+    onclone: (_doc, cloned) => {
+      cloned.style.width = `${JPEG_EXPORT_WIDTH}px`;
+      cloned.style.maxWidth = `${JPEG_EXPORT_WIDTH}px`;
+      cloned.style.minWidth = `${JPEG_EXPORT_WIDTH}px`;
+      cloned.style.boxSizing = "border-box";
+      cloned.style.backgroundColor = "#ffffff";
+      cloned.style.color = "#1f2937";
+      cloned.style.fontFamily = "Arial, Helvetica, sans-serif";
+      cloned.style.letterSpacing = "0";
+      cloned.style.wordSpacing = "0";
+      cloned.querySelectorAll<HTMLElement>("*").forEach((node) => {
+        node.style.letterSpacing = "0";
+        node.style.wordSpacing = "normal";
+        node.style.fontVariantNumeric = "tabular-nums";
+        node.style.fontFamily = "Arial, Helvetica, sans-serif";
+      });
+    },
+  });
+
+  if (canvas.width === JPEG_EXPORT_WIDTH) {
+    return canvas;
+  }
+
+  const resized = document.createElement("canvas");
+  resized.width = JPEG_EXPORT_WIDTH;
+  resized.height = Math.max(1, Math.round((canvas.height * JPEG_EXPORT_WIDTH) / canvas.width));
+  const ctx = resized.getContext("2d");
+  if (!ctx) {
+    throw new Error("Не удалось подготовить изображение");
+  }
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, resized.width, resized.height);
+  ctx.drawImage(canvas, 0, 0, resized.width, resized.height);
+  return resized;
+}
+
 async function saveResultAsJpeg(element: HTMLElement) {
-  const canvas = await captureResultCanvas(element, 5);
+  const canvas = await captureResultJpegCanvas(element);
   downloadBlob(exportFilename("jpg"), canvas.toDataURL("image/jpeg", 1));
+}
+
+async function canvasToJpegFile(canvas: HTMLCanvasElement, filename: string): Promise<File> {
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) => {
+        if (result) resolve(result);
+        else reject(new Error("Не удалось подготовить изображение"));
+      },
+      "image/jpeg",
+      1,
+    );
+  });
+  return new File([blob], filename, { type: "image/jpeg" });
+}
+
+function canShareFiles(): boolean {
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
+    return false;
+  }
+  // Проверка поддержки файлов: canShare есть не везде, на iOS обычно работает share с File
+  if (typeof navigator.canShare !== "function") {
+    return true;
+  }
+  try {
+    return navigator.canShare({
+      files: [new File(["x"], "probe.jpg", { type: "image/jpeg" })],
+    });
+  } catch {
+    return false;
+  }
+}
+
+async function shareResultAsJpeg(element: HTMLElement) {
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
+    throw new Error("На этом устройстве шаринг недоступен");
+  }
+
+  const canvas = await captureResultJpegCanvas(element);
+  const file = await canvasToJpegFile(canvas, exportFilename("jpg"));
+  const data: ShareData = {
+    files: [file],
+    title: "Расчёт растаможки",
+    text: "Расчёт растаможки из ImportCRM",
+  };
+
+  if (typeof navigator.canShare === "function" && !navigator.canShare(data)) {
+    throw new Error("Устройство не умеет отправлять файлы в мессенджеры");
+  }
+
+  await navigator.share(data);
 }
 
 async function saveResultAsPdf(element: HTMLElement) {
@@ -678,6 +785,8 @@ async function saveResultAsPdf(element: HTMLElement) {
 
 export function CustomsCalculator() {
   const { user } = useAuth();
+  const isMobile = useIsMobile();
+  const [shareSupported, setShareSupported] = useState(false);
   const role = getClientRoleName(user);
   const canEditExpenseTemplate = role ? canManageCompanyCalculator(role) : false;
   const router = useRouter();
@@ -716,7 +825,7 @@ export function CustomsCalculator() {
   const [hydrated, setHydrated] = useState(false);
   const [ratesLoading, setRatesLoading] = useState(false);
   const [ratesUpdatedAt, setRatesUpdatedAt] = useState<string | null>(null);
-  const [exporting, setExporting] = useState<"pdf" | "jpeg" | null>(null);
+  const [exporting, setExporting] = useState<"pdf" | "jpeg" | "share" | null>(null);
   const [history, setHistory] = useState<CalculatorHistoryItem[]>([]);
   const [userPresets, setUserPresets] = useState<UserPreset[]>([]);
   const [presetsSaving, setPresetsSaving] = useState(false);
@@ -761,6 +870,10 @@ export function CustomsCalculator() {
     setSubmitted(stored.submitted);
     setHistory(loadCalculatorHistory());
     setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    setShareSupported(canShareFiles());
   }, []);
 
   useEffect(() => {
@@ -1094,7 +1207,7 @@ export function CustomsCalculator() {
     });
   };
 
-  const handleExport = async (format: "pdf" | "jpeg") => {
+  const handleExport = async (format: "pdf" | "jpeg" | "share") => {
     const element = exportRef.current;
     if (!element) return;
 
@@ -1113,11 +1226,17 @@ export function CustomsCalculator() {
       if (format === "pdf") {
         await saveResultAsPdf(element);
         toast.success("PDF сохранён");
+      } else if (format === "share") {
+        await shareResultAsJpeg(element);
       } else {
         await saveResultAsJpeg(element);
         toast.success("JPEG сохранён");
       }
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        // Пользователь закрыл системное меню шаринга
+        return;
+      }
       toast.error(error instanceof Error ? error.message : "Не удалось сохранить файл");
     } finally {
       setExporting(null);
@@ -2221,6 +2340,22 @@ export function CustomsCalculator() {
                   )}
                   JPEG
                 </Button>
+                {isMobile && shareSupported && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="flex-1"
+                    disabled={exporting !== null}
+                    onClick={() => void handleExport("share")}
+                  >
+                    {exporting === "share" ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Share2 className="mr-1.5 h-4 w-4" />
+                    )}
+                    Поделиться
+                  </Button>
+                )}
               </div>
 
               <div className="rounded-xl border px-4 py-3">
