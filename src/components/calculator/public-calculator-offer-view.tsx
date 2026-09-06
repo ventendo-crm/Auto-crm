@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight, ExternalLink, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { ZoomableImage } from "@/components/media/zoomable-image";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,6 +22,10 @@ function formatExpiry(iso: string) {
   } catch {
     return iso;
   }
+}
+
+function BlockDivider() {
+  return <div className="h-px bg-border" role="separator" />;
 }
 
 function SourceListingLink({ href }: { href: string }) {
@@ -202,39 +206,49 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
-        <OfferImageGallery images={data.photoUrls} labels={photoLabels} />
+        {[
+          data.photoUrls.length > 0 ? (
+            <OfferImageGallery key="photos" images={data.photoUrls} labels={photoLabels} />
+          ) : null,
+          data.description ? (
+            <section key="description" className="space-y-2">
+              <h2 className="text-base font-semibold">Комплектация</h2>
+              <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{data.description}</div>
+            </section>
+          ) : null,
+          data.estimateUrl ? (
+            <section key="estimate" className="space-y-2">
+              <h2 className="text-base font-semibold">Расчёт стоимости</h2>
+              <button
+                type="button"
+                onClick={() => setEstimateOpen(true)}
+                className="block w-full overflow-hidden rounded-lg bg-white text-left"
+              >
+                <img src={data.estimateUrl} alt="Расчёт растаможки" className="w-full" />
+              </button>
+              <Dialog open={estimateOpen} onOpenChange={setEstimateOpen}>
+                <DialogContent className="z-[100] flex h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[96dvh] sm:max-w-6xl sm:rounded-xl">
+                  <DialogHeader className="shrink-0 border-b px-3 py-2 sm:px-4">
+                    <DialogTitle className="pr-8 text-sm">Расчёт стоимости</DialogTitle>
+                  </DialogHeader>
+                  <div className="flex min-h-0 flex-1 w-full items-center justify-center bg-black">
+                    <ZoomableImage src={data.estimateUrl} alt="Расчёт растаможки" />
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </section>
+          ) : null,
+          data.sourceUrl ? <SourceListingLink key="source" href={data.sourceUrl} /> : null,
+        ]
+          .filter(Boolean)
+          .map((block, index) => (
+            <Fragment key={index}>
+              {index > 0 && <BlockDivider />}
+              {block}
+            </Fragment>
+          ))}
 
-        {data.description && (
-          <section className="whitespace-pre-wrap text-[15px] leading-relaxed">
-            {data.description}
-          </section>
-        )}
-
-        {data.estimateUrl && (
-          <section className="space-y-2">
-            <h2 className="text-base font-semibold">Расчёт стоимости</h2>
-            <button
-              type="button"
-              onClick={() => setEstimateOpen(true)}
-              className="block w-full overflow-hidden rounded-lg bg-white text-left"
-            >
-              <img src={data.estimateUrl} alt="Расчёт растаможки" className="w-full" />
-            </button>
-            <Dialog open={estimateOpen} onOpenChange={setEstimateOpen}>
-              <DialogContent className="z-[100] flex h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[96dvh] sm:max-w-6xl sm:rounded-xl">
-                <DialogHeader className="shrink-0 border-b px-3 py-2 sm:px-4">
-                  <DialogTitle className="pr-8 text-sm">Расчёт стоимости</DialogTitle>
-                </DialogHeader>
-                <div className="flex min-h-0 flex-1 w-full items-center justify-center bg-black">
-                  <ZoomableImage src={data.estimateUrl} alt="Расчёт растаможки" />
-                </div>
-              </DialogContent>
-            </Dialog>
-          </section>
-        )}
-
-        {data.sourceUrl && <SourceListingLink href={data.sourceUrl} />}
-
+        <BlockDivider />
         <p className="text-center text-xs text-muted-foreground">
           Ссылка действует до {formatExpiry(data.expiresAt)}
         </p>
