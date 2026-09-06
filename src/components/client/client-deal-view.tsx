@@ -263,15 +263,15 @@ export function ClientDealView() {
                   description="Когда менеджер подберёт автомобили, они появятся здесь с фото и описанием."
                 />
               ) : (
-                <div className="space-y-6">
+                <div className="flex flex-col gap-6">
                   <p className="text-sm text-muted-foreground">
                     Показано вариантов:{" "}
                     <span className="font-medium text-foreground">{deal.searchProcess.length}</span>
                   </p>
                   {deal.searchProcess.map((entry) => (
-                    <div
+                    <article
                       key={entry.id}
-                      className="relative z-0 rounded-xl border bg-muted/10 p-4 sm:p-5"
+                      className="relative isolate overflow-hidden rounded-xl border bg-muted/10 p-4 sm:p-5"
                     >
                       <h3 className="mb-2 text-lg font-semibold">
                         Вариант {entry.variantNumber}
@@ -316,7 +316,7 @@ export function ClientDealView() {
                         initialFeedbackAt={entry.clientFeedbackAt}
                         onSaved={refreshDeal}
                       />
-                    </div>
+                    </article>
                   ))}
                 </div>
               )}

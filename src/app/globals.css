@@ -94,7 +94,7 @@
   }
 
   .page-content {
-    @apply flex-1 space-y-6 overflow-x-hidden overflow-y-auto p-4 sm:p-6;
+    @apply flex-1 space-y-6 overflow-y-auto overflow-x-clip p-4 sm:p-6;
   }
 
   .surface-muted {
@@ -102,7 +102,7 @@
   }
 
   .collapsible-panel {
-    @apply grid transition-[grid-template-rows] duration-slow ease-out;
+    @apply grid overflow-hidden transition-[grid-template-rows] duration-slow ease-out;
   }
 
   .collapsible-panel[data-open="true"] {
@@ -110,7 +110,7 @@
   }
 
   .collapsible-panel[data-open="false"] {
-    @apply grid-rows-[0fr];
+    @apply pointer-events-none grid-rows-[0fr];
   }
 
   .collapsible-panel > * {

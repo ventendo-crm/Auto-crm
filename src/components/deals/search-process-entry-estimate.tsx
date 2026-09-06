@@ -11,7 +11,7 @@ import {
 import { isChinaLikeOrigin } from "@/lib/customs-calculator";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
-import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
+import { CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import {
   Dialog,
   DialogContent,
@@ -277,7 +277,7 @@ export function SearchProcessEntryEstimatePanel({
             </div>
           </CollapsibleTrigger>
 
-          <CollapsiblePanel open={detailsOpen}>
+          {detailsOpen ? (
             <div className="border-t px-3 pb-3 pt-3">
               <CustomsEstimateSnapshot
                 input={entry.estimate.input}
@@ -287,7 +287,7 @@ export function SearchProcessEntryEstimatePanel({
                 note={entry.estimate.note}
               />
             </div>
-          </CollapsiblePanel>
+          ) : null}
         </div>
       ) : (
         <p className="mt-3 text-sm text-muted-foreground">Расчёт ещё не добавлен.</p>
