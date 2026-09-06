@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Loader2, Share2, X } from "lucide-react";
+import { Copy, ImagePlus, Loader2, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -12,6 +12,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { api } from "@/lib/api-client";
+import {
+  buildTelegramShareUrl,
+  OFFER_MAX_TOTAL_BYTES,
+  resolvePublicOfferAbsoluteUrl,
+} from "@/lib/calculator/offer-share";
 import { canShareFiles, buildOfferShareText, shareOfferPackage } from "@/lib/calculator/share-export";
 import { formatCurrency } from "@/lib/utils";
 
@@ -38,10 +44,9 @@ export function CalculatorOfferWorkspace() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [photos, setPhotos] = useState<OfferPhoto[]>([]);
   const [sharing, setSharing] = useState(false);
-  const [shareSupported, setShareSupported] = useState(false);
+  const [createdLink, setCreatedLink] = useState<string | null>(null);
 
   useEffect(() => {
-    setShareSupported(canShareFiles() || typeof navigator.share === "function");
     try {
       setDescription(sessionStorage.getItem(STORAGE_DESCRIPTION) ?? "");
       setSourceUrl(sessionStorage.getItem(STORAGE_LINK) ?? "");
@@ -110,58 +115,85 @@ export function CalculatorOfferWorkspace() {
     });
   };
 
-  const handleShare = async () => {
-    const text = buildOfferShareText({
+  const collectSharePayload = async () => {
+    const totalLabel =
+      captureApiRef.current?.totalWithCar() != null
+        ? formatCurrency(captureApiRef.current.totalWithCar())
+        : null;
+    const text = buildOfferShareText({ description, sourceUrl, totalLabel });
+    const photoFiles = photos.map((photo) => photo.file);
+    const estimate = captureApiRef.current?.canCapture()
+      ? await captureApiRef.current.captureJpeg()
+      : null;
+    const files = estimate ? [...photoFiles, estimate] : photoFiles;
+    return { text, files, photoFiles, estimate, totalLabel };
+  };
+
+  const publishOfferLink = async (
+    text: string,
+    photoFiles: File[],
+    estimate: File | null,
+    totalLabel: string | null,
+  ) => {
+    const files = estimate ? [...photoFiles, estimate] : photoFiles;
+    const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > OFFER_MAX_TOTAL_BYTES) {
+      throw new Error("Слишком большой набор файлов — уберите часть фото");
+    }
+
+    const created = await api.calculatorOffers.create({
       description,
       sourceUrl,
-      totalLabel:
-        captureApiRef.current?.totalWithCar() != null
-          ? formatCurrency(captureApiRef.current.totalWithCar())
-          : null,
+      totalLabel,
+      photos: photoFiles,
+      estimate,
     });
+    const url = resolvePublicOfferAbsoluteUrl(created.token);
+    const clipboard = [text, url].filter(Boolean).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(clipboard);
+    } catch {
+      // ссылку всё равно покажем на экране
+    }
+    setCreatedLink(url);
+    return url;
+  };
 
-    if (!text && photos.length === 0 && !captureApiRef.current?.canCapture()) {
+  const handleShare = async () => {
+    if (!description.trim() && !sourceUrl.trim() && photos.length === 0 && !captureApiRef.current?.canCapture()) {
       toast.error("Добавьте описание, ссылку, фото или расчёт");
       return;
     }
 
     setSharing(true);
     try {
-      const files = photos.map((photo) => photo.file);
-      if (captureApiRef.current?.canCapture()) {
-        files.push(await captureApiRef.current.captureJpeg());
-      }
+      const { text, files, photoFiles, estimate, totalLabel } = await collectSharePayload();
 
-      if (!shareSupported && !canShareFiles()) {
-        if (text) {
-          await navigator.clipboard.writeText(text);
-          toast.success("Текст скопирован. На телефоне «Поделиться» отправит фото и расчёт в мессенджер.");
-        } else {
-          toast.error("Отправка в мессенджеры доступна на телефоне");
+      if (canShareFiles() && files.length > 0) {
+        try {
+          await shareOfferPackage({
+            title: "Авто из ImportCRM",
+            text,
+            files,
+          });
+          return;
+        } catch (shareError) {
+          if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+          if (
+            !(shareError instanceof Error) ||
+            (shareError.message !== "SHARE_TEXT_ONLY" &&
+              shareError.message !== "SHARE_UNAVAILABLE" &&
+              shareError.message !== "SHARE_FILES_UNSUPPORTED")
+          ) {
+            throw shareError;
+          }
         }
-        return;
       }
 
-      await shareOfferPackage({
-        title: "Авто из ImportCRM",
-        text,
-        files,
-      });
+      await publishOfferLink(text, photoFiles, estimate, totalLabel);
+      toast.success("Ссылка скопирована — вставьте в Telegram или Max");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
-      if (error instanceof Error && error.message === "SHARE_TEXT_ONLY") {
-        toast.success("Текст отправлен. Фото это устройство не умеет прикрепить — откройте на телефоне.");
-        return;
-      }
-      if (error instanceof Error && error.message === "SHARE_UNAVAILABLE") {
-        try {
-          if (text) await navigator.clipboard.writeText(text);
-          toast.success("Текст скопирован. На телефоне можно отправить всё одним сообщением.");
-        } catch {
-          toast.error("На этом устройстве шаринг недоступен — откройте на телефоне");
-        }
-        return;
-      }
       toast.error(error instanceof Error ? error.message : "Не удалось отправить");
     } finally {
       setSharing(false);
@@ -174,7 +206,7 @@ export function CalculatorOfferWorkspace() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Подбор авто</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Фото, описание, ссылка и расчёт — затем «Поделиться» в Telegram, Max или другой мессенджер.
+            Фото, описание, ссылка и расчёт. На телефоне — сразу в мессенджер, на компьютере — ссылка для клиента.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -259,9 +291,30 @@ export function CalculatorOfferWorkspace() {
           {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
           Поделиться
         </Button>
-        <p className="mt-2 text-center text-xs text-muted-foreground">
-          Откроется меню телефона: Telegram, Max, WhatsApp. На компьютере скопируется текст.
-        </p>
+        {createdLink && (
+          <div className="mt-3 space-y-2 rounded-xl border bg-card p-3 shadow-card">
+            <p className="break-all text-xs text-muted-foreground">{createdLink}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard.writeText(createdLink);
+                  toast.success("Ссылка скопирована");
+                }}
+              >
+                <Copy className="h-3.5 w-3.5" />
+                Копировать ссылку
+              </Button>
+              <Button type="button" size="sm" variant="brand" asChild>
+                <a href={buildTelegramShareUrl(createdLink, "Подбор авто")} target="_blank" rel="noreferrer">
+                  Открыть в Telegram
+                </a>
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

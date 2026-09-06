@@ -16,11 +16,11 @@ import { canAccessCalculator, getClientRoleName } from "@/lib/permissions";
 function CalculatorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tab = searchParams.get("tab") === "calc" ? "calc" : "offer";
+  const tab = searchParams.get("tab") === "offer" ? "offer" : "calc";
 
   const setTab = (value: string) => {
     const next = new URLSearchParams(searchParams.toString());
-    if (value === "offer") next.delete("tab");
+    if (value === "calc") next.delete("tab");
     else next.set("tab", value);
     const query = next.toString();
     router.replace(query ? `/calculator?${query}` : "/calculator", { scroll: false });
@@ -29,23 +29,23 @@ function CalculatorContent() {
   return (
     <Tabs value={tab} onValueChange={setTab} className="space-y-4">
       <TabsList className="grid h-auto w-full grid-cols-2">
-        <TabsTrigger value="offer" className="gap-1.5">
-          <Share2 className="h-3.5 w-3.5" />
-          Подбор
-        </TabsTrigger>
         <TabsTrigger value="calc" className="gap-1.5">
           <Calculator className="h-3.5 w-3.5" />
           Калькулятор
         </TabsTrigger>
+        <TabsTrigger value="offer" className="gap-1.5">
+          <Share2 className="h-3.5 w-3.5" />
+          Подбор
+        </TabsTrigger>
       </TabsList>
-
-      <TabsContent value="offer" className="mt-4">
-        <CalculatorOfferWorkspace />
-      </TabsContent>
 
       <TabsContent value="calc" className="mt-4 space-y-6">
         <CustomsCalculator />
         <CalculatorQuickSearch />
+      </TabsContent>
+
+      <TabsContent value="offer" className="mt-4">
+        <CalculatorOfferWorkspace />
       </TabsContent>
     </Tabs>
   );

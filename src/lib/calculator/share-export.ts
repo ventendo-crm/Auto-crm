@@ -135,6 +135,78 @@ export function buildOfferShareText(input: {
   return parts.join("\n\n");
 }
 
+function wrapCanvasLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
+  const lines: string[] = [];
+
+  const pushWord = (word: string, current: string): string => {
+    const next = current ? `${current} ${word}` : word;
+    if (ctx.measureText(next).width <= maxWidth) return next;
+    if (current) lines.push(current);
+    if (ctx.measureText(word).width <= maxWidth) return word;
+
+    let chunk = "";
+    for (const char of word) {
+      const trial = chunk + char;
+      if (ctx.measureText(trial).width <= maxWidth) {
+        chunk = trial;
+      } else {
+        if (chunk) lines.push(chunk);
+        chunk = char;
+      }
+    }
+    return chunk;
+  };
+
+  for (const paragraph of text.split("\n")) {
+    if (!paragraph.trim()) {
+      lines.push("");
+      continue;
+    }
+    let current = "";
+    for (const word of paragraph.split(/\s+/).filter(Boolean)) {
+      current = pushWord(word, current);
+    }
+    if (current) lines.push(current);
+  }
+
+  return lines;
+}
+
+/** Telegram/Max на телефоне выкидывают text, если есть файлы — текст уходит картинкой. */
+export async function offerTextToJpegFile(text: string): Promise<File> {
+  const width = 1080;
+  const padding = 56;
+  const fontSize = 36;
+  const lineHeight = 50;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) {
+    throw new Error("Не удалось подготовить текст");
+  }
+
+  const font = `400 ${fontSize}px Arial, Helvetica, sans-serif`;
+  ctx.font = font;
+  const lines = wrapCanvasLines(ctx, text.trim(), width - padding * 2);
+  canvas.width = width;
+  canvas.height = Math.min(8000, padding * 2 + Math.max(1, lines.length) * lineHeight);
+
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#1f2937";
+  ctx.font = font;
+  ctx.textBaseline = "top";
+
+  let y = padding;
+  const maxY = canvas.height - padding;
+  for (const line of lines) {
+    if (y + lineHeight > maxY + 8) break;
+    ctx.fillText(line, padding, y);
+    y += lineHeight;
+  }
+
+  return canvasToJpegFile(canvas, "opisanie.jpg");
+}
+
 export async function shareOfferPackage(input: {
   title?: string;
   text: string;
@@ -144,15 +216,28 @@ export async function shareOfferPackage(input: {
     throw new Error("SHARE_UNAVAILABLE");
   }
 
+  const files = [...input.files];
+  const text = input.text.trim();
+  if (text && files.length > 0) {
+    files.unshift(await offerTextToJpegFile(text));
+  }
+
   const payload: ShareData = {
-    title: input.title ?? "Авто из ImportCRM",
-    text: input.text || undefined,
-    files: input.files.length > 0 ? input.files : undefined,
+    text: text || undefined,
+    files: files.length > 0 ? files : undefined,
   };
+  if (!payload.files) {
+    payload.title = input.title ?? "Авто из ImportCRM";
+  }
 
   if (typeof navigator.canShare === "function") {
     if (payload.files && !navigator.canShare(payload)) {
-      const withoutFiles: ShareData = { title: payload.title, text: payload.text };
+      const filesOnly: ShareData = { files: payload.files };
+      if (navigator.canShare(filesOnly)) {
+        await navigator.share(filesOnly);
+        return;
+      }
+      const withoutFiles: ShareData = { title: input.title ?? "Авто из ImportCRM", text: payload.text };
       if (navigator.canShare(withoutFiles) && payload.text) {
         await navigator.share(withoutFiles);
         throw new Error("SHARE_TEXT_ONLY");

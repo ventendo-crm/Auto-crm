@@ -626,6 +626,40 @@ export const api = {
       ),
   },
 
+  calculatorOffers: {
+    create: async (input: {
+      description: string;
+      sourceUrl: string;
+      totalLabel?: string | null;
+      photos: File[];
+      estimate?: File | null;
+    }) => {
+      const formData = new FormData();
+      formData.append("description", input.description);
+      formData.append("sourceUrl", input.sourceUrl);
+      if (input.totalLabel) formData.append("totalLabel", input.totalLabel);
+      for (const photo of input.photos) {
+        formData.append("photos", photo);
+      }
+      if (input.estimate) formData.append("estimate", input.estimate);
+
+      const response = await fetch("/api/calculator/offers", {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const json = (await response.json()) as {
+        success?: boolean;
+        data?: import("@/lib/calculator/offer-share").CreatedCalculatorOffer;
+        error?: string;
+      };
+      if (!response.ok || !json.success || !json.data) {
+        throw new Error(json.error ?? "Не удалось создать ссылку");
+      }
+      return json.data;
+    },
+  },
+
   calculatorExpenseTemplate: {
     get: () =>
       request<import("@/lib/services/company-calculator-settings").CompanyCalculatorSettingsDto>(
