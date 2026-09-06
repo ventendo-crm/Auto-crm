@@ -80,6 +80,12 @@ export function canShareFiles(): boolean {
   }
 }
 
+/** Windows/Chrome на ПК тоже умеет share files — там нужна ссылка, а не системное меню. */
+export function isPhoneFileShare(): boolean {
+  if (!canShareFiles()) return false;
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
 export async function shareResultAsJpeg(element: HTMLElement) {
   const file = await captureResultJpegFile(element);
   try {

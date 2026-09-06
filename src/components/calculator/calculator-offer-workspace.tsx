@@ -18,7 +18,7 @@ import {
   OFFER_MAX_TOTAL_BYTES,
   resolvePublicOfferAbsoluteUrl,
 } from "@/lib/calculator/offer-share";
-import { canShareFiles, buildOfferShareText, shareOfferPackage } from "@/lib/calculator/share-export";
+import { isPhoneFileShare, buildOfferShareText, shareOfferPackage } from "@/lib/calculator/share-export";
 import { formatCurrency } from "@/lib/utils";
 
 const MAX_PHOTOS = 15;
@@ -169,7 +169,7 @@ export function CalculatorOfferWorkspace() {
     try {
       const { text, files, photoFiles, estimate, totalLabel } = await collectSharePayload();
 
-      if (canShareFiles() && files.length > 0) {
+      if (isPhoneFileShare() && files.length > 0) {
         try {
           await shareOfferPackage({
             title: "Авто из ImportCRM",
@@ -191,10 +191,15 @@ export function CalculatorOfferWorkspace() {
       }
 
       await publishOfferLink(text, photoFiles, estimate, totalLabel);
-      toast.success("Ссылка скопирована — вставьте в Telegram или Max");
+      toast.success("Ссылка создана", {
+        description: "Скопирована в буфер, действует 30 дней.",
+        duration: 6000,
+      });
+      requestAnimationFrame(() => {
+        document.getElementById("offer-created-link")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return;
-      toast.error(error instanceof Error ? error.message : "Не удалось отправить");
+      toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
     } finally {
       setSharing(false);
     }
@@ -280,19 +285,10 @@ export function CalculatorOfferWorkspace() {
 
       <CustomsCalculator captureApiRef={captureApiRef} embedded />
 
-      <div className="sticky bottom-3 z-30">
-        <Button
-          type="button"
-          variant="brand"
-          className="h-12 w-full shadow-lg"
-          disabled={sharing}
-          onClick={() => void handleShare()}
-        >
-          {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-          Поделиться
-        </Button>
+      <div className="sticky bottom-3 z-30 space-y-3">
         {createdLink && (
-          <div className="mt-3 space-y-2 rounded-xl border bg-card p-3 shadow-card">
+          <div id="offer-created-link" className="space-y-2 rounded-xl border bg-card p-3 shadow-lg">
+            <p className="text-sm font-medium">Ссылка создана · 30 дней</p>
             <p className="break-all text-xs text-muted-foreground">{createdLink}</p>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -315,6 +311,16 @@ export function CalculatorOfferWorkspace() {
             </div>
           </div>
         )}
+        <Button
+          type="button"
+          variant="brand"
+          className="h-12 w-full shadow-lg"
+          disabled={sharing}
+          onClick={() => void handleShare()}
+        >
+          {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+          Поделиться
+        </Button>
       </div>
     </div>
   );
