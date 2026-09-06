@@ -2,7 +2,14 @@
 
 import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, Pencil, RefreshCw, Share2, X } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type MutableRefObject,
+  type ReactNode,
+} from "react";
 import { toast } from "sonner";
 import { CalculatorExpenseEditor } from "@/components/calculator/calculator-expense-editor";
 import { CalculatorPresetsPanel } from "@/components/calculator/calculator-presets-panel";
@@ -31,6 +38,13 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { useIsMobile } from "@/hooks/use-is-mobile";
 import { api } from "@/lib/api-client";
+import {
+  canShareFiles,
+  captureResultJpegFile,
+  saveResultAsJpeg,
+  saveResultAsPdf,
+  shareResultAsJpeg,
+} from "@/lib/calculator/share-export";
 import {
   calculateCustoms,
   CarAge,
@@ -603,132 +617,18 @@ function FieldHint({ children }: { children: ReactNode }) {
   return <p className="text-xs text-muted-foreground">{children}</p>;
 }
 
-function downloadBlob(filename: string, dataUrl: string) {
-  const link = document.createElement("a");
-  link.download = filename;
-  link.href = dataUrl;
-  link.click();
+export type CalculatorCaptureApi = {
+  canCapture: () => boolean;
+  captureJpeg: () => Promise<File>;
+  totalWithCar: () => number | null;
+};
+
+interface CustomsCalculatorProps {
+  captureApiRef?: MutableRefObject<CalculatorCaptureApi | null>;
+  embedded?: boolean;
 }
 
-function exportFilename(extension: "pdf" | "jpg") {
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
-  return `rastamozhka-${stamp}.${extension}`;
-}
-
-async function captureResultCanvas(element: HTMLElement, scale = 2) {
-  if (typeof document !== "undefined" && document.fonts?.ready) {
-    await document.fonts.ready;
-  }
-  await new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  });
-
-  const html2canvas = (await import("html2canvas")).default;
-  return html2canvas(element, {
-    scale,
-    useCORS: true,
-    backgroundColor: "#ffffff",
-    logging: false,
-    onclone: (_doc, cloned) => {
-      cloned.style.backgroundColor = "#ffffff";
-      cloned.style.color = "#1f2937";
-      cloned.style.fontFamily = "Arial, Helvetica, sans-serif";
-      cloned.style.letterSpacing = "0";
-      cloned.style.wordSpacing = "0";
-      cloned.querySelectorAll<HTMLElement>("*").forEach((node) => {
-        node.style.letterSpacing = "0";
-        node.style.wordSpacing = "normal";
-        node.style.fontVariantNumeric = "tabular-nums";
-        node.style.fontFamily = "Arial, Helvetica, sans-serif";
-      });
-    },
-  });
-}
-
-async function saveResultAsJpeg(element: HTMLElement) {
-  const canvas = await captureResultCanvas(element, 5);
-  downloadBlob(exportFilename("jpg"), canvas.toDataURL("image/jpeg", 1));
-}
-
-async function canvasToJpegFile(canvas: HTMLCanvasElement, filename: string): Promise<File> {
-  const blob = await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (result) => {
-        if (result) resolve(result);
-        else reject(new Error("Не удалось подготовить изображение"));
-      },
-      "image/jpeg",
-      1,
-    );
-  });
-  return new File([blob], filename, { type: "image/jpeg" });
-}
-
-function canShareFiles(): boolean {
-  if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
-    return false;
-  }
-  // Проверка поддержки файлов: canShare есть не везде, на iOS обычно работает share с File
-  if (typeof navigator.canShare !== "function") {
-    return true;
-  }
-  try {
-    return navigator.canShare({
-      files: [new File(["x"], "probe.jpg", { type: "image/jpeg" })],
-    });
-  } catch {
-    return false;
-  }
-}
-
-async function shareResultAsJpeg(element: HTMLElement) {
-  if (typeof navigator === "undefined" || typeof navigator.share !== "function") {
-    throw new Error("На этом устройстве шаринг недоступен");
-  }
-
-  const canvas = await captureResultCanvas(element, 5);
-  const file = await canvasToJpegFile(canvas, exportFilename("jpg"));
-  const data: ShareData = {
-    files: [file],
-    title: "Расчёт растаможки",
-    text: "Расчёт растаможки из ImportCRM",
-  };
-
-  if (typeof navigator.canShare === "function" && !navigator.canShare(data)) {
-    throw new Error("Устройство не умеет отправлять файлы в мессенджеры");
-  }
-
-  await navigator.share(data);
-}
-
-async function saveResultAsPdf(element: HTMLElement) {
-  const canvas = await captureResultCanvas(element, 4);
-  const { jsPDF } = await import("jspdf");
-  // PNG даёт более чёткий текст в PDF, чем JPEG
-  const imgData = canvas.toDataURL("image/png");
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageWidth = pdf.internal.pageSize.getWidth();
-  const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = 8;
-  const usableWidth = pageWidth - margin * 2;
-  const usableHeight = pageHeight - margin * 2;
-
-  // Вписываем расчёт на одну страницу A4 без разбиения
-  let imgWidth = usableWidth;
-  let imgHeight = (canvas.height * imgWidth) / canvas.width;
-  if (imgHeight > usableHeight) {
-    const scale = usableHeight / imgHeight;
-    imgWidth *= scale;
-    imgHeight = usableHeight;
-  }
-
-  const x = margin + (usableWidth - imgWidth) / 2;
-  const y = margin + (usableHeight - imgHeight) / 2;
-  pdf.addImage(imgData, "PNG", x, y, imgWidth, imgHeight);
-  pdf.save(exportFilename("pdf"));
-}
-
-export function CustomsCalculator() {
+export function CustomsCalculator({ captureApiRef, embedded = false }: CustomsCalculatorProps = {}) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const [shareSupported, setShareSupported] = useState(false);
@@ -1047,6 +947,38 @@ export function CustomsCalculator() {
     extraExpenseItems,
     extraAmounts,
   ]);
+
+  useEffect(() => {
+    if (!captureApiRef) return;
+
+    captureApiRef.current = {
+      canCapture: () => Boolean(submitted && result && exportRef.current),
+      totalWithCar: () => result?.totalWithCar ?? null,
+      captureJpeg: async () => {
+        const wasDetailsOpen = detailsOpen;
+        if (!wasDetailsOpen) {
+          setDetailsOpen(true);
+          await new Promise<void>((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+          });
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
+        const element = exportRef.current;
+        if (!element) {
+          throw new Error("Сначала посчитайте стоимость");
+        }
+        const file = await captureResultJpegFile(element);
+        if (!wasDetailsOpen) {
+          window.setTimeout(() => setDetailsOpen(false), 200);
+        }
+        return file;
+      },
+    };
+
+    return () => {
+      captureApiRef.current = null;
+    };
+  }, [captureApiRef, detailsOpen, result, submitted]);
 
   useEffect(() => {
     if (!hydrated || !submitted || !result) return;
@@ -2288,7 +2220,7 @@ export function CustomsCalculator() {
                   )}
                   JPEG
                 </Button>
-                {isMobile && shareSupported && (
+                {isMobile && shareSupported && !embedded && (
                   <Button
                     type="button"
                     variant="outline"
@@ -2688,7 +2620,7 @@ export function CustomsCalculator() {
         </CardContent>
       </Card>
 
-      {result && result.totalWithCar !== 0 && (
+      {result && result.totalWithCar !== 0 && !embedded && (
         <div
           className={cn(
             "fixed inset-x-0 z-40 border-t bg-card/95 p-3 backdrop-blur xl:hidden",
