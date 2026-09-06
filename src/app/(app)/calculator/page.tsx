@@ -48,7 +48,7 @@ export default function CalculatorPage() {
   return (
     <>
       <Header title="Калькулятор" subtitle="Растаможка и утильсбор по правилам 2026 года" />
-      <div className="page-content pb-36 md:pb-6 xl:pb-6">
+      <div className="page-content">
         <Suspense
           fallback={
             <div className="space-y-4">
