@@ -39,7 +39,7 @@ export function CalculatorQuickSearch() {
   };
 
   return (
-    <Card className="border-0 shadow-card">
+    <Card className="mb-28 border-0 shadow-card xl:mb-0">
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <Search className="h-4 w-4" />
@@ -53,15 +53,15 @@ export function CalculatorQuickSearch() {
         <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
           Быстрый поиск помогает найти ориентир, но перед расчётом утильсбора лучше сверять мощность и характеристики по нескольким источникам.
         </div>
-        <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-2 sm:flex-row">
+        <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-row gap-2">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Введите запрос…"
             disabled={loading}
-            className="sm:flex-1"
+            className="min-w-0 flex-1"
           />
-          <Button type="submit" variant="brand" disabled={loading} className="sm:w-auto">
+          <Button type="submit" variant="brand" disabled={loading} className="shrink-0">
             {loading ? (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             ) : (
