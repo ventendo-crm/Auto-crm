@@ -8,9 +8,9 @@ const PUBLIC_API_PATHS = [
   "/api/auth/password-reset",
   "/api/telegram/webhook",
   "/api/google-calendar/callback",
-  "/api/public/",
+  "/api/public",
 ];
-const PUBLIC_PAGE_PATHS = ["/login", "/forgot-password", "/reset-password", "/landing", "/s/", "/o/"];
+const PUBLIC_PAGE_PATHS = ["/login", "/forgot-password", "/reset-password", "/landing", "/s", "/o"];
 
 const STAFF_PAGE_PREFIXES = ["/dashboard", "/kanban", "/deals", "/calculator", "/catalog"];
 const CLIENT_PAGE_PREFIXES = ["/my-deal"];
@@ -59,7 +59,7 @@ export async function middleware(request: NextRequest) {
   const { authenticated, role } = await getSession(request);
 
   if (pathname.startsWith("/api/")) {
-    if (PUBLIC_API_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`))) {
+    if (matchesPrefix(pathname, PUBLIC_API_PATHS)) {
       return NextResponse.next();
     }
     if (!authenticated) {
@@ -68,9 +68,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const isPublicPage = PUBLIC_PAGE_PATHS.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  const isPublicPage = matchesPrefix(pathname, PUBLIC_PAGE_PATHS);
 
   if (!authenticated && !isPublicPage) {
     const loginUrl = new URL("/login", request.url);
