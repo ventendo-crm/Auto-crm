@@ -5,6 +5,7 @@ import path from "path";
 import { Readable } from "stream";
 import {
   OFFER_DESCRIPTION_MAX,
+  OFFER_VEHICLE_TITLE_MAX,
   OFFER_MAX_PHOTO_BYTES,
   OFFER_MAX_PHOTOS,
   OFFER_MAX_TOTAL_BYTES,
@@ -29,6 +30,7 @@ type OfferMetaV1 = {
   createdAt: string;
   expiresAt: string;
   description: string;
+  vehicleTitle?: string | null;
   sourceUrl: string | null;
   totalLabel: string | null;
   photos: string[];
@@ -110,6 +112,9 @@ export async function createCalculatorOffer(
   const description = String(formData.get("description") ?? "")
     .trim()
     .slice(0, OFFER_DESCRIPTION_MAX);
+  const vehicleTitle = String(formData.get("vehicleTitle") ?? "")
+    .trim()
+    .slice(0, OFFER_VEHICLE_TITLE_MAX);
   const sourceUrl = sanitizeOfferHttpUrl(String(formData.get("sourceUrl") ?? ""));
   const totalLabelRaw = String(formData.get("totalLabel") ?? "").trim();
   const totalLabel = totalLabelRaw ? totalLabelRaw.slice(0, 80) : null;
@@ -122,8 +127,8 @@ export async function createCalculatorOffer(
     throw new Error(`Не больше ${OFFER_MAX_PHOTOS} фото`);
   }
 
-  if (!description && !sourceUrl && photos.length === 0 && !estimate) {
-    throw new Error("Добавьте описание, фото или расчёт");
+  if (!vehicleTitle && !description && !sourceUrl && photos.length === 0 && !estimate) {
+    throw new Error("Добавьте марку, описание, фото или расчёт");
   }
 
   let totalBytes = 0;
@@ -190,6 +195,7 @@ export async function createCalculatorOffer(
     createdAt: createdAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
     description,
+    vehicleTitle: vehicleTitle || null,
     sourceUrl,
     totalLabel,
     photos: savedPhotos,
@@ -221,6 +227,7 @@ export async function getPublicCalculatorOffer(token: string): Promise<PublicCal
 
   return {
     companyName: meta.companyName,
+    vehicleTitle: meta.vehicleTitle?.trim() ? meta.vehicleTitle.trim() : null,
     description: meta.description,
     sourceUrl: meta.sourceUrl,
     totalLabel: meta.totalLabel,

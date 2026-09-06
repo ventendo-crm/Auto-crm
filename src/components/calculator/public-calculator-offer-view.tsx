@@ -77,36 +77,36 @@ function OfferImageGallery({
 
   return (
     <>
-      <section className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <section className="grid grid-cols-2 gap-1 sm:grid-cols-3">
         {images.map((url, imageIndex) => (
           <button
             key={url}
             type="button"
             onClick={() => setIndex(imageIndex)}
-            className="block overflow-hidden rounded-lg border text-left"
+            className="block overflow-hidden rounded-md text-left"
           >
-            <img src={url} alt={labels[imageIndex] ?? ""} className="aspect-square w-full object-cover" />
+            <img src={url} alt={labels[imageIndex] ?? ""} className="aspect-[4/3] w-full object-cover" />
           </button>
         ))}
       </section>
 
       <Dialog open={open} onOpenChange={(next) => !next && setIndex(null)}>
         {current && index != null ? (
-          <DialogContent className="z-[100] flex w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
-            <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-6 sm:py-4">
-              <DialogTitle className="pr-8 text-base">
+          <DialogContent className="z-[100] flex h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[96dvh] sm:max-w-6xl sm:rounded-xl">
+            <DialogHeader className="shrink-0 border-b px-3 py-2 sm:px-4">
+              <DialogTitle className="pr-8 text-sm">
                 {labels[index] ?? "Фото"}
                 {images.length > 1 ? ` · ${index + 1} из ${images.length}` : ""}
               </DialogTitle>
             </DialogHeader>
-            <div className="relative flex w-full min-w-0 items-center justify-center bg-black/5 p-2 sm:p-4">
+            <div className="relative flex min-h-0 flex-1 w-full items-center justify-center bg-black">
               {images.length > 1 && (
                 <>
                   <Button
                     type="button"
                     variant="secondary"
                     size="icon"
-                    className="absolute left-2 top-1/2 z-10 -translate-y-1/2 shadow-md sm:left-4"
+                    className="absolute left-1 top-1/2 z-10 -translate-y-1/2 bg-background/80 shadow-md sm:left-3"
                     disabled={!hasPrev}
                     onClick={() => setIndex(index - 1)}
                   >
@@ -116,7 +116,7 @@ function OfferImageGallery({
                     type="button"
                     variant="secondary"
                     size="icon"
-                    className="absolute right-2 top-1/2 z-10 -translate-y-1/2 shadow-md sm:right-4"
+                    className="absolute right-1 top-1/2 z-10 -translate-y-1/2 bg-background/80 shadow-md sm:right-3"
                     disabled={!hasNext}
                     onClick={() => setIndex(index + 1)}
                   >
@@ -124,7 +124,7 @@ function OfferImageGallery({
                   </Button>
                 </>
               )}
-              <div className="flex w-full min-w-0 max-w-full items-center justify-center px-8 sm:px-12">
+              <div className="flex h-full w-full min-w-0 items-center justify-center">
                 <ZoomableImage key={current} src={current} alt={labels[index] ?? ""} />
               </div>
             </div>
@@ -155,9 +155,8 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
           return;
         }
         setData(json.data);
-        document.title = json.data.companyName
-          ? `${json.data.companyName} — расчёт авто`
-          : "Расчёт авто";
+        const title = json.data.vehicleTitle || "Расчёт авто";
+        document.title = json.data.companyName ? `${json.data.companyName} — ${title}` : title;
       } catch {
         setError("Не удалось загрузить подбор");
       } finally {
@@ -186,29 +185,30 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
   }
 
   const photoLabels = data.photoUrls.map((_, index) => `Фото ${index + 1}`);
+  const heading = data.vehicleTitle || "Расчёт авто";
 
   return (
     <div className="min-h-[100dvh] bg-background">
       <header className="border-b bg-card">
-        <div className="mx-auto max-w-3xl px-4 py-8 sm:px-6">
+        <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
           {data.companyName && (
             <p className="text-sm text-muted-foreground">{data.companyName}</p>
           )}
-          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Расчёт авто</h1>
+          <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{heading}</h1>
           {data.totalLabel && (
             <p className="mt-3 text-lg font-semibold">Итого: {data.totalLabel}</p>
           )}
         </div>
       </header>
 
-      <main className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-6">
+      <main className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+        <OfferImageGallery images={data.photoUrls} labels={photoLabels} />
+
         {data.description && (
           <section className="whitespace-pre-wrap text-[15px] leading-relaxed">
             {data.description}
           </section>
         )}
-
-        <OfferImageGallery images={data.photoUrls} labels={photoLabels} />
 
         {data.estimateUrl && (
           <section className="space-y-2">
@@ -216,16 +216,16 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
             <button
               type="button"
               onClick={() => setEstimateOpen(true)}
-              className="block w-full overflow-hidden rounded-xl border bg-white text-left"
+              className="block w-full overflow-hidden rounded-lg bg-white text-left"
             >
               <img src={data.estimateUrl} alt="Расчёт растаможки" className="w-full" />
             </button>
             <Dialog open={estimateOpen} onOpenChange={setEstimateOpen}>
-              <DialogContent className="z-[100] flex w-[calc(100%-2rem)] max-w-[calc(100vw-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
-                <DialogHeader className="shrink-0 border-b px-4 py-3 sm:px-6 sm:py-4">
-                  <DialogTitle className="pr-8 text-base">Расчёт стоимости</DialogTitle>
+              <DialogContent className="z-[100] flex h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[96dvh] sm:max-w-6xl sm:rounded-xl">
+                <DialogHeader className="shrink-0 border-b px-3 py-2 sm:px-4">
+                  <DialogTitle className="pr-8 text-sm">Расчёт стоимости</DialogTitle>
                 </DialogHeader>
-                <div className="flex w-full min-w-0 items-center justify-center bg-black/5 p-2 sm:p-4">
+                <div className="flex min-h-0 flex-1 w-full items-center justify-center bg-black">
                   <ZoomableImage src={data.estimateUrl} alt="Расчёт растаможки" />
                 </div>
               </DialogContent>

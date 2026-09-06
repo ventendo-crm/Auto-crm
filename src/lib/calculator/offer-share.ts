@@ -3,10 +3,12 @@ export const OFFER_MAX_PHOTOS = 15;
 export const OFFER_MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 export const OFFER_MAX_TOTAL_BYTES = 90 * 1024 * 1024;
 export const OFFER_DESCRIPTION_MAX = 4000;
+export const OFFER_VEHICLE_TITLE_MAX = 120;
 export const OFFER_TOKEN_PATTERN = /^[a-f0-9]{48}$/;
 
 export type PublicCalculatorOffer = {
   companyName: string;
+  vehicleTitle: string | null;
   description: string;
   sourceUrl: string | null;
   totalLabel: string | null;

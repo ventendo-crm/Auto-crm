@@ -628,6 +628,7 @@ export const api = {
 
   calculatorOffers: {
     create: async (input: {
+      vehicleTitle?: string;
       description: string;
       sourceUrl: string;
       totalLabel?: string | null;
@@ -635,6 +636,7 @@ export const api = {
       estimate?: File | null;
     }) => {
       const formData = new FormData();
+      if (input.vehicleTitle) formData.append("vehicleTitle", input.vehicleTitle);
       formData.append("description", input.description);
       formData.append("sourceUrl", input.sourceUrl);
       if (input.totalLabel) formData.append("totalLabel", input.totalLabel);

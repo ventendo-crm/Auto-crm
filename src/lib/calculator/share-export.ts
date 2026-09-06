@@ -128,13 +128,16 @@ export async function saveResultAsPdf(element: HTMLElement) {
 }
 
 export function buildOfferShareText(input: {
+  vehicleTitle?: string;
   description: string;
   sourceUrl: string;
   totalLabel?: string | null;
 }) {
   const parts: string[] = [];
+  const vehicleTitle = input.vehicleTitle?.trim() ?? "";
   const description = input.description.trim();
   const sourceUrl = input.sourceUrl.trim();
+  if (vehicleTitle) parts.push(vehicleTitle);
   if (description) parts.push(description);
   if (sourceUrl) parts.push(sourceUrl);
   if (input.totalLabel) parts.push(`Итого: ${input.totalLabel}`);

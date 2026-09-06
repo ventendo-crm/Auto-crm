@@ -16,6 +16,7 @@ import { api } from "@/lib/api-client";
 import {
   buildTelegramShareUrl,
   OFFER_MAX_TOTAL_BYTES,
+  OFFER_VEHICLE_TITLE_MAX,
   resolvePublicOfferAbsoluteUrl,
 } from "@/lib/calculator/offer-share";
 import { isPhoneFileShare, buildOfferShareText, shareOfferPackage } from "@/lib/calculator/share-export";
@@ -25,6 +26,7 @@ const MAX_PHOTOS = 15;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 const DESCRIPTION_MAX = 4000;
 const STORAGE_DESCRIPTION = "crm-offer-description";
+const STORAGE_TITLE = "crm-offer-vehicle-title";
 const STORAGE_LINK = "crm-offer-link";
 
 type OfferPhoto = {
@@ -40,6 +42,7 @@ function isImageFile(file: File) {
 export function CalculatorOfferWorkspace() {
   const captureApiRef = useRef<CalculatorCaptureApi | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const [vehicleTitle, setVehicleTitle] = useState("");
   const [description, setDescription] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [photos, setPhotos] = useState<OfferPhoto[]>([]);
@@ -50,6 +53,7 @@ export function CalculatorOfferWorkspace() {
 
   useEffect(() => {
     try {
+      setVehicleTitle(sessionStorage.getItem(STORAGE_TITLE) ?? "");
       setDescription(sessionStorage.getItem(STORAGE_DESCRIPTION) ?? "");
       setSourceUrl(sessionStorage.getItem(STORAGE_LINK) ?? "");
     } catch {
@@ -59,12 +63,13 @@ export function CalculatorOfferWorkspace() {
 
   useEffect(() => {
     try {
+      sessionStorage.setItem(STORAGE_TITLE, vehicleTitle);
       sessionStorage.setItem(STORAGE_DESCRIPTION, description);
       sessionStorage.setItem(STORAGE_LINK, sourceUrl);
     } catch {
       // ignore quota
     }
-  }, [description, sourceUrl]);
+  }, [vehicleTitle, description, sourceUrl]);
 
   const photosRef = useRef(photos);
   photosRef.current = photos;
@@ -122,7 +127,7 @@ export function CalculatorOfferWorkspace() {
       captureApiRef.current?.totalWithCar() != null
         ? formatCurrency(captureApiRef.current.totalWithCar())
         : null;
-    const text = buildOfferShareText({ description, sourceUrl, totalLabel });
+    const text = buildOfferShareText({ vehicleTitle, description, sourceUrl, totalLabel });
     const photoFiles = photos.map((photo) => photo.file);
     const estimate = captureApiRef.current?.canCapture()
       ? await captureApiRef.current.captureJpeg()
@@ -144,6 +149,7 @@ export function CalculatorOfferWorkspace() {
     }
 
     const created = await api.calculatorOffers.create({
+      vehicleTitle,
       description,
       sourceUrl,
       totalLabel,
@@ -162,12 +168,19 @@ export function CalculatorOfferWorkspace() {
   };
 
   const handleShare = async () => {
-    if (!description.trim() && !sourceUrl.trim() && photos.length === 0 && !captureApiRef.current?.canCapture()) {
-      toast.error("Добавьте описание, ссылку, фото или расчёт");
+    if (
+      !vehicleTitle.trim() &&
+      !description.trim() &&
+      !sourceUrl.trim() &&
+      photos.length === 0 &&
+      !captureApiRef.current?.canCapture()
+    ) {
+      toast.error("Добавьте марку, описание, ссылку, фото или расчёт");
       return;
     }
 
     const previewText = buildOfferShareText({
+      vehicleTitle,
       description,
       sourceUrl,
       totalLabel:
@@ -234,8 +247,14 @@ export function CalculatorOfferWorkspace() {
   };
 
   const handleCreateLink = async () => {
-    if (!description.trim() && !sourceUrl.trim() && photos.length === 0 && !captureApiRef.current?.canCapture()) {
-      toast.error("Добавьте описание, ссылку, фото или расчёт");
+    if (
+      !vehicleTitle.trim() &&
+      !description.trim() &&
+      !sourceUrl.trim() &&
+      photos.length === 0 &&
+      !captureApiRef.current?.canCapture()
+    ) {
+      toast.error("Добавьте марку, описание, ссылку, фото или расчёт");
       return;
     }
 
@@ -303,12 +322,23 @@ export function CalculatorOfferWorkspace() {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="offer-vehicle-title">Марка, модель</Label>
+            <Input
+              id="offer-vehicle-title"
+              value={vehicleTitle}
+              onChange={(event) => setVehicleTitle(event.target.value.slice(0, OFFER_VEHICLE_TITLE_MAX))}
+              placeholder="Toyota Camry, Li L7…"
+              maxLength={OFFER_VEHICLE_TITLE_MAX}
+            />
+          </div>
+
+          <div className="space-y-2">
             <Label htmlFor="offer-description">Описание</Label>
             <Textarea
               id="offer-description"
               value={description}
               onChange={(event) => setDescription(event.target.value.slice(0, DESCRIPTION_MAX))}
-              placeholder="Марка, комплектация, состояние, что важно клиенту…"
+              placeholder="Комплектация, состояние, что важно клиенту…"
               rows={6}
               maxLength={DESCRIPTION_MAX}
             />
