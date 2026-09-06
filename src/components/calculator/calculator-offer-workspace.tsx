@@ -165,6 +165,22 @@ export function CalculatorOfferWorkspace() {
       return;
     }
 
+    const previewText = buildOfferShareText({
+      description,
+      sourceUrl,
+      totalLabel:
+        captureApiRef.current?.totalWithCar() != null
+          ? formatCurrency(captureApiRef.current.totalWithCar())
+          : null,
+    });
+    if (previewText) {
+      try {
+        await navigator.clipboard.writeText(previewText);
+      } catch {
+        // на части телефонов буфер недоступен до шаринга
+      }
+    }
+
     setSharing(true);
     try {
       const { text, files, photoFiles, estimate, totalLabel } = await collectSharePayload();
@@ -172,10 +188,16 @@ export function CalculatorOfferWorkspace() {
       if (isPhoneFileShare() && files.length > 0) {
         try {
           await shareOfferPackage({
-            title: "Авто из ImportCRM",
+            title: text || "Авто из ImportCRM",
             text,
             files,
           });
+          if (text) {
+            toast.success("Текст скопирован", {
+              description: "Вставьте его в сообщение — Telegram и Max сами подпись не подставляют.",
+              duration: 8000,
+            });
+          }
           return;
         } catch (shareError) {
           if (shareError instanceof DOMException && shareError.name === "AbortError") return;

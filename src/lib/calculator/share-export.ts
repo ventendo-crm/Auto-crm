@@ -229,21 +229,30 @@ export async function shareOfferPackage(input: {
   }
 
   const payload: ShareData = {
+    title: text || input.title || "Авто из ImportCRM",
     text: text || undefined,
     files: files.length > 0 ? files : undefined,
   };
-  if (!payload.files) {
-    payload.title = input.title ?? "Авто из ImportCRM";
-  }
 
   if (typeof navigator.canShare === "function") {
     if (payload.files && !navigator.canShare(payload)) {
-      const filesOnly: ShareData = { files: payload.files };
-      if (navigator.canShare(filesOnly)) {
+      const filesWithText: ShareData = { text: payload.text, files: payload.files };
+      if (payload.text && navigator.canShare(filesWithText)) {
+        await navigator.share(filesWithText);
+        return;
+      }
+      const originalFiles = input.files.length > 0 ? input.files : undefined;
+      const originalWithText: ShareData = { title: payload.title, text: payload.text, files: originalFiles };
+      if (originalFiles && payload.text && navigator.canShare(originalWithText)) {
+        await navigator.share(originalWithText);
+        return;
+      }
+      const filesOnly: ShareData = { files: originalFiles ?? payload.files };
+      if (filesOnly.files && navigator.canShare(filesOnly)) {
         await navigator.share(filesOnly);
         return;
       }
-      const withoutFiles: ShareData = { title: input.title ?? "Авто из ImportCRM", text: payload.text };
+      const withoutFiles: ShareData = { title: payload.title, text: payload.text };
       if (navigator.canShare(withoutFiles) && payload.text) {
         await navigator.share(withoutFiles);
         throw new Error("SHARE_TEXT_ONLY");
