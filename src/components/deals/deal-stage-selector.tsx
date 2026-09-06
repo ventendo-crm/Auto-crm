@@ -9,9 +9,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
+import { STAGE_ORDER } from "@/lib/constants";
 import { api } from "@/lib/api-client";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { canManageDealClient } from "@/lib/permissions";
 
 interface DealStageSelectorProps {
@@ -28,11 +29,12 @@ export function DealStageSelector({
   onChanged,
 }: DealStageSelectorProps) {
   const { user } = useAuth();
+  const { stageLabel } = useCompanyWorkspace();
   const canChange = canManageDealClient(user, managerIds);
 
   if (!canChange) {
     return (
-      <span className="text-sm text-muted-foreground">{STAGE_LABELS[currentStage]}</span>
+      <span className="text-sm text-muted-foreground">{stageLabel(currentStage)}</span>
     );
   }
 
@@ -56,7 +58,7 @@ export function DealStageSelector({
       <SelectContent>
         {STAGE_ORDER.map((stage) => (
           <SelectItem key={stage} value={stage}>
-            {STAGE_LABELS[stage]}
+            {stageLabel(stage)}
           </SelectItem>
         ))}
       </SelectContent>

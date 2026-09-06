@@ -1,9 +1,9 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
-import { assertAllowed, withAuth } from "@/lib/api-handler";
+import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
-import { canAccessCalculator } from "@/lib/permissions";
+import { assertCompanyCalculatorAccess } from "@/lib/services/company-workspace";
 import {
   clearCalculatorExportLogo,
   getCalculatorSettings,
@@ -23,7 +23,7 @@ const ALLOWED_MIME = new Set(["image/png", "image/jpeg", "image/webp"]);
 export const runtime = "nodejs";
 
 export const GET = withAuth(async (_request, { user }) => {
-  assertAllowed(canAccessCalculator(user.role));
+  await assertCompanyCalculatorAccess(user);
   const settings = await getCalculatorSettings(user.id);
   if (!settings.exportLogoUrl || !isLocalUploadUrl(settings.exportLogoUrl)) {
     return error("Логотип не найден", 404);
@@ -46,7 +46,7 @@ export const GET = withAuth(async (_request, { user }) => {
 });
 
 export const POST = withAuth(async (request, { user }) => {
-  assertAllowed(canAccessCalculator(user.role));
+  await assertCompanyCalculatorAccess(user);
 
   const formData = await request.formData();
   const file = formData.get("file");
@@ -78,6 +78,6 @@ export const POST = withAuth(async (request, { user }) => {
 });
 
 export const DELETE = withAuth(async (_request, { user }) => {
-  assertAllowed(canAccessCalculator(user.role));
+  await assertCompanyCalculatorAccess(user);
   return ok(await clearCalculatorExportLogo(user.id));
 });

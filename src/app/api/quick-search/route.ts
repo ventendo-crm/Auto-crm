@@ -1,6 +1,6 @@
-import { withAuth, assertAllowed } from "@/lib/api-handler";
+import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
-import { canAccessCalculator } from "@/lib/permissions";
+import { assertCompanyCalculatorAccess } from "@/lib/services/company-workspace";
 import { serialize } from "@/lib/serialize";
 import { searchWithTavily, TavilySearchError } from "@/lib/tavily/search";
 import { quickSearchSchema } from "@/lib/validators/quick-search";
@@ -8,7 +8,7 @@ import { quickSearchSchema } from "@/lib/validators/quick-search";
 export const runtime = "nodejs";
 
 export const POST = withAuth(async (request, { user }) => {
-  assertAllowed(canAccessCalculator(user.role));
+  await assertCompanyCalculatorAccess(user);
 
   const body = quickSearchSchema.parse(await request.json());
 

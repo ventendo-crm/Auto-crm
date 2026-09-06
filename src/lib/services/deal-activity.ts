@@ -1,6 +1,7 @@
 import { DealStageType, Prisma } from "@prisma/client";
 import { DOCUMENT_LABELS, STAGE_LABELS } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
+import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { listStageHistory } from "@/lib/services/stage-history";
 
 export interface DealActivityItem {
@@ -48,20 +49,23 @@ function processStepLabel(value: JsonRecord | null): string | undefined {
   return variantLabel(value);
 }
 
-function formatStageHistory(item: {
-  id: string;
-  fromStage: DealStageType;
-  toStage: DealStageType;
-  createdAt: Date;
-  changedBy: { id: string; name: string; email: string };
-}): DealActivityItem {
+function formatStageHistory(
+  item: {
+    id: string;
+    fromStage: DealStageType;
+    toStage: DealStageType;
+    createdAt: Date;
+    changedBy: { id: string; name: string; email: string };
+  },
+  stageLabels: Record<DealStageType, string> = STAGE_LABELS,
+): DealActivityItem {
   if (item.fromStage === item.toStage) {
     return {
       id: `stage-${item.id}`,
       createdAt: item.createdAt.toISOString(),
       user: item.changedBy,
       title: "Сделка создана",
-      description: `Начальный этап: ${STAGE_LABELS[item.toStage]}`,
+      description: `Начальный этап: ${stageLabels[item.toStage]}`,
       category: "stage",
     };
   }
@@ -71,12 +75,13 @@ function formatStageHistory(item: {
     createdAt: item.createdAt.toISOString(),
     user: item.changedBy,
     title: "Изменение этапа",
-    description: `${STAGE_LABELS[item.fromStage]} → ${STAGE_LABELS[item.toStage]}`,
+    description: `${stageLabels[item.fromStage]} → ${stageLabels[item.toStage]}`,
     category: "stage",
   };
 }
 
-function formatAuditLog(log: {
+function formatAuditLog(
+  log: {
   id: string;
   entity: string;
   action: string;
@@ -84,7 +89,9 @@ function formatAuditLog(log: {
   newValue: unknown;
   createdAt: Date;
   user: { id: string; name: string; email: string };
-}): DealActivityItem | null {
+},
+  documentLabels: Record<string, string> = {},
+): DealActivityItem | null {
   const newValue = asRecord(log.newValue);
   const oldValue = asRecord(log.oldValue);
   const key = `${log.entity}:${log.action}`;
@@ -245,9 +252,10 @@ function formatAuditLog(log: {
     case "Document:UPLOAD": {
       const docType = newValue?.type ? String(newValue.type) : "";
       const label =
-        docType in DOCUMENT_LABELS
+        documentLabels[docType] ||
+        (docType in DOCUMENT_LABELS
           ? DOCUMENT_LABELS[docType as keyof typeof DOCUMENT_LABELS]
-          : docType;
+          : docType);
       return {
         id: `audit-${log.id}`,
         createdAt: log.createdAt.toISOString(),
@@ -482,6 +490,14 @@ export async function clearDealHistory(dealId: string): Promise<void> {
 
 export async function listDealActivity(dealId: string): Promise<DealActivityItem[]> {
   const auditWhere = await buildDealActivityAuditWhere(dealId);
+  const deal = await prisma.deal.findUnique({
+    where: { id: dealId },
+    select: { companyId: true },
+  });
+  const workspace = deal ? await getCompanyWorkspaceSettings(deal.companyId) : null;
+  const documentLabels = Object.fromEntries(
+    (workspace?.documentTypes ?? []).map((item) => [item.key, item.label]),
+  );
 
   const [stageHistory, auditLogs] = await Promise.all([
     listStageHistory(dealId),
@@ -496,9 +512,9 @@ export async function listDealActivity(dealId: string): Promise<DealActivityItem
   ]);
 
   const items: DealActivityItem[] = [
-    ...stageHistory.map(formatStageHistory),
+    ...stageHistory.map((item) => formatStageHistory(item, workspace?.stageLabels)),
     ...auditLogs
-      .map(formatAuditLog)
+      .map((log) => formatAuditLog(log, documentLabels))
       .filter((item): item is DealActivityItem => item !== null),
   ];
 

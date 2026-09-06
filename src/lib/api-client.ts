@@ -1,4 +1,4 @@
-import { DealStageType, DocumentType } from "@prisma/client";
+import { DealStageType } from "@prisma/client";
 import {
   ApiResponse,
   AuthProfile,
@@ -147,6 +147,21 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ layout }),
       }),
+  },
+
+  companyWorkspace: {
+    get: () =>
+      request<import("@/lib/company-workspace/types").CompanyWorkspaceDto>(
+        "/api/company/workspace",
+      ),
+    save: (data: import("@/lib/validators/company-workspace").CompanyWorkspacePutInput) =>
+      request<import("@/lib/company-workspace/types").CompanyWorkspaceDto>(
+        "/api/company/workspace",
+        {
+          method: "PUT",
+          body: JSON.stringify(data),
+        },
+      ),
   },
 
   companyAppearance: {
@@ -696,7 +711,7 @@ export const api = {
   },
 
   documents: {
-    upload: async (dealId: string, type: DocumentType, file: File) => {
+    upload: async (dealId: string, type: string, file: File) => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("dealId", dealId);
@@ -716,12 +731,12 @@ export const api = {
 
       return json.data as DocumentItem;
     },
-    updateStatus: (dealId: string, type: DocumentType, status: "RECEIVED" | "VERIFIED") =>
+    updateStatus: (dealId: string, type: string, status: "RECEIVED" | "VERIFIED") =>
       request<DocumentItem>(`/api/deals/${dealId}/documents/${type}`, {
         method: "PATCH",
         body: JSON.stringify({ status }),
       }),
-    delete: (dealId: string, type: DocumentType) =>
+    delete: (dealId: string, type: string) =>
       request<DocumentItem>(`/api/deals/${dealId}/documents/${type}`, {
         method: "DELETE",
       }),

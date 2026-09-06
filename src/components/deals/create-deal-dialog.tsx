@@ -18,7 +18,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { api } from "@/lib/api-client";
+import { enabledCustomDealFields } from "@/lib/company-workspace/helpers";
 import { canAssignDealManager, getClientRoleName } from "@/lib/permissions";
 interface CreateDealDialogProps {
   children: React.ReactNode;
@@ -27,8 +29,10 @@ interface CreateDealDialogProps {
 
 export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps) {
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const role = getClientRoleName(user);
   const canAssignManagers = role && user ? canAssignDealManager(role, user.id) : false;
+  const customFields = enabledCustomDealFields(settings.customDealFields);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
@@ -36,11 +40,13 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
     vin: "",
     carBrand: "",
     carModel: "",
+    carYear: "",
     destinationCity: "",
     destinationCountry: "china",
     prepayment: "",
     balance: "",
     managerIds: [] as string[],
+    extra: {} as Record<string, string>,
   });
 
   const resetForm = () =>
@@ -49,11 +55,13 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
       vin: "",
       carBrand: "",
       carModel: "",
+      carYear: "",
       destinationCity: "",
       destinationCountry: "china",
       prepayment: "",
       balance: "",
       managerIds: [],
+      extra: {},
     });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -63,14 +71,19 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
     try {
       await api.deals.create({
         clientName: form.clientName,
-        vin: form.vin || undefined,
+        vin: settings.dealFields.vin.enabled ? form.vin || undefined : undefined,
         carBrand: form.carBrand || undefined,
         carModel: form.carModel || undefined,
-        destinationCity: form.destinationCity,
+        carYear:
+          settings.dealFields.carYear.enabled && form.carYear
+            ? Number(form.carYear)
+            : undefined,
+        destinationCity: settings.dealFields.destinationCity.enabled ? form.destinationCity : "",
         destinationCountry: form.destinationCountry,
         prepayment: form.prepayment ? Number(form.prepayment) : undefined,
         balance: form.balance ? Number(form.balance) : undefined,
         managerIds: canAssignManagers && form.managerIds.length > 0 ? form.managerIds : undefined,
+        customFields: Object.fromEntries(customFields.map((field) => [field.id, form.extra[field.id] ?? ""])),
       });
       toast.success("Сделка создана");
       setOpen(false);
@@ -110,11 +123,15 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
                 />
               </div>
             )}
+            {settings.dealFields.vin.enabled && (
             <div className="space-y-2 sm:col-span-2">
-              <Label>VIN (необязательно)</Label>
+              <Label>
+                VIN{settings.dealFields.vin.required ? "" : " (необязательно)"}
+              </Label>
               <Input
                 placeholder="Введите VIN при наличии"
                 value={form.vin}
+                required={settings.dealFields.vin.required}
                 onChange={(e) =>
                   setForm({
                     ...form,
@@ -123,6 +140,7 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
                 }
               />
             </div>
+            )}
             <div className="space-y-2">
               <Label>Марка</Label>
               <Input
@@ -137,14 +155,29 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
                 onChange={(e) => setForm({ ...form, carModel: e.target.value })}
               />
             </div>
+            {settings.dealFields.carYear.enabled && (
+            <div className="space-y-2">
+              <Label>Год{settings.dealFields.carYear.required ? "" : " (необязательно)"}</Label>
+              <Input
+                type="number"
+                min={1900}
+                max={2100}
+                value={form.carYear}
+                required={settings.dealFields.carYear.required}
+                onChange={(e) => setForm({ ...form, carYear: e.target.value })}
+              />
+            </div>
+            )}
+            {settings.dealFields.destinationCity.enabled && (
             <div className="space-y-2">
               <Label>Город</Label>
               <Input
                 value={form.destinationCity}
                 onChange={(e) => setForm({ ...form, destinationCity: e.target.value })}
-                required
+                required={settings.dealFields.destinationCity.required}
               />
             </div>
+            )}
             <div className="space-y-2">
               <Label>Страна экспорта</Label>
               <ExportOriginSelect
@@ -154,6 +187,21 @@ export function CreateDealDialog({ children, onCreated }: CreateDealDialogProps)
                 }
               />
             </div>
+            {customFields.map((field) => (
+              <div key={field.id} className="space-y-2 sm:col-span-2">
+                <Label>
+                  {field.label}
+                  {field.required ? "" : " (необязательно)"}
+                </Label>
+                <Input
+                  value={form.extra[field.id] ?? ""}
+                  required={field.required}
+                  onChange={(e) =>
+                    setForm({ ...form, extra: { ...form.extra, [field.id]: e.target.value } })
+                  }
+                />
+              </div>
+            ))}
             <div className="space-y-2">
               <Label>Предоплата (₽)</Label>
               <Input

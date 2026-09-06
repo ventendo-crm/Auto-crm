@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/use-auth";
-import { ADDITIONAL_OPTION_GROUPS } from "@/lib/additional-options";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { api } from "@/lib/api-client";
 import {
   canCreateCustomAdditionalOption,
@@ -48,6 +48,8 @@ export function DealAdditionalOptions({
   onChanged,
 }: DealAdditionalOptionsProps) {
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
+  const catalogGroups = settings.additionalOptionGroups;
   const role = getClientRoleName(user);
   const canAddCustom =
     role && user
@@ -63,7 +65,7 @@ export function DealAdditionalOptions({
   const [formOpen, setFormOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newLabel, setNewLabel] = useState("");
-  const [newGroupId, setNewGroupId] = useState(ADDITIONAL_OPTION_GROUPS[0]?.id ?? "");
+  const [newGroupId, setNewGroupId] = useState("");
 
   const checkedCount = useMemo(() => countChecked(groups), [groups]);
 
@@ -83,6 +85,16 @@ export function DealAdditionalOptions({
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (catalogGroups.length === 0) {
+      setNewGroupId("");
+      return;
+    }
+    if (!catalogGroups.some((group) => group.id === newGroupId)) {
+      setNewGroupId(catalogGroups[0].id);
+    }
+  }, [catalogGroups, newGroupId]);
 
   const updateOption = (
     optionKey: string,
@@ -168,7 +180,7 @@ export function DealAdditionalOptions({
             автомобиля — уточняйте возможность установки у менеджера. Выбрано: {checkedCount}
           </p>
         </div>
-        {canAddCustom && !formOpen && (
+        {canAddCustom && !formOpen && catalogGroups.length > 0 && (
           <Button
             type="button"
             variant="outline"
@@ -207,7 +219,7 @@ export function DealAdditionalOptions({
                     <SelectValue placeholder="Выберите категорию" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ADDITIONAL_OPTION_GROUPS.map((group) => (
+                    {catalogGroups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.title}
                       </SelectItem>
@@ -217,7 +229,7 @@ export function DealAdditionalOptions({
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" variant="brand" size="sm" disabled={creating || !newLabel.trim()}>
+              <Button type="submit" variant="brand" size="sm" disabled={creating || !newLabel.trim() || !newGroupId}>
                 {creating && <Loader2 className="h-4 w-4 animate-spin" />}
                 Сохранить
               </Button>

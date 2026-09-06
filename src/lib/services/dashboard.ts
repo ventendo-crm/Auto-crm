@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { STAGE_LABELS, STAGE_ORDER } from "@/lib/constants";
 import { AuthUser, ROLES } from "@/lib/permissions";
 import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
+import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { DashboardChartData, DashboardData, DashboardArrivalEvent, DashboardManagerStat, DashboardStats } from "@/lib/types";
 
@@ -68,12 +69,13 @@ function computeStats(deals: DealRow[]): DashboardStats {
 function computeCharts(
   deals: DealRow[],
   customOrigins: CustomCalculatorOrigin[] = [],
+  stageLabels: Record<DealStageType, string> = STAGE_LABELS,
 ): DashboardChartData {
   const now = new Date();
 
   const byStage = STAGE_ORDER.map((stage) => ({
     stage,
-    name: STAGE_LABELS[stage],
+    name: stageLabels[stage],
     value: deals.filter((d) => d.currentStage === stage).length,
   }));
 
@@ -257,8 +259,9 @@ export async function getDashboardData(
   });
 
   const calculatorSettings = await getCompanyCalculatorSettings(user.companyId);
+  const workspace = await getCompanyWorkspaceSettings(user.companyId);
   const stats = computeStats(deals);
-  const charts = computeCharts(deals, calculatorSettings.customOrigins);
+  const charts = computeCharts(deals, calculatorSettings.customOrigins, workspace.stageLabels);
   const arrivalEvents = computeArrivalEvents(deals);
 
   const recentDeals = deals.slice(0, 8).map((d) => ({

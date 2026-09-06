@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useDealCommentsUnread } from "@/hooks/use-deal-comments-unread";
 import { countUploadedDealDocuments } from "@/lib/deal-tab-badges";
 import { ClientPortalDeal } from "@/lib/types";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 
 interface ClientPageTabsNavProps {
   deal: ClientPortalDeal;
@@ -25,6 +26,7 @@ interface ClientPageTabsNavProps {
 
 export function ClientPageTabsNav({ deal, activeTab }: ClientPageTabsNavProps) {
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const unreadComments = useDealCommentsUnread(
     deal.id,
     user?.id,
@@ -35,25 +37,32 @@ export function ClientPageTabsNav({ deal, activeTab }: ClientPageTabsNavProps) {
   const groups = useMemo(() => {
     const uploadedDocuments = countUploadedDealDocuments(deal.documents);
 
+    const mainItems: GroupedTabGroup["items"] = [
+      {
+        value: "documents",
+        label: "Документы",
+        icon: FileText,
+        badge: uploadedDocuments > 0 ? uploadedDocuments : undefined,
+      },
+    ];
+    if (settings.modules.calculator) {
+      mainItems.push({ value: "customs-estimate", label: "Расчёт", icon: Calculator });
+    }
+    if (settings.dealTabs.additionalOptions) {
+      mainItems.push({ value: "additional-options", label: "Доп. опции", icon: ListChecks });
+    }
+
     const mainGroup: GroupedTabGroup = {
       label: "Основное",
-      items: [
-        {
-          value: "documents",
-          label: "Документы",
-          icon: FileText,
-          badge: uploadedDocuments > 0 ? uploadedDocuments : undefined,
-        },
-        { value: "customs-estimate", label: "Расчёт", icon: Calculator },
-        { value: "additional-options", label: "Доп. опции", icon: ListChecks },
-      ],
+      items: mainItems,
     };
 
-    const processItems: GroupedTabGroup["items"] = [
-      { value: "search-process", label: "Поиск авто", icon: Search },
-    ];
+    const processItems: GroupedTabGroup["items"] = [];
+    if (settings.dealTabs.searchProcess) {
+      processItems.push({ value: "search-process", label: "Поиск авто", icon: Search });
+    }
 
-    if (deal.importProcessEnabled) {
+    if (settings.dealTabs.importProcess && deal.importProcessEnabled) {
       processItems.push({ value: "import-process", label: "Доставка", icon: Truck });
     }
 
@@ -78,12 +87,19 @@ export function ClientPageTabsNav({ deal, activeTab }: ClientPageTabsNavProps) {
           badge: deal.media.length > 0 ? deal.media.length : undefined,
         },
         { value: "history", label: "История", icon: History },
-        { value: "logistics", label: "Логистика", icon: Package },
       ],
     };
+    if (settings.dealTabs.logistics) {
+      moreGroup.items.push({ value: "logistics", label: "Логистика", icon: Package });
+    }
 
-    return [mainGroup, processGroup, moreGroup];
-  }, [deal, unreadComments]);
+    const result: GroupedTabGroup[] = [mainGroup];
+    if (processItems.length > 0) {
+      result.push(processGroup);
+    }
+    result.push(moreGroup);
+    return result;
+  }, [deal, unreadComments, settings.dealTabs, settings.modules.calculator]);
 
   return <GroupedTabsNav groups={groups} />;
 }

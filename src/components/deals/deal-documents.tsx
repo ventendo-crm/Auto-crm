@@ -1,6 +1,5 @@
 "use client";
 
-import { DocumentType } from "@prisma/client";
 import { CheckCircle2, Download, FileText, Loader2, Trash2, Upload, XCircle } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -8,10 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { api } from "@/lib/api-client";
+import { getDocumentLabel, documentTypesForDealGroup } from "@/lib/company-workspace/helpers";
+import type { DocumentGroup } from "@/lib/company-workspace/types";
 import {
-  DOCUMENT_LABELS,
-  CLIENT_DOCUMENT_ORDER,
   DOCUMENT_STATUS_LABELS,
   PASSPORT_DOCUMENT_TYPES,
   PASSPORT_FILE_LABELS,
@@ -20,10 +20,6 @@ import {
 import { canDeleteDealDocuments, canUploadDealDocuments, getClientRoleName } from "@/lib/permissions";
 import { DocumentItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
-
-const DEFAULT_DOCUMENT_TYPES: DocumentType[] = [...CLIENT_DOCUMENT_ORDER];
-
-export const RECEIVED_DEAL_DOCUMENT_TYPES: DocumentType[] = ["EPTS", "PTD", "SBKTS"];
 
 const ACCEPT =
   ".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,application/pdf,image/jpeg,image/png,image/webp";
@@ -46,21 +42,21 @@ function isLocalUpload(fileUrl: string): boolean {
   return fileUrl.startsWith("/api/uploads/");
 }
 
-function getDocumentFileUrl(dealId: string, type: DocumentType, download: boolean): string {
-  const base = `/api/deals/${dealId}/documents/${type}/file`;
+function getDocumentFileUrl(dealId: string, type: string, download: boolean): string {
+  const base = `/api/deals/${dealId}/documents/${encodeURIComponent(type)}/file`;
   return download ? `${base}?download=1` : base;
 }
 
-function getDownloadUrl(dealId: string, type: DocumentType, fileUrl: string): string {
+function getDownloadUrl(dealId: string, type: string, fileUrl: string): string {
   return isLocalUpload(fileUrl) ? getDocumentFileUrl(dealId, type, true) : fileUrl;
 }
 
 type DisplayEntry =
-  | { kind: "single"; type: DocumentType }
+  | { kind: "single"; type: string }
   | { kind: "passport" }
   | { kind: "passportNotarizedCopy" };
 
-function buildDisplayEntries(types: readonly DocumentType[]): DisplayEntry[] {
+function buildDisplayEntries(types: readonly string[]): DisplayEntry[] {
   const entries: DisplayEntry[] = [];
 
   for (const type of types) {
@@ -79,14 +75,17 @@ function buildDisplayEntries(types: readonly DocumentType[]): DisplayEntry[] {
   return entries;
 }
 
-function documentUploadLabel(type: DocumentType): string {
+function documentUploadLabel(
+  type: string,
+  catalog: Parameters<typeof getDocumentLabel>[1] = [],
+): string {
   if (type === "PASSPORT" || type === "PASSPORT_2") {
-    return `Паспорт (${PASSPORT_FILE_LABELS[type === "PASSPORT" ? 0 : 1]})`;
+    return `${getDocumentLabel("PASSPORT", catalog)} (${PASSPORT_FILE_LABELS[type === "PASSPORT" ? 0 : 1]})`;
   }
   if (type === "PASSPORT_NOTARIZED_COPY" || type === "PASSPORT_NOTARIZED_COPY_2") {
-    return `Нотариально заверенная копия паспорта (${PASSPORT_FILE_LABELS[type === "PASSPORT_NOTARIZED_COPY" ? 0 : 1]})`;
+    return `${getDocumentLabel("PASSPORT_NOTARIZED_COPY", catalog)} (${PASSPORT_FILE_LABELS[type === "PASSPORT_NOTARIZED_COPY" ? 0 : 1]})`;
   }
-  return DOCUMENT_LABELS[type as keyof typeof DOCUMENT_LABELS] ?? type;
+  return getDocumentLabel(type, catalog);
 }
 
 interface DealDocumentsProps {
@@ -96,7 +95,8 @@ interface DealDocumentsProps {
   managerIds?: string[];
   clientUserId?: string | null;
   title?: string;
-  documentTypes?: readonly DocumentType[];
+  group?: DocumentGroup;
+  documentTypes?: readonly string[];
   onUpdated?: () => void;
   canUpload?: boolean;
   canVerify?: boolean;
@@ -105,21 +105,21 @@ interface DealDocumentsProps {
 
 interface DocumentSlotProps {
   dealId: string;
-  type: DocumentType;
+  type: string;
   doc?: DocumentItem;
   slotLabel?: string;
   compact?: boolean;
   canUpload: boolean;
   canVerify: boolean;
   canDelete: boolean;
-  uploadingType: DocumentType | null;
-  statusUpdatingType: DocumentType | null;
-  deletingType: DocumentType | null;
+  uploadingType: string | null;
+  statusUpdatingType: string | null;
+  deletingType: string | null;
   inputRef: (el: HTMLInputElement | null) => void;
   onPickFile: () => void;
-  onUpload: (type: DocumentType, file: File) => void;
-  onStatusChange: (type: DocumentType, status: "RECEIVED" | "VERIFIED") => void;
-  onDelete: (type: DocumentType) => void;
+  onUpload: (type: string, file: File) => void;
+  onStatusChange: (type: string, status: "RECEIVED" | "VERIFIED") => void;
+  onDelete: (type: string) => void;
 }
 
 function DocumentSlot({
@@ -164,7 +164,7 @@ function DocumentSlot({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <p className="text-sm font-medium">
-              {slotLabel ?? DOCUMENT_LABELS[type as keyof typeof DOCUMENT_LABELS] ?? type}
+              {slotLabel ?? documentUploadLabel(type)}
             </p>
             <Badge variant="outline" className={statusColors[doc?.status ?? "MISSING"]}>
               {DOCUMENT_STATUS_LABELS[doc?.status ?? "MISSING"]}
@@ -289,17 +289,20 @@ export function DealDocuments({
   managerIds,
   clientUserId = null,
   title = "Документы клиента",
-  documentTypes = DEFAULT_DOCUMENT_TYPES,
+  group = "main",
+  documentTypes,
   onUpdated,
   canUpload: canUploadProp,
   canVerify: canVerifyProp = false,
   canDelete: canDeleteProp,
 }: DealDocumentsProps) {
   const { user } = useAuth();
-  const inputRefs = useRef<Partial<Record<DocumentType, HTMLInputElement | null>>>({});
-  const [uploadingType, setUploadingType] = useState<DocumentType | null>(null);
-  const [statusUpdatingType, setStatusUpdatingType] = useState<DocumentType | null>(null);
-  const [deletingType, setDeletingType] = useState<DocumentType | null>(null);
+  const { settings, documentLabel } = useCompanyWorkspace();
+  const resolvedTypes = documentTypes ?? documentTypesForDealGroup(settings.documentTypes, group, documents);
+  const inputRefs = useRef<Partial<Record<string, HTMLInputElement | null>>>({});
+  const [uploadingType, setUploadingType] = useState<string | null>(null);
+  const [statusUpdatingType, setStatusUpdatingType] = useState<string | null>(null);
+  const [deletingType, setDeletingType] = useState<string | null>(null);
 
   const role = getClientRoleName(user);
   const canUpload =
@@ -316,15 +319,15 @@ export function DealDocuments({
 
   const documentsByType = Object.fromEntries(
     documents.map((doc) => [doc.type, doc]),
-  ) as Partial<Record<DocumentType, DocumentItem>>;
+  ) as Partial<Record<string, DocumentItem>>;
 
-  const displayEntries = buildDisplayEntries(documentTypes);
+  const displayEntries = buildDisplayEntries(resolvedTypes);
 
-  const handleUpload = async (type: DocumentType, file: File) => {
+  const handleUpload = async (type: string, file: File) => {
     setUploadingType(type);
     try {
       await api.documents.upload(dealId, type, file);
-      toast.success(`${documentUploadLabel(type)} загружен`);
+      toast.success(`${documentUploadLabel(type, settings.documentTypes)} загружен`);
       onUpdated?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Ошибка загрузки");
@@ -335,13 +338,13 @@ export function DealDocuments({
     }
   };
 
-  const handleStatusChange = async (type: DocumentType, status: "RECEIVED" | "VERIFIED") => {
+  const handleStatusChange = async (type: string, status: "RECEIVED" | "VERIFIED") => {
     setStatusUpdatingType(type);
     try {
       await api.documents.updateStatus(dealId, type, status);
       toast.success(
         status === "VERIFIED"
-          ? `${DOCUMENT_LABELS[type as keyof typeof DOCUMENT_LABELS] ?? type} проверен`
+          ? `${documentLabel(type)} проверен`
           : "Проверка снята",
       );
       onUpdated?.();
@@ -352,8 +355,8 @@ export function DealDocuments({
     }
   };
 
-  const handleDelete = async (type: DocumentType) => {
-    const label = DOCUMENT_LABELS[type as keyof typeof DOCUMENT_LABELS] ?? type;
+  const handleDelete = async (type: string) => {
+    const label = documentLabel(type);
     if (!window.confirm(`Удалить документ «${label}»?`)) {
       return;
     }
@@ -370,10 +373,11 @@ export function DealDocuments({
     }
   };
 
-  const slotProps = (type: DocumentType) => ({
+  const slotProps = (type: string) => ({
     dealId,
     type,
     doc: documentsByType[type],
+    slotLabel: documentLabel(type),
     canUpload,
     canVerify,
     canDelete,
@@ -384,10 +388,10 @@ export function DealDocuments({
       inputRefs.current[type] = el;
     },
     onPickFile: () => inputRefs.current[type]?.click(),
-    onUpload: (uploadType: DocumentType, file: File) => void handleUpload(uploadType, file),
-    onStatusChange: (changeType: DocumentType, status: "RECEIVED" | "VERIFIED") =>
+    onUpload: (uploadType: string, file: File) => void handleUpload(uploadType, file),
+    onStatusChange: (changeType: string, status: "RECEIVED" | "VERIFIED") =>
       void handleStatusChange(changeType, status),
-    onDelete: (deleteType: DocumentType) => void handleDelete(deleteType),
+    onDelete: (deleteType: string) => void handleDelete(deleteType),
   });
 
   return (

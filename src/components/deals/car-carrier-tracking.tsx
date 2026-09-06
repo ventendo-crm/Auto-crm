@@ -13,6 +13,7 @@ import {
 import { MediaPreviewDialog } from "@/components/media/media-preview-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,6 +41,7 @@ export function CarCarrierTracking({
   initialPoints,
   initialDestination,
 }: CarCarrierTrackingProps) {
+  const { settings } = useCompanyWorkspace();
   const [points, setPoints] = useState<CarCarrierTrackingPoint[]>(initialPoints ?? []);
   const [destination, setDestination] = useState<CarCarrierDestination | null>(
     initialDestination ?? null,
@@ -565,6 +567,7 @@ export function CarCarrierTracking({
               </div>
             )}
 
+            {settings.modules.carCarrier && (
             <CarCarrierTrackingMap
               points={points}
               destination={destination}
@@ -578,6 +581,7 @@ export function CarCarrierTracking({
               onMapClick={(lat, lng) => void handleMapClick(lat, lng)}
               onPointSelect={selectPoint}
             />
+            )}
 
             {sortedPoints.length > 0 && (
               <div className="space-y-3">

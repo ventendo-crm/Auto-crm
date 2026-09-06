@@ -9,8 +9,10 @@ import { EditDealDialog } from "@/components/deals/edit-deal-dialog";
 import { Input } from "@/components/ui/input";
 import { formatDealManagersLabel } from "@/lib/deal-managers";
 import { api } from "@/lib/api-client";
+import { enabledCustomDealFields, parseCustomFieldValues } from "@/lib/company-workspace/helpers";
 import { DealDetail } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 
 type EditableDealField = "balance" | "expectedArrival" | "actualArrival" | "purchasePrice";
 
@@ -19,6 +21,7 @@ type DealInfoField =
       kind: "static";
       label: string;
       requiresFinances?: boolean;
+      workspaceField?: "vin" | "carYear" | "destinationCity";
       value: (deal: DealDetail) => ReactNode;
     }
   | {
@@ -36,11 +39,17 @@ const dealInfoFields: DealInfoField[] = [
   { kind: "static", label: "Клиент", value: (d) => d.clientName },
   { kind: "static", label: "Телефон", value: (d) => d.phone ?? "—" },
   { kind: "static", label: "Email", value: (d) => d.email ?? "—" },
-  { kind: "static", label: "VIN", value: (d) => d.vin || "—" },
+  { kind: "static", label: "VIN", workspaceField: "vin", value: (d) => d.vin || "—" },
   {
     kind: "static",
     label: "Марка / модель",
     value: (d) => [d.carBrand, d.carModel].filter(Boolean).join(" ") || "—",
+  },
+  {
+    kind: "static",
+    label: "Год",
+    workspaceField: "carYear",
+    value: (d) => (d.carYear != null ? String(d.carYear) : "—"),
   },
   {
     kind: "editable",
@@ -89,7 +98,7 @@ const dealInfoFields: DealInfoField[] = [
     label: "Страна экспорта",
     value: (d) => <DealExportCountryLabel value={d.destinationCountry} />,
   },
-  { kind: "static", label: "Город", value: (d) => d.destinationCity },
+  { kind: "static", label: "Город", workspaceField: "destinationCity", value: (d) => d.destinationCity || "—" },
 ];
 
 function EditableDealFieldCard({
@@ -172,9 +181,15 @@ interface DealInfoProps {
 }
 
 export function DealInfo({ deal, onUpdated, canEdit, canViewFinances = false }: DealInfoProps) {
-  const visibleFields = dealInfoFields.filter(
-    (field) => !field.requiresFinances || canViewFinances,
-  );
+  const { settings } = useCompanyWorkspace();
+  const customValues = parseCustomFieldValues(deal.customFields);
+  const visibleFields = dealInfoFields.filter((field) => {
+    if (field.requiresFinances && !canViewFinances) return false;
+    if (field.kind === "static" && field.workspaceField && !settings.dealFields[field.workspaceField].enabled) {
+      return false;
+    }
+    return true;
+  });
 
   return (
     <Card className="border-0 shadow-card">
@@ -208,6 +223,12 @@ export function DealInfo({ deal, onUpdated, canEdit, canViewFinances = false }: 
             </div>
           ),
         )}
+        {enabledCustomDealFields(settings.customDealFields).map((field) => (
+          <div key={field.id} className="rounded-lg border bg-muted/30 p-3">
+            <p className="text-xs text-muted-foreground">{field.label}</p>
+            <p className="mt-1 text-sm font-medium">{customValues[field.id] || "—"}</p>
+          </div>
+        ))}
       </CardContent>
     </Card>
   );

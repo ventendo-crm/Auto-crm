@@ -30,6 +30,7 @@ model Company {
   calculatorSettings     CompanyCalculatorSettings?
   dashboardSettings      CompanyDashboardSettings?
   appearanceSettings     CompanyAppearanceSettings?
+  workspaceSettings      CompanyWorkspaceSettings?
   googleCalendarSettings CompanyGoogleCalendarSettings?
   googleCalendarEvents   GoogleCalendarEventMap[]
   catalogVehicles        CatalogVehicle[]
@@ -107,6 +108,7 @@ model Deal {
   balance            Decimal?       @db.Decimal(12, 2)
   destinationCity    String
   destinationCountry String
+  customFields       Json           @default("{}")
   managerId          String?
   clientUserId       String?        @unique
   currentStage       DealStageType
@@ -400,6 +402,22 @@ model CompanyAppearanceSettings {
   @@map("company_appearance_settings")
 }
 
+model CompanyWorkspaceSettings {
+  companyId               String   @id
+  stageLabels             Json     @default("{}")
+  clientVisibleStages     Json     @default("[]")
+  dealTabs                Json     @default("{}")
+  dealFields              Json     @default("{}")
+  customDealFields        Json     @default("[]")
+  documentTypes           Json     @default("[]")
+  additionalOptionGroups  Json     @default("[]")
+  modules                 Json     @default("{}")
+  updatedAt               DateTime @updatedAt
+  company                 Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@map("company_workspace_settings")
+}
+
 model CompanyGoogleCalendarSettings {
   companyId            String    @id
   googleEmail          String
@@ -436,7 +454,7 @@ model GoogleCalendarEventMap {
 model Document {
   id           String         @id @default(cuid())
   dealId       String
-  type         DocumentType
+  type         String
   status       DocumentStatus
   fileUrl      String?
   uploadedById String?

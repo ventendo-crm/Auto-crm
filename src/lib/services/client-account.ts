@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { dealManagersInclude, enrichDealWithManagers } from "@/lib/deal-managers";
 import { hashPassword } from "@/lib/auth";
-import { DOCUMENT_LABELS, STAGE_LABELS } from "@/lib/constants";
+import { getDocumentLabel, parseCustomFieldValues } from "@/lib/company-workspace/helpers";
 import { prisma } from "@/lib/prisma";
 import { AuthUser } from "@/lib/permissions";
 import { createAuditLog } from "@/lib/services/audit";
@@ -10,7 +10,9 @@ import { getRoleByName, ensureDefaultRoles } from "@/lib/services/roles";
 import { deleteUser } from "@/lib/services/users";
 import { serialize } from "@/lib/serialize";
 import { resolveOriginLabel } from "@/lib/customs-calculator/custom-origins";
+import { getClientStageMessage } from "@/lib/services/client-stage-messages";
 import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
+import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 
 const clientUserSelect = {
   id: true,
@@ -290,10 +292,13 @@ export async function getClientPortalDeal(clientUserId: string) {
   const media = await Promise.all(deal.media.map(enrichMediaRecord));
 
   const calculatorSettings = await getCompanyCalculatorSettings(deal.companyId);
+  const workspace = await getCompanyWorkspaceSettings(deal.companyId);
   const destinationCountryLabel = resolveOriginLabel(
     deal.destinationCountry,
     calculatorSettings.customOrigins,
   );
+  const stageMessage = await getClientStageMessage(deal.companyId, deal.currentStage);
+  const customFields = parseCustomFieldValues(deal.customFields);
 
   return serialize({
     id: deal.id,
@@ -304,8 +309,10 @@ export async function getClientPortalDeal(clientUserId: string) {
     carYear: deal.carYear,
     destinationCity: deal.destinationCity,
     destinationCountry: destinationCountryLabel,
+    customFields,
     currentStage: deal.currentStage,
-    stageLabel: STAGE_LABELS[deal.currentStage],
+    stageLabel: workspace.stageLabels[deal.currentStage],
+    stageMessage,
     expectedArrival: deal.expectedArrival,
     actualArrival: deal.actualArrival,
     managerId: enrichedDeal.managerId,
@@ -316,7 +323,7 @@ export async function getClientPortalDeal(clientUserId: string) {
       id: doc.id,
       dealId: deal.id,
       type: doc.type,
-      label: DOCUMENT_LABELS[doc.type as keyof typeof DOCUMENT_LABELS] ?? doc.type,
+      label: getDocumentLabel(doc.type, workspace.documentTypes),
       status: doc.status,
       fileUrl: doc.fileUrl,
       uploadedAt: doc.uploadedAt,
@@ -326,8 +333,8 @@ export async function getClientPortalDeal(clientUserId: string) {
       id: item.id,
       fromStage: item.fromStage,
       toStage: item.toStage,
-      fromLabel: STAGE_LABELS[item.fromStage],
-      toLabel: STAGE_LABELS[item.toStage],
+      fromLabel: workspace.stageLabels[item.fromStage],
+      toLabel: workspace.stageLabels[item.toStage],
       createdAt: item.createdAt,
     })),
     comments: deal.comments.map((comment) => ({

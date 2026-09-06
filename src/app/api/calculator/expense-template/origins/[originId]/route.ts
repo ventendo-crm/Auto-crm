@@ -1,10 +1,10 @@
-import { assertAllowed, withAuth } from "@/lib/api-handler";
+import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
-import { canManageCompanyCalculator } from "@/lib/permissions";
+import { assertCompanyCalculatorManageAccess } from "@/lib/services/company-workspace";
 import { removeCompanyCustomOrigin } from "@/lib/services/company-calculator-settings";
 
 export const DELETE = withAuth(async (_request, { user, params }) => {
-  assertAllowed(canManageCompanyCalculator(user.role));
+  await assertCompanyCalculatorManageAccess(user);
   const originId = params.originId;
   if (!originId) {
     return error("Страна не указана", 400);

@@ -1,5 +1,4 @@
 import { DealWithManagerAssignments, getDealManagerIds, normalizeManagerIds } from "@/lib/deal-managers";
-import { CATALOG_ENABLED } from "@/lib/features";
 
 export const ROLES = {
   ADMIN: "ADMIN",
@@ -195,12 +194,13 @@ export function canManageCompanyGoogleCalendar(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }
 
-export function canAccessCalculator(role: RoleName): boolean {
+export function canAccessCalculator(role: RoleName, calculatorEnabled = true): boolean {
+  if (!calculatorEnabled) return false;
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
 
-export function canAccessCatalog(role: RoleName): boolean {
-  if (!CATALOG_ENABLED) return false;
+export function canAccessCatalog(role: RoleName, catalogEnabled = true): boolean {
+  if (!catalogEnabled) return false;
   return role === ROLES.ADMIN || role === ROLES.MANAGER;
 }
 
@@ -217,6 +217,10 @@ export function canManageCompanyDashboard(role: RoleName): boolean {
 }
 
 export function canManageCompanyAppearance(role: RoleName): boolean {
+  return role === ROLES.ADMIN;
+}
+
+export function canManageCompanyWorkspace(role: RoleName): boolean {
   return role === ROLES.ADMIN;
 }
 

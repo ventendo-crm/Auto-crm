@@ -47,6 +47,9 @@ export const POST = withAuth(async (request, { user, params }) => {
     if (err instanceof Error && err.message === "NOT_FOUND") {
       return error("Сделка не найдена", 404);
     }
+    if (err instanceof Error && err.message === "UNKNOWN_GROUP") {
+      return error("Неизвестная категория", 400);
+    }
     throw err;
   }
 });

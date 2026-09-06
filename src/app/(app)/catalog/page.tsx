@@ -6,13 +6,15 @@ import { CatalogPageContent } from "@/components/catalog/catalog-page-content";
 import { Header } from "@/components/layout/header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { canAccessCatalog, getClientRoleName } from "@/lib/permissions";
 
 export default function CatalogPage() {
   const { user, loading } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const router = useRouter();
   const role = getClientRoleName(user);
-  const allowed = role ? canAccessCatalog(role) : false;
+  const allowed = role ? canAccessCatalog(role, settings.modules.catalog) : false;
 
   useEffect(() => {
     if (loading) return;

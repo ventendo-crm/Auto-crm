@@ -3,6 +3,7 @@
 import { Loader2, Save, Send } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { ClientStageMessagesEditor } from "@/components/settings/client-stage-messages-editor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
 import { TELEGRAM_TEMPLATE_PLACEHOLDERS } from "@/lib/telegram/templates";
-import { ClientStageMessageItem, TelegramTemplateItem } from "@/lib/types";
+import { TelegramTemplateItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 
 const TEMPLATE_ORDER = ["STAGE_CHANGE", "CLIENT_STAGE", "COMMENT", "TEST"] as const;
@@ -20,27 +21,19 @@ const TEMPLATE_ORDER = ["STAGE_CHANGE", "CLIENT_STAGE", "COMMENT", "TEST"] as co
 export function TelegramTemplatesPanel() {
   const [section, setSection] = useState<"templates" | "stages">("stages");
   const [templates, setTemplates] = useState<TelegramTemplateItem[]>([]);
-  const [stageMessages, setStageMessages] = useState<ClientStageMessageItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<string | null>(null);
-  const [savingStages, setSavingStages] = useState(false);
   const [activeKey, setActiveKey] = useState<string>(TEMPLATE_ORDER[0]);
   const [forms, setForms] = useState<Record<string, { textBody: string }>>({});
-  const [stageForms, setStageForms] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [templateData, stageData] = await Promise.all([
-        api.telegram.listTemplates(),
-        api.telegram.listStageMessages(),
-      ]);
+      const templateData = await api.telegram.listTemplates();
       setTemplates(templateData);
       setForms(
         Object.fromEntries(templateData.map((item) => [item.key, { textBody: item.textBody }])),
       );
-      setStageMessages(stageData);
-      setStageForms(Object.fromEntries(stageData.map((item) => [item.stage, item.textBody])));
       if (templateData.length > 0 && !templateData.some((item) => item.key === activeKey)) {
         setActiveKey(templateData[0].key);
       }
@@ -89,24 +82,6 @@ export function TelegramTemplatesPanel() {
     }
   };
 
-  const handleSaveStages = async () => {
-    setSavingStages(true);
-    try {
-      const messages = stageMessages.map((item) => ({
-        stage: item.stage,
-        textBody: stageForms[item.stage] ?? item.textBody,
-      }));
-      const updated = await api.telegram.updateStageMessages(messages);
-      setStageMessages(updated);
-      setStageForms(Object.fromEntries(updated.map((item) => [item.stage, item.textBody])));
-      toast.success("Тексты по этапам сохранены");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить тексты");
-    } finally {
-      setSavingStages(false);
-    }
-  };
-
   if (loading) {
     return (
       <Card className="border-0 shadow-card">
@@ -141,39 +116,11 @@ export function TelegramTemplatesPanel() {
             <p className="text-sm text-muted-foreground">
               Текст подставляется в переменную{" "}
               <code className="rounded bg-muted px-1">{"{{body}}"}</code> шаблона «Смена этапа
-              (клиент)» — свой для каждого этапа.
+              (клиент)» — свой для каждого этапа. Те же тексты можно править в{" "}
+              <strong>Настройки → Компания</strong>.
             </p>
 
-            {stageMessages.map((item) => (
-              <div key={item.stage} className="space-y-2 rounded-lg border p-3">
-                <Label htmlFor={`stage-${item.stage}`}>{item.label}</Label>
-                <Textarea
-                  id={`stage-${item.stage}`}
-                  value={stageForms[item.stage] ?? ""}
-                  onChange={(e) =>
-                    setStageForms((current) => ({
-                      ...current,
-                      [item.stage]: e.target.value,
-                    }))
-                  }
-                  rows={3}
-                />
-              </div>
-            ))}
-
-            <Button
-              type="button"
-              variant="brand"
-              onClick={() => void handleSaveStages()}
-              disabled={savingStages}
-            >
-              {savingStages ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4" />
-              )}
-              Сохранить тексты этапов
-            </Button>
+            <ClientStageMessagesEditor />
           </TabsContent>
 
           <TabsContent value="templates">

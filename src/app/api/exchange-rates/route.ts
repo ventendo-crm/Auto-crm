@@ -1,13 +1,13 @@
-import { withAuth, assertAllowed } from "@/lib/api-handler";
+import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
 import { fetchGoogleFinanceRates } from "@/lib/customs-calculator/google-finance-rates";
-import { canAccessCalculator } from "@/lib/permissions";
+import { assertCompanyCalculatorAccess } from "@/lib/services/company-workspace";
 import { serialize } from "@/lib/serialize";
 
 export const runtime = "nodejs";
 
 export const GET = withAuth(async (request, { user }) => {
-  assertAllowed(canAccessCalculator(user.role));
+  await assertCompanyCalculatorAccess(user);
 
   const force = new URL(request.url).searchParams.get("force") === "1";
 

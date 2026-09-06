@@ -1,13 +1,17 @@
+"use client";
+
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { STAGE_COLORS, STAGE_LABELS } from "@/lib/constants";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
+import { STAGE_COLORS } from "@/lib/constants";
 import { DashboardRecentDeal } from "@/lib/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 
 export function RecentDeals({ deals }: { deals: DashboardRecentDeal[] }) {
+  const { stageLabel } = useCompanyWorkspace();
   return (
     <Card className="border-0 shadow-card">
       <CardHeader className="flex flex-row items-center justify-between">
@@ -40,7 +44,7 @@ export function RecentDeals({ deals }: { deals: DashboardRecentDeal[] }) {
                 <p className="text-xs text-muted-foreground">{formatDate(deal.updatedAt)}</p>
               </div>
               <Badge variant="outline" className={STAGE_COLORS[deal.currentStage]}>
-                {STAGE_LABELS[deal.currentStage]}
+                {stageLabel(deal.currentStage)}
               </Badge>
             </div>
           </Link>

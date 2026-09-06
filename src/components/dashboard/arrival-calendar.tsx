@@ -23,9 +23,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api-client";
-import { STAGE_COLORS, STAGE_LABELS } from "@/lib/constants";
+import { STAGE_COLORS } from "@/lib/constants";
 import { DashboardArrivalEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 
@@ -56,6 +57,7 @@ export function ArrivalCalendar({
   events,
   canSyncGoogleCalendar = false,
 }: ArrivalCalendarProps) {
+  const { stageLabel } = useCompanyWorkspace();
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [selectedDay, setSelectedDay] = useState(() => new Date());
   const [syncing, setSyncing] = useState(false);
@@ -292,7 +294,7 @@ export function ArrivalCalendar({
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-1">
                       <Badge variant="outline" className={STAGE_COLORS[event.currentStage]}>
-                        {STAGE_LABELS[event.currentStage]}
+                        {stageLabel(event.currentStage)}
                       </Badge>
                       <ChevronRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-brand" />
                     </div>

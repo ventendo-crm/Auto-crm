@@ -4,9 +4,10 @@ import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { DealStageType } from "@prisma/client";
 import { DealCard } from "@/components/kanban/deal-card";
-import { STAGE_ACCENT_BG, STAGE_COLORS, STAGE_COLUMN_BG, STAGE_LABELS } from "@/lib/constants";
+import { STAGE_ACCENT_BG, STAGE_COLORS, STAGE_COLUMN_BG } from "@/lib/constants";
 import { DealListItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 
 interface KanbanColumnProps {
   stage: DealStageType;
@@ -32,6 +33,7 @@ export function KanbanColumn({
     data: { type: "column", stage },
   });
 
+  const { stageLabel } = useCompanyWorkspace();
   const highlighted = isOver || isDroppableOver;
 
   return (
@@ -52,7 +54,7 @@ export function KanbanColumn({
             className={cn("h-2.5 w-2.5 shrink-0 rounded-full", STAGE_ACCENT_BG[stage])}
             aria-hidden
           />
-          <h3 className="truncate text-sm font-semibold tracking-tight">{STAGE_LABELS[stage]}</h3>
+          <h3 className="truncate text-sm font-semibold tracking-tight">{stageLabel(stage)}</h3>
         </div>
         <span
           className={cn(

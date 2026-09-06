@@ -1,23 +1,25 @@
-import { assertAllowed, withAuth } from "@/lib/api-handler";
+import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
-import { canAccessCalculator, canManageCompanyCalculator } from "@/lib/permissions";
 import {
   addCompanyCustomOrigin,
   getCompanyCalculatorSettings,
-  removeCompanyCustomOrigin,
   saveCompanyCalculatorExpenses,
 } from "@/lib/services/company-calculator-settings";
+import {
+  assertCompanyCalculatorAccess,
+  assertCompanyCalculatorManageAccess,
+} from "@/lib/services/company-workspace";
 import { saveCompanyCalculatorExpensesSchema } from "@/lib/validators/company-calculator-settings";
 import { z } from "zod";
 
 export const GET = withAuth(async (_request, { user }) => {
-  assertAllowed(canAccessCalculator(user.role));
+  await assertCompanyCalculatorAccess(user);
   const settings = await getCompanyCalculatorSettings(user.companyId);
   return ok(settings);
 });
 
 export const PUT = withAuth(async (request, { user }) => {
-  assertAllowed(canManageCompanyCalculator(user.role));
+  await assertCompanyCalculatorManageAccess(user);
   const body = saveCompanyCalculatorExpensesSchema.parse(await request.json());
   const settings = await saveCompanyCalculatorExpenses(
     user.companyId,
@@ -33,7 +35,7 @@ const addOriginSchema = z.object({
 });
 
 export const POST = withAuth(async (request, { user }) => {
-  assertAllowed(canManageCompanyCalculator(user.role));
+  await assertCompanyCalculatorManageAccess(user);
   const body = addOriginSchema.parse(await request.json());
   try {
     return ok(

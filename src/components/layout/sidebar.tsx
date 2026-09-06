@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/layout/theme-toggle";
 import { useSidebar } from "@/hooks/use-sidebar";
 import { useAuth } from "@/hooks/use-auth";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { canAccessCalculator, canAccessCatalog, canAccessHelp, getClientRoleName, ROLES } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { isOpen, isMobile } = useSidebar();
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const role = getClientRoleName(user);
   const showHelp = role ? canAccessHelp(role) : false;
   const navItems =
@@ -28,10 +30,10 @@ export function Sidebar() {
       ? clientNavItems
       : staffSidebarNavItems.filter((item) => {
           if (item.calculatorOnly) {
-            return role ? canAccessCalculator(role) : false;
+            return role ? canAccessCalculator(role, settings.modules.calculator) : false;
           }
           if (item.catalogOnly) {
-            return role ? canAccessCatalog(role) : false;
+            return role ? canAccessCatalog(role, settings.modules.catalog) : false;
           }
           return true;
         });

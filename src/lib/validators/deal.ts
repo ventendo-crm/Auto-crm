@@ -14,7 +14,7 @@ const dealBaseSchema = z.object({
   purchasePrice: optionalDecimal,
   prepayment: optionalDecimal,
   balance: optionalDecimal,
-  destinationCity: z.string().min(1).max(100),
+  destinationCity: z.string().max(100).optional().default(""),
   destinationCountry: z.string().min(1).max(100),
   managerId: z.string().cuid().nullish(),
   managerIds: z.array(z.string().cuid()).optional(),
@@ -22,6 +22,7 @@ const dealBaseSchema = z.object({
   expectedArrival: z.coerce.date().optional().nullable(),
   actualArrival: z.coerce.date().optional().nullable(),
   priority: z.number().int().min(1).max(5).optional(),
+  customFields: z.record(z.string(), z.string().max(500)).optional(),
 });
 
 export const createDealSchema = dealBaseSchema;

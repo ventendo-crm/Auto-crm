@@ -16,7 +16,7 @@ import { ClientPageTabsNav } from "@/components/client/client-page-tabs-nav";
 import { DealAdditionalOptions } from "@/components/deals/deal-additional-options";
 import { DealComments } from "@/components/deals/deal-comments";
 import { DealCustomsEstimatesPanel } from "@/components/deals/deal-customs-estimates-panel";
-import { DealDocuments, RECEIVED_DEAL_DOCUMENT_TYPES } from "@/components/deals/deal-documents";
+import { DealDocuments } from "@/components/deals/deal-documents";
 import { DealLogistics } from "@/components/deals/deal-logistics";
 import { SearchProcessEntryEstimatePanel } from "@/components/deals/search-process-entry-estimate";
 import { SearchProcessLinksPanel } from "@/components/deals/search-process-links";
@@ -33,11 +33,13 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useScrollToTabPanel } from "@/hooks/use-scroll-to-tab-panel";
 import { api } from "@/lib/api-client";
-import { CLIENT_STAGE_NOTIFICATIONS, STAGE_COLORS } from "@/lib/constants";
+import { STAGE_COLORS } from "@/lib/constants";
 import { getMediaDownloadUrl } from "@/lib/media-urls";
 import { ClientPortalDeal, MediaItem } from "@/lib/types";
 import { DealActivityItem } from "@/lib/services/deal-activity";
 import { cn, formatDate, formatFileSize } from "@/lib/utils";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
+import { enabledCustomDealFields, parseCustomFieldValues } from "@/lib/company-workspace/helpers";
 
 interface PreviewState {
   items: MediaItem[];
@@ -46,6 +48,7 @@ interface PreviewState {
 
 export function ClientDealView() {
   const { user } = useAuth();
+  const { settings } = useCompanyWorkspace();
   const [deal, setDeal] = useState<ClientPortalDeal | null>(null);
   const [activity, setActivity] = useState<DealActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,8 +125,9 @@ export function ClientDealView() {
     : deal.carCarrierDestination
       ? "Город назначения"
       : "Куда везём";
-  const stageMessage = CLIENT_STAGE_NOTIFICATIONS[deal.currentStage];
+  const stageMessage = deal.stageMessage;
   const carLine = [deal.carBrand, deal.carModel, deal.carYear].filter(Boolean).join(" ");
+  const customValues = parseCustomFieldValues(deal.customFields);
 
   return (
     <div className="page-content">
@@ -179,20 +183,26 @@ export function ClientDealView() {
           </CollapsibleTrigger>
           <CollapsiblePanel open={detailsOpen}>
             <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+              {settings.dealFields.vin.enabled && (
               <div>
                 <p className="text-field-label">VIN</p>
-                <p className="font-mono text-field-value">{deal.vin}</p>
+                <p className="font-mono text-field-value">{deal.vin || "—"}</p>
               </div>
+              )}
               <div>
                 <p className="text-field-label">Автомобиль</p>
                 <p className="text-field-value">{carLine || "—"}</p>
               </div>
+              {(settings.dealFields.destinationCity.enabled || deal.destinationCountry) && (
               <div>
                 <p className="text-field-label">Город / страна экспорта</p>
                 <p className="text-field-value">
-                  {deal.destinationCity}, {deal.destinationCountry}
+                  {[settings.dealFields.destinationCity.enabled ? deal.destinationCity : null, deal.destinationCountry]
+                    .filter(Boolean)
+                    .join(", ")}
                 </p>
               </div>
+              )}
               <div>
                 <p className="text-field-label">Менеджер</p>
                 <p className="text-field-value">{deal.manager?.name ?? "Не назначен"}</p>
@@ -200,15 +210,18 @@ export function ClientDealView() {
                   <p className="text-field-label">{deal.manager.email}</p>
                 )}
               </div>
+              {enabledCustomDealFields(settings.customDealFields).map((field) => (
+                <div key={field.id}>
+                  <p className="text-field-label">{field.label}</p>
+                  <p className="text-field-value">{customValues[field.id] || "—"}</p>
+                </div>
+              ))}
             </div>
           </CollapsiblePanel>
         </div>
       </section>
 
-      <ClientDealProgress
-        currentStage={deal.currentStage}
-        stageLabel={deal.stageLabel}
-      />
+      <ClientDealProgress currentStage={deal.currentStage} />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <ClientPageTabsNav deal={deal} activeTab={activeTab} />
@@ -229,11 +242,12 @@ export function ClientDealView() {
             managerId={deal.managerId}
             clientUserId={user?.id}
             title="Полученные документы"
-            documentTypes={RECEIVED_DEAL_DOCUMENT_TYPES}
+            group="received"
             onUpdated={refreshDeal}
           />
         </TabsContent>
 
+        {settings.modules.calculator && (
         <TabsContent value="customs-estimate">
           <DealCustomsEstimatesPanel
             dealId={deal.id}
@@ -241,7 +255,9 @@ export function ClientDealView() {
             title="Расчёт растаможки"
           />
         </TabsContent>
+        )}
 
+        {settings.dealTabs.searchProcess && (
         <TabsContent value="search-process">
           <Card className="border-0 shadow-card">
             <CardHeader>
@@ -323,12 +339,15 @@ export function ClientDealView() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
+        {settings.dealTabs.additionalOptions && (
         <TabsContent value="additional-options">
           <DealAdditionalOptions dealId={deal.id} onChanged={refreshDeal} />
         </TabsContent>
+        )}
 
-        {deal.importProcessEnabled && (
+        {settings.dealTabs.importProcess && deal.importProcessEnabled && (
           <TabsContent value="import-process">
             <ClientImportProcessView
               dealId={deal.id}
@@ -361,9 +380,11 @@ export function ClientDealView() {
           <DealActivityTimeline activity={activity} />
         </TabsContent>
 
+        {settings.dealTabs.logistics && (
         <TabsContent value="logistics">
           <DealLogistics dealId={deal.id} shipment={deal.shipment} />
         </TabsContent>
+        )}
       </Tabs>
 
       <MediaPreviewDialog

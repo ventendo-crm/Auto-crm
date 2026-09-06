@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import { formatDealManagersLabel } from "@/lib/deal-managers";
-import { STAGE_COLORS, STAGE_LABELS } from "@/lib/constants";
+import { STAGE_COLORS } from "@/lib/constants";
 import { DealDetail } from "@/lib/types";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { cn, formatCurrency } from "@/lib/utils";
 
 interface DealHeaderProps {
@@ -27,6 +28,7 @@ function formatCarLine(deal: DealDetail): string {
 }
 
 export function DealHeader({ deal, canDelete }: DealHeaderProps) {
+  const { stageLabel, settings } = useCompanyWorkspace();
   const [detailsOpen, setDetailsOpen] = useState(false);
   const carLine = formatCarLine(deal);
   const managersLabel = formatDealManagersLabel(deal);
@@ -72,13 +74,17 @@ export function DealHeader({ deal, canDelete }: DealHeaderProps) {
                 "shrink-0 px-1.5 py-0 text-micro font-medium sm:px-2.5 sm:py-0.5 sm:text-xs",
               )}
             >
-              {STAGE_LABELS[deal.currentStage]}
+              {stageLabel(deal.currentStage)}
             </Badge>
           </CollapsibleTrigger>
 
           <CollapsiblePanel open={detailsOpen} className="pt-1">
-            <p className="font-mono text-field-value text-muted-foreground">{deal.vin}</p>
-            <p className="mt-1 text-field-value text-muted-foreground">{carLine}</p>
+            <p className="font-mono text-field-value text-muted-foreground">
+              {settings.dealFields.vin.enabled ? deal.vin || "—" : carLine}
+            </p>
+            {settings.dealFields.vin.enabled && (
+              <p className="mt-1 text-field-value text-muted-foreground">{carLine}</p>
+            )}
 
             <div className="mt-1 flex items-center justify-between gap-2 sm:hidden">
               <p className="min-w-0 truncate text-micro text-muted-foreground">

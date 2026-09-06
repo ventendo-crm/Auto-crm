@@ -1,4 +1,4 @@
-import { DealStageType, DocumentStatus, DocumentType, Prisma } from "@prisma/client";
+import { DealStageType, DocumentStatus, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   dealManagersInclude,
@@ -11,8 +11,11 @@ import {
 } from "@/lib/deal-managers";
 import { AuthUser, ROLES } from "@/lib/permissions";
 import { resolveOriginLabel } from "@/lib/customs-calculator/custom-origins";
+import { getEnabledDocumentTypeKeys } from "@/lib/company-workspace/helpers";
+import type { ResolvedCompanyWorkspace } from "@/lib/company-workspace/types";
 import { createAuditLog } from "@/lib/services/audit";
 import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
+import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { notifyStageChange } from "@/lib/services/notifications";
 import { recordStageChange } from "@/lib/services/stage-history";
@@ -79,6 +82,84 @@ function toDecimal(value: string | number | null | undefined): Prisma.Decimal | 
   if (value === undefined) return undefined;
   if (value === null) return null;
   return new Prisma.Decimal(value);
+}
+
+function sanitizeCustomFields(
+  settings: ResolvedCompanyWorkspace,
+  input: Record<string, string> | undefined,
+  mode: "create" | "update",
+): Record<string, string> | undefined {
+  if (mode === "update" && input === undefined) return undefined;
+  const source = input ?? {};
+  const result: Record<string, string> = {};
+  for (const field of settings.customDealFields) {
+    if (!field.enabled) continue;
+    const value = (source[field.id] ?? "").trim();
+    if (field.required && !value) {
+      throw new Error(`Заполните поле «${field.label}»`);
+    }
+    if (value) result[field.id] = value.slice(0, 500);
+  }
+  return result;
+}
+
+function applyWorkspaceDealFields(
+  settings: ResolvedCompanyWorkspace,
+  input: {
+    vin?: string | null;
+    carYear?: number | null;
+    destinationCity?: string;
+    customFields?: Record<string, string>;
+  },
+  mode: "create" | "update",
+): {
+  vin?: string;
+  carYear?: number | null;
+  destinationCity?: string;
+  customFields?: Record<string, string>;
+} {
+  const result: {
+    vin?: string;
+    carYear?: number | null;
+    destinationCity?: string;
+    customFields?: Record<string, string>;
+  } = {};
+
+  if (settings.dealFields.vin.enabled && (mode === "create" || input.vin !== undefined)) {
+    const vin = (input.vin ?? "").trim();
+    if (settings.dealFields.vin.required && !vin) {
+      throw new Error("Укажите VIN");
+    }
+    result.vin = vin;
+  } else if (mode === "create") {
+    result.vin = "";
+  }
+
+  if (settings.dealFields.carYear.enabled && (mode === "create" || input.carYear !== undefined)) {
+    const carYear = input.carYear ?? null;
+    if (settings.dealFields.carYear.required && carYear == null) {
+      throw new Error("Укажите год автомобиля");
+    }
+    result.carYear = carYear;
+  } else if (mode === "create") {
+    result.carYear = null;
+  }
+
+  if (
+    settings.dealFields.destinationCity.enabled &&
+    (mode === "create" || input.destinationCity !== undefined)
+  ) {
+    const destinationCity = (input.destinationCity ?? "").trim();
+    if (settings.dealFields.destinationCity.required && destinationCity.length < 2) {
+      throw new Error("Укажите город экспорта");
+    }
+    result.destinationCity = destinationCity;
+  } else if (mode === "create") {
+    result.destinationCity = "";
+  }
+
+  result.customFields = sanitizeCustomFields(settings, input.customFields, mode);
+  return result;
 }
 
 async function buildDealWhere(user: AuthUser, filters: ListDealsInput): Promise<Prisma.DealWhereInput> {
@@ -158,6 +239,9 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
   const managerIds = await resolveCreateManagerIds(user, input.managerIds, input.managerId);
   const stage = input.currentStage ?? DealStageType.LEADS;
   const now = new Date();
+  const workspace = await getCompanyWorkspaceSettings(user.companyId);
+  const fields = applyWorkspaceDealFields(workspace, input, "create");
+  const documentTypes = getEnabledDocumentTypeKeys(workspace.documentTypes);
 
   const deal = await prisma.$transaction(async (tx) => {
     const created = await tx.deal.create({
@@ -166,21 +250,23 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
         clientName: input.clientName,
         phone: input.phone ?? null,
         email: input.email ?? null,
-        vin: input.vin ?? "",
+        vin: fields.vin ?? "",
         carBrand: input.carBrand ?? null,
         carModel: input.carModel ?? null,
-        carYear: input.carYear ?? null,
+        carYear: fields.carYear ?? null,
         purchasePrice: toDecimal(input.purchasePrice) ?? null,
         prepayment: toDecimal(input.prepayment) ?? null,
         balance: toDecimal(input.balance) ?? null,
-        destinationCity: input.destinationCity,
+        destinationCity: fields.destinationCity ?? "",
         destinationCountry: input.destinationCountry,
+        customFields: (fields.customFields ?? {}) as Prisma.InputJsonValue,
         managerId: managerIds[0] ?? null,
         currentStage: stage,
         stageEnteredAt: now,
         expectedArrival: input.expectedArrival ?? null,
         actualArrival: input.actualArrival ?? null,
         priority: input.priority ?? 1,
+        importProcessEnabled: workspace.dealTabs.importProcess,
       },
       include: dealInclude,
     });
@@ -199,7 +285,7 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
     });
 
     await tx.document.createMany({
-      data: Object.values(DocumentType).map((type) => ({
+      data: documentTypes.map((type) => ({
         dealId: created.id,
         type,
         status: DocumentStatus.MISSING,
@@ -243,6 +329,9 @@ export async function updateDeal(user: AuthUser, id: string, input: UpdateDealIn
     input.managerId,
   );
 
+  const workspace = await getCompanyWorkspaceSettings(user.companyId);
+  const fields = applyWorkspaceDealFields(workspace, input, "update");
+
   const deal = await prisma.$transaction(async (tx) => {
     if (managerIds !== undefined) {
       await syncDealManagerAssignments(tx, id, managerIds);
@@ -254,15 +343,18 @@ export async function updateDeal(user: AuthUser, id: string, input: UpdateDealIn
         clientName: input.clientName,
         phone: input.phone,
         email: input.email,
-        ...(input.vin !== undefined ? { vin: input.vin ?? "" } : {}),
+        ...(fields.vin !== undefined ? { vin: fields.vin } : {}),
         carBrand: input.carBrand,
         carModel: input.carModel,
-        carYear: input.carYear,
+        ...(fields.carYear !== undefined ? { carYear: fields.carYear } : {}),
         purchasePrice: toDecimal(input.purchasePrice),
         prepayment: toDecimal(input.prepayment),
         balance: toDecimal(input.balance),
-        destinationCity: input.destinationCity,
+        ...(fields.destinationCity !== undefined ? { destinationCity: fields.destinationCity } : {}),
         destinationCountry: input.destinationCountry,
+        ...(fields.customFields !== undefined
+          ? { customFields: fields.customFields as Prisma.InputJsonValue }
+          : {}),
         expectedArrival: input.expectedArrival,
         actualArrival: input.actualArrival,
         priority: input.priority,

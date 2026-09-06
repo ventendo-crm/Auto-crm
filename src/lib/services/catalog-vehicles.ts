@@ -6,7 +6,8 @@ import {
   type Che168ParsedListing,
 } from "@/lib/catalog/che168-parser";
 import { translateCatalogFields } from "@/lib/catalog/translate";
-import { AuthUser, canAccessCatalog } from "@/lib/permissions";
+import { AuthUser } from "@/lib/permissions";
+import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { serializeGalleryUrls } from "@/lib/services/catalog-serialize";
@@ -30,10 +31,8 @@ const vehicleInclude = {
   },
 } as const;
 
-function assertCatalogAccess(user: AuthUser) {
-  if (!canAccessCatalog(user.role)) {
-    throw new Error("Forbidden");
-  }
+async function assertCatalogAccess(user: AuthUser) {
+  await assertCompanyCatalogAccess(user);
 }
 
 function serializeVehicle(record: {
@@ -175,7 +174,7 @@ function buildWhere(companyId: string, filters: FiltersInput): Prisma.CatalogVeh
 }
 
 export async function listCatalogVehicles(user: AuthUser, rawFilters: FiltersInput) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const filters = catalogVehicleFiltersSchema.parse(rawFilters);
   const page = filters.page ?? 1;
   const limit = filters.limit ?? 24;
@@ -202,7 +201,7 @@ export async function listCatalogVehicles(user: AuthUser, rawFilters: FiltersInp
 }
 
 export async function getCatalogVehicle(user: AuthUser, id: string) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const record = await prisma.catalogVehicle.findFirst({
     where: { id, companyId: user.companyId },
     include: vehicleInclude,
@@ -212,7 +211,7 @@ export async function getCatalogVehicle(user: AuthUser, id: string) {
 }
 
 export async function createCatalogVehicle(user: AuthUser, body: CreateInput) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const data = createCatalogVehicleSchema.parse(body);
 
   const record = await prisma.catalogVehicle.create({
@@ -255,7 +254,7 @@ export async function createCatalogVehicle(user: AuthUser, body: CreateInput) {
 }
 
 export async function updateCatalogVehicle(user: AuthUser, id: string, body: UpdateInput) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const data = updateCatalogVehicleSchema.parse(body);
 
   const existing = await prisma.catalogVehicle.findFirst({
@@ -371,7 +370,7 @@ async function upsertFromChe168Parsed(
 }
 
 export async function importCatalogVehicleFromChe168(user: AuthUser, body: ImportInput) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const input = importChe168Schema.parse(body);
   const sourceUrl = normalizeChe168Url(input.url);
   const { html } = await fetchChinaPage(sourceUrl);
@@ -389,7 +388,7 @@ export async function importCatalogVehicleFromChe168(user: AuthUser, body: Impor
 }
 
 export async function listCatalogBrands(user: AuthUser) {
-  assertCatalogAccess(user);
+  await assertCatalogAccess(user);
   const rows = await prisma.catalogVehicle.findMany({
     where: { companyId: user.companyId, status: CatalogVehicleStatus.ACTIVE, brand: { not: null } },
     distinct: ["brand"],

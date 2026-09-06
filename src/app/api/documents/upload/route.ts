@@ -1,21 +1,20 @@
-import { DocumentType } from "@prisma/client";
 import { mkdir, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { assertAllowed, assertFound, withAuth } from "@/lib/api-handler";
 import { ok } from "@/lib/api-response";
+import { isDocumentTypeKey } from "@/lib/company-workspace/helpers";
 import { canUploadDealDocuments } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { getDeal } from "@/lib/services/deals";
+import { assertDealDocumentType } from "@/lib/services/documents";
 import { notifyClientEptsUploaded, notifyClientInvoiceUploaded } from "@/lib/services/notifications";
 import { serialize } from "@/lib/serialize";
 import { z } from "zod";
 
-const ALLOWED_TYPES = new Set<string>(Object.values(DocumentType));
-
 const uploadSchema = z.object({
   dealId: z.string().min(1),
-  type: z.nativeEnum(DocumentType),
+  type: z.string().min(1).max(64),
 });
 
 export const POST = withAuth(async (request, { user }) => {
@@ -31,12 +30,13 @@ export const POST = withAuth(async (request, { user }) => {
     type: formData.get("type"),
   });
 
-  if (!ALLOWED_TYPES.has(type)) {
+  if (!isDocumentTypeKey(type)) {
     throw new Error("Недопустимый тип документа");
   }
 
   const deal = assertFound(await getDeal(dealId, user.companyId));
   assertAllowed(canUploadDealDocuments(user.role, user.id, deal));
+  await assertDealDocumentType(user.companyId, dealId, type);
 
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
@@ -89,7 +89,7 @@ export const POST = withAuth(async (request, { user }) => {
     newValue: { dealId, type, fileName: file.name },
   });
 
-  if (type === DocumentType.INVOICE) {
+  if (type === "INVOICE") {
     void notifyClientInvoiceUploaded({
       dealId,
       companyId: user.companyId,
@@ -98,7 +98,7 @@ export const POST = withAuth(async (request, { user }) => {
     });
   }
 
-  if (type === DocumentType.EPTS) {
+  if (type === "EPTS") {
     void notifyClientEptsUploaded({
       dealId,
       companyId: user.companyId,
