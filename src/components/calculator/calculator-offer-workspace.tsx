@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ImagePlus, Loader2, Share2, X } from "lucide-react";
+import { Copy, ImagePlus, Link2, Loader2, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -44,7 +44,9 @@ export function CalculatorOfferWorkspace() {
   const [sourceUrl, setSourceUrl] = useState("");
   const [photos, setPhotos] = useState<OfferPhoto[]>([]);
   const [sharing, setSharing] = useState(false);
+  const [creatingLink, setCreatingLink] = useState(false);
   const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const busy = sharing || creatingLink;
 
   useEffect(() => {
     try {
@@ -213,13 +215,7 @@ export function CalculatorOfferWorkspace() {
       }
 
       await publishOfferLink(text, photoFiles, estimate, totalLabel);
-      toast.success("Ссылка создана", {
-        description: "Скопирована в буфер, действует 30 дней.",
-        duration: 6000,
-      });
-      requestAnimationFrame(() => {
-        document.getElementById("offer-created-link")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      });
+      toastCreatedLink();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
     } finally {
@@ -227,8 +223,36 @@ export function CalculatorOfferWorkspace() {
     }
   };
 
+  const toastCreatedLink = () => {
+    toast.success("Ссылка создана", {
+      description: "Скопирована в буфер, действует 30 дней.",
+      duration: 6000,
+    });
+    requestAnimationFrame(() => {
+      document.getElementById("offer-created-link")?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    });
+  };
+
+  const handleCreateLink = async () => {
+    if (!description.trim() && !sourceUrl.trim() && photos.length === 0 && !captureApiRef.current?.canCapture()) {
+      toast.error("Добавьте описание, ссылку, фото или расчёт");
+      return;
+    }
+
+    setCreatingLink(true);
+    try {
+      const { text, photoFiles, estimate, totalLabel } = await collectSharePayload();
+      await publishOfferLink(text, photoFiles, estimate, totalLabel);
+      toastCreatedLink();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
+    } finally {
+      setCreatingLink(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-36 xl:pb-24">
       <Card className="border-0 shadow-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Подбор авто</CardTitle>
@@ -337,11 +361,21 @@ export function CalculatorOfferWorkspace() {
           type="button"
           variant="brand"
           className="h-12 w-full shadow-lg"
-          disabled={sharing}
+          disabled={busy}
           onClick={() => void handleShare()}
         >
           {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
           Поделиться
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="h-12 w-full shadow-lg xl:hidden"
+          disabled={busy}
+          onClick={() => void handleCreateLink()}
+        >
+          {creatingLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
+          Создать ссылку
         </Button>
       </div>
     </div>
