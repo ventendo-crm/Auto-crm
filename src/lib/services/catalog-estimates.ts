@@ -1,13 +1,15 @@
-import { Prisma } from "@prisma/client";
+import { CatalogVehicleStatus, Prisma } from "@prisma/client";
 import {
   calculateCustoms,
   type CarAge,
   type CurrencyCode,
   type CustomsCalculatorInput,
   type CustomsCalculatorResult,
+  type ExchangeRates,
   findExpenseByRole,
   isChinaLikeOrigin,
   listExtraExpenses,
+  roundExchangeRates,
 } from "@/lib/customs-calculator";
 import { fetchGoogleFinanceRates } from "@/lib/customs-calculator/google-finance-rates";
 import { applyDealExchangeRate } from "@/lib/customs-calculator/deal-exchange-rate";
@@ -335,4 +337,108 @@ export async function autoEstimateCatalogVehicle(user: AuthUser, vehicleId: stri
     volumeCc: vehicle.volumeCc ?? 2000,
     carYear: vehicle.carYear,
   });
+}
+
+export interface CatalogRatesRecalcResult {
+  updated: number;
+  skipped: number;
+  failed: number;
+  rates: ExchangeRates;
+  fetchedAt: string;
+}
+
+/** Подставляет свежие курсы в сохранённый ввод калькулятора, не дублируя формулы. */
+export function applyFreshRatesToCatalogEstimateInput(
+  rawInput: unknown,
+  rates: ExchangeRates,
+): CustomsCalculatorInput {
+  const input = customsEstimateInputSchema.parse(rawInput) as CustomsCalculatorInput;
+  return {
+    ...input,
+    rates: roundExchangeRates(rates),
+  };
+}
+
+export async function recalculateActiveCatalogEstimates(
+  user: AuthUser,
+): Promise<CatalogRatesRecalcResult> {
+  await assertCompanyCatalogAccess(user);
+
+  let fetched: { rates: ExchangeRates; fetchedAt: string };
+  try {
+    fetched = await fetchGoogleFinanceRates({ force: true });
+  } catch {
+    throw new Error("RATES_UNAVAILABLE");
+  }
+
+  const vehicles = await prisma.catalogVehicle.findMany({
+    where: { companyId: user.companyId, status: CatalogVehicleStatus.ACTIVE },
+    select: {
+      id: true,
+      customsEstimate: { select: { id: true, input: true } },
+    },
+  });
+
+  let updated = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const vehicle of vehicles) {
+    if (!vehicle.customsEstimate) {
+      skipped += 1;
+      continue;
+    }
+
+    try {
+      const input = applyFreshRatesToCatalogEstimateInput(
+        vehicle.customsEstimate.input,
+        fetched.rates,
+      );
+      const result = calculateCustoms(input);
+      if (!result) {
+        failed += 1;
+        continue;
+      }
+
+      await prisma.catalogVehicleCustomsEstimate.update({
+        where: { id: vehicle.customsEstimate.id },
+        data: {
+          input: input as unknown as Prisma.InputJsonValue,
+          result: result as unknown as Prisma.InputJsonValue,
+          totalWithCar: new Prisma.Decimal(result.totalWithCar),
+        },
+      });
+      updated += 1;
+    } catch (err) {
+      failed += 1;
+      console.error(`Catalog rate recalc failed for vehicle ${vehicle.id}`, err);
+    }
+  }
+
+  await createAuditLog({
+    userId: user.id,
+    companyId: user.companyId,
+    entity: "CatalogVehicleCustomsEstimate",
+    entityId: user.companyId,
+    action: "RECALCULATE_RATES",
+    newValue: {
+      updated,
+      skipped,
+      failed,
+      rates: {
+        USD: fetched.rates.USD,
+        EUR: fetched.rates.EUR,
+        CNY: fetched.rates.CNY,
+        KRW: fetched.rates.KRW,
+      },
+    },
+  });
+
+  return {
+    updated,
+    skipped,
+    failed,
+    rates: fetched.rates,
+    fetchedAt: fetched.fetchedAt,
+  };
 }

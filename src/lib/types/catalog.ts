@@ -26,6 +26,14 @@ export type CatalogSectionsList = {
   totalActiveCount: number;
 };
 
+export type CatalogRatesRecalcResult = {
+  updated: number;
+  skipped: number;
+  failed: number;
+  rates: { USD: number; EUR: number; CNY: number; KRW: number };
+  fetchedAt: string;
+};
+
 export type CatalogVehicleListItem = {
   id: string;
   source: "MANUAL" | "CHE168";

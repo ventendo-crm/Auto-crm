@@ -10,6 +10,7 @@ import {
   Loader2,
   Play,
   Share2,
+  Trash2,
   UserPlus,
   X,
 } from "lucide-react";
@@ -73,6 +74,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [dealOpen, setDealOpen] = useState(false);
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [selectedDealId, setSelectedDealId] = useState("");
@@ -108,7 +110,11 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     void loadVehicle();
   }, [loadVehicle]);
 
-  const mediaItems = vehicle?.photos.length
+  const mediaItems: Array<{
+    id?: string;
+    fileUrl: string;
+    type: "PHOTO" | "VIDEO";
+  }> = vehicle?.photos.length
     ? vehicle.photos.map((item) => ({
         id: item.id,
         fileUrl: item.fileUrl,
@@ -120,6 +126,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
         ? [{ fileUrl: vehicle.coverImageUrl, type: "PHOTO" as const }]
         : [];
   const currentMedia = mediaItems[activeImage] ?? null;
+  const currentMediaId = currentMedia?.id;
 
   async function handleSave() {
     setSaving(true);
@@ -209,16 +216,25 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     }
   }
 
-  async function handleDeleteMedia(mediaId: string) {
+  async function handleDeleteMedia(mediaId: string, kind: "PHOTO" | "VIDEO" = "PHOTO") {
+    if (!confirm(kind === "VIDEO" ? "Удалить это видео?" : "Удалить это фото?")) return;
+    setDeletingId(mediaId);
     try {
       const saved = await apiSend<CatalogVehicleDetail>(
         `/api/catalog/vehicles/${vehicleId}/photos/${mediaId}`,
         "DELETE",
       );
       setVehicle(saved);
-      setActiveImage(0);
+      setActiveImage((current) => {
+        const nextLength = saved.photos.length;
+        if (nextLength === 0) return 0;
+        return Math.min(current, nextLength - 1);
+      });
+      toast.success(kind === "VIDEO" ? "Видео удалено" : "Фото удалено");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось удалить файл");
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -249,13 +265,13 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   }
 
   async function handleArchive() {
-    if (!confirm("Снять авто с витрины?")) return;
+    if (!confirm("Удалить это авто из каталога? Ссылка для клиента перестанет открываться.")) return;
     try {
       await apiSend(`/api/catalog/vehicles/${vehicleId}`, "PATCH", { status: "ARCHIVED" });
-      toast.success("Снято с витрины");
+      toast.success("Авто удалено из каталога");
       router.push("/catalog");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось скрыть");
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить");
     }
   }
 
@@ -305,7 +321,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
             В сделку
           </Button>
           <Button variant="outline" size="sm" onClick={() => void handleArchive()}>
-            Снять с витрины
+            Удалить
           </Button>
         </div>
 
@@ -361,32 +377,76 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                     Нет фото и видео
                   </div>
                 )}
+                {currentMediaId ? (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="sm"
+                    className="absolute right-2 top-2 shadow-md"
+                    disabled={deletingId === currentMediaId}
+                    onClick={() =>
+                      void handleDeleteMedia(currentMediaId, currentMedia.type)
+                    }
+                  >
+                    {deletingId === currentMediaId ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-1.5 h-4 w-4" />
+                    )}
+                    Удалить
+                  </Button>
+                ) : null}
               </div>
-              {mediaItems.length > 1 && (
+              {mediaItems.length > 0 && (
                 <div className="flex gap-2 overflow-x-auto p-3">
-                  {mediaItems.map((item, index) => (
-                    <button
-                      key={`${item.fileUrl}-${index}`}
-                      type="button"
-                      onClick={() => setActiveImage(index)}
+                  {mediaItems.map((item, index) => {
+                    const itemId = item.id;
+                    return (
+                    <div
+                      key={itemId ?? `${item.fileUrl}-${index}`}
                       className={`relative h-16 w-24 shrink-0 overflow-hidden rounded-md border-2 ${
                         index === activeImage ? "border-brand" : "border-transparent"
                       }`}
                     >
-                      <MediaThumb
-                        item={{
-                          type: item.type,
-                          fileUrl: item.fileUrl,
-                          fileName: vehicle.titleRu,
-                        }}
-                      />
-                      {item.type === "VIDEO" && (
-                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
-                          <Play className="h-5 w-5 text-white" />
-                        </span>
-                      )}
-                    </button>
-                  ))}
+                      <button
+                        type="button"
+                        className="h-full w-full"
+                        onClick={() => setActiveImage(index)}
+                      >
+                        <MediaThumb
+                          item={{
+                            type: item.type,
+                            fileUrl: item.fileUrl,
+                            fileName: vehicle.titleRu,
+                          }}
+                        />
+                        {item.type === "VIDEO" && (
+                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+                            <Play className="h-5 w-5 text-white" />
+                          </span>
+                        )}
+                      </button>
+                      {itemId ? (
+                        <button
+                          type="button"
+                          className="absolute right-0.5 top-0.5 rounded-full bg-background/90 p-0.5 shadow"
+                          disabled={deletingId === itemId}
+                          title="Удалить"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void handleDeleteMedia(itemId, item.type);
+                          }}
+                        >
+                          {deletingId === itemId ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <X className="h-3 w-3" />
+                          )}
+                        </button>
+                      ) : null}
+                    </div>
+                    );
+                  })}
                 </div>
               )}
               <CardContent className="space-y-3 p-4">
@@ -414,38 +474,10 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                     Добавить фото или видео
                   </Button>
                   <p className="self-center text-xs text-muted-foreground">
-                    До {MAX_CATALOG_VEHICLE_MEDIA} файлов, видео до 100 МБ
+                    До {MAX_CATALOG_VEHICLE_MEDIA} файлов, видео до 100 МБ. Лишнее уберите крестиком
+                    или кнопкой «Удалить».
                   </p>
                 </div>
-                {vehicle.photos.length > 0 && (
-                  <div className="flex flex-wrap gap-2">
-                    {vehicle.photos.map((photo) => (
-                      <button
-                        key={photo.id}
-                        type="button"
-                        className="relative h-16 w-20 overflow-hidden rounded-md border"
-                        onClick={() => void handleDeleteMedia(photo.id)}
-                        title="Удалить"
-                      >
-                        <MediaThumb
-                          item={{
-                            type: photo.type ?? "PHOTO",
-                            fileUrl: photo.fileUrl,
-                            fileName: photo.id,
-                          }}
-                        />
-                        {photo.type === "VIDEO" && (
-                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-                            <Play className="h-4 w-4 text-white" />
-                          </span>
-                        )}
-                        <span className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5">
-                          <X className="h-3 w-3" />
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </CardContent>
             </Card>
 

@@ -3,12 +3,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FolderPlus, Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
+import {
+  FolderPlus,
+  LayoutGrid,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Search,
+  Table2,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import {
   Dialog,
   DialogContent,
@@ -20,8 +31,53 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiRequestError } from "@/lib/api-client";
 import { mediaVideoPreviewSrc } from "@/components/media/media-thumb";
-import type { CatalogSectionItem, CatalogSectionsList, CatalogVehicleListItem } from "@/lib/types/catalog";
+import { exchangeRateDecimals } from "@/lib/customs-calculator/rates";
+import type {
+  CatalogRatesRecalcResult,
+  CatalogSectionItem,
+  CatalogSectionsList,
+  CatalogVehicleListItem,
+} from "@/lib/types/catalog";
 import { cn, formatCurrency } from "@/lib/utils";
+
+const CATALOG_VIEW_STORAGE = "crm-catalog-view";
+const CATALOG_SECTIONS_OPEN_STORAGE = "crm-catalog-sections-open";
+type CatalogView = "cards" | "table";
+
+function loadCatalogView(): CatalogView {
+  try {
+    return localStorage.getItem(CATALOG_VIEW_STORAGE) === "table" ? "table" : "cards";
+  } catch {
+    return "cards";
+  }
+}
+
+function saveCatalogView(view: CatalogView) {
+  try {
+    localStorage.setItem(CATALOG_VIEW_STORAGE, view);
+  } catch {
+    // ignore
+  }
+}
+
+function loadCatalogSectionsOpen(): boolean {
+  try {
+    const raw = localStorage.getItem(CATALOG_SECTIONS_OPEN_STORAGE);
+    if (raw === "0") return false;
+    if (raw === "1") return true;
+  } catch {
+    // ignore
+  }
+  return false;
+}
+
+function saveCatalogSectionsOpen(open: boolean) {
+  try {
+    localStorage.setItem(CATALOG_SECTIONS_OPEN_STORAGE, open ? "1" : "0");
+  } catch {
+    // ignore
+  }
+}
 
 async function apiGet<T>(path: string): Promise<T> {
   const response = await fetch(path, { credentials: "include" });
@@ -46,36 +102,67 @@ async function apiSend<T>(path: string, method: string, body?: unknown): Promise
   return json.data as T;
 }
 
-function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
+function formatCnyRate(value: number) {
+  return value.toLocaleString("ru-RU", {
+    maximumFractionDigits: exchangeRateDecimals("CNY"),
+    minimumFractionDigits: exchangeRateDecimals("CNY"),
+  });
+}
+
+function vehicleCover(vehicle: CatalogVehicleListItem) {
   const photo = vehicle.photos.find((item) => item.type !== "VIDEO");
   const video = vehicle.photos.find((item) => item.type === "VIDEO");
-  const image = photo?.fileUrl ?? vehicle.coverImageUrl ?? vehicle.galleryUrls[0] ?? null;
+  return {
+    image: photo?.fileUrl ?? vehicle.coverImageUrl ?? vehicle.galleryUrls[0] ?? null,
+    videoUrl: video?.fileUrl ?? null,
+  };
+}
+
+function VehicleThumb({
+  vehicle,
+  className,
+}: {
+  vehicle: CatalogVehicleListItem;
+  className?: string;
+}) {
+  const cover = vehicleCover(vehicle);
+  if (cover.image) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img src={cover.image} alt="" className={cn("h-full w-full object-cover", className)} />
+    );
+  }
+  if (cover.videoUrl) {
+    return (
+      <video
+        src={mediaVideoPreviewSrc(cover.videoUrl)}
+        muted
+        playsInline
+        preload="metadata"
+        className={cn("h-full w-full bg-slate-900 object-cover", className)}
+      />
+    );
+  }
+  return (
+    <div className={cn("flex h-full w-full items-center justify-center bg-muted text-xs text-muted-foreground", className)}>
+      Нет фото
+    </div>
+  );
+}
+
+function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
   const total = vehicle.estimate?.totalWithCar ?? null;
+  const cover = vehicleCover(vehicle);
   return (
     <Link href={`/catalog/${vehicle.id}`} className="group block">
       <Card className="overflow-hidden transition-shadow hover:shadow-md">
         <div className="relative aspect-[4/3] bg-muted">
-          {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={image} alt={vehicle.titleRu} className="h-full w-full object-cover" />
-          ) : video ? (
-            <>
-              <video
-                src={mediaVideoPreviewSrc(video.fileUrl)}
-                muted
-                playsInline
-                preload="metadata"
-                className="h-full w-full bg-slate-900 object-cover"
-              />
-              <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
-                <span className="rounded-full bg-black/50 px-2 py-1 text-xs text-white">Видео</span>
-              </span>
-            </>
-          ) : (
-            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-              Нет фото
-            </div>
-          )}
+          <VehicleThumb vehicle={vehicle} />
+          {!cover.image && cover.videoUrl ? (
+            <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+              <span className="rounded-full bg-black/50 px-2 py-1 text-xs text-white">Видео</span>
+            </span>
+          ) : null}
           {vehicle.sectionTitle && (
             <Badge className="absolute left-2 top-2" variant="secondary">
               {vehicle.sectionTitle}
@@ -92,6 +179,57 @@ function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
         </CardContent>
       </Card>
     </Link>
+  );
+}
+
+function VehicleTable({ vehicles }: { vehicles: CatalogVehicleListItem[] }) {
+  return (
+    <div className="overflow-x-auto rounded-xl border bg-card">
+      <table className="w-full min-w-[560px] text-sm">
+        <thead>
+          <tr className="border-b text-left text-muted-foreground">
+            <th className="px-3 py-2.5 font-medium">Авто</th>
+            <th className="px-3 py-2.5 font-medium">Раздел</th>
+            <th className="px-3 py-2.5 font-medium">Год</th>
+            <th className="px-3 py-2.5 text-right font-medium">Итого</th>
+          </tr>
+        </thead>
+        <tbody>
+          {vehicles.map((vehicle) => {
+            const total = vehicle.estimate?.totalWithCar ?? null;
+            return (
+              <tr key={vehicle.id} className="cursor-pointer border-b last:border-0 hover:bg-muted/40">
+                <td className="px-3 py-2">
+                  <Link href={`/catalog/${vehicle.id}`} className="flex items-center gap-3">
+                    <span className="relative h-12 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
+                      <VehicleThumb vehicle={vehicle} />
+                    </span>
+                    <span className="min-w-0 font-medium leading-snug hover:text-brand">
+                      {vehicle.titleRu || vehicle.titleZh}
+                    </span>
+                  </Link>
+                </td>
+                <td className="px-3 py-2 text-muted-foreground">
+                  <Link href={`/catalog/${vehicle.id}`} className="block">
+                    {vehicle.sectionTitle ?? "Без раздела"}
+                  </Link>
+                </td>
+                <td className="px-3 py-2 tabular-nums text-muted-foreground">
+                  <Link href={`/catalog/${vehicle.id}`} className="block">
+                    {vehicle.carYear ?? "—"}
+                  </Link>
+                </td>
+                <td className="px-3 py-2 text-right font-semibold tabular-nums">
+                  <Link href={`/catalog/${vehicle.id}`} className="block hover:text-brand">
+                    {total != null ? formatCurrency(total) : "Нет расчёта"}
+                  </Link>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -113,6 +251,25 @@ export function CatalogPageContent() {
     sectionId: "",
   });
   const [sectionTitle, setSectionTitle] = useState("");
+  const [view, setView] = useState<CatalogView>("cards");
+  const [sectionsOpen, setSectionsOpen] = useState(false);
+  const [recalculatingRates, setRecalculatingRates] = useState(false);
+  const [cnyRate, setCnyRate] = useState<number | null>(null);
+
+  useEffect(() => {
+    setView(loadCatalogView());
+    setSectionsOpen(loadCatalogSectionsOpen());
+  }, []);
+
+  function setCatalogView(next: CatalogView) {
+    setView(next);
+    saveCatalogView(next);
+  }
+
+  function setCatalogSectionsOpen(next: boolean) {
+    setSectionsOpen(next);
+    saveCatalogSectionsOpen(next);
+  }
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
@@ -141,6 +298,50 @@ export function CatalogPageContent() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const data = await apiGet<{ rates: { CNY: number } }>("/api/exchange-rates");
+        setCnyRate(data.rates.CNY);
+      } catch {
+        // Калькулятор может быть выключен — курс покажем после «Обновить курс».
+      }
+    })();
+  }, []);
+
+  async function handleRefreshRates() {
+    if (
+      !confirm("Курс обновится, все авто с расчётом пересчитаются. Продолжить?")
+    ) {
+      return;
+    }
+
+    setRecalculatingRates(true);
+    try {
+      const result = await apiSend<CatalogRatesRecalcResult>(
+        "/api/catalog/vehicles/estimates/recalculate",
+        "POST",
+      );
+      setCnyRate(result.rates.CNY);
+
+      if (result.updated === 0 && result.failed === 0) {
+        toast.message("Нет авто с расчётом — пересчитывать нечего");
+      } else if (result.failed > 0) {
+        toast.warning(
+          `Пересчитано: ${result.updated}. Без расчёта: ${result.skipped}. Ошибок: ${result.failed}`,
+        );
+      } else {
+        toast.success(`Пересчитано авто: ${result.updated}`);
+      }
+
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось обновить курс");
+    } finally {
+      setRecalculatingRates(false);
+    }
+  }
 
   async function handleCreateSection() {
     if (!sectionTitle.trim()) return;
@@ -203,61 +404,96 @@ export function CatalogPageContent() {
     }
   }
 
+  const renderSectionsNav = () => (
+    <>
+      <button
+        type="button"
+        onClick={() => setSectionId("all")}
+        className={cn(
+          "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm",
+          sectionId === "all" ? "bg-brand-muted text-brand" : "hover:bg-muted",
+        )}
+      >
+        Все
+        <span className="text-xs text-muted-foreground">{totalActiveCount}</span>
+      </button>
+      {sections.map((section) => (
+        <div key={section.id} className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setSectionId(section.id)}
+            className={cn(
+              "flex min-w-0 flex-1 items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
+              sectionId === section.id ? "bg-brand-muted text-brand" : "hover:bg-muted",
+            )}
+          >
+            <span className="truncate">{section.title}</span>
+            <span className="ml-2 text-xs text-muted-foreground">{section.vehicleCount}</span>
+          </button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => setRename({ id: section.id, title: section.title })}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            onClick={() => void handleDeleteSection(section.id)}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
+      ))}
+      <Button variant="outline" size="sm" className="w-full" onClick={() => setSectionOpen(true)}>
+        <FolderPlus className="mr-1.5 h-4 w-4" />
+        Раздел
+      </Button>
+    </>
+  );
+
   return (
     <>
       <Header title="Каталог" subtitle="Новые авто: фото, описание, цена «под ключ» и ссылка клиенту" />
 
       <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6 lg:flex-row">
-        <aside className="w-full shrink-0 space-y-2 lg:w-56">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Разделы</p>
-          <button
-            type="button"
-            onClick={() => setSectionId("all")}
-            className={cn(
-              "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm",
-              sectionId === "all" ? "bg-brand-muted text-brand" : "hover:bg-muted",
-            )}
-          >
-            Все
-            <span className="text-xs text-muted-foreground">{totalActiveCount}</span>
-          </button>
-          {sections.map((section) => (
-            <div key={section.id} className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setSectionId(section.id)}
-                className={cn(
-                  "flex min-w-0 flex-1 items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
-                  sectionId === section.id ? "bg-brand-muted text-brand" : "hover:bg-muted",
-                )}
+        <aside className="w-full shrink-0 lg:w-56">
+          <div className="rounded-xl border bg-muted/10 lg:hidden">
+            <div className="flex items-start gap-2 px-4 py-3">
+              <CollapsibleTrigger
+                open={sectionsOpen}
+                onToggle={() => setCatalogSectionsOpen(!sectionsOpen)}
+                className="min-w-0 flex-1 px-0 py-0"
               >
-                <span className="truncate">{section.title}</span>
-                <span className="ml-2 text-xs text-muted-foreground">{section.vehicleCount}</span>
-              </button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => setRename({ id: section.id, title: section.title })}
-              >
-                <Pencil className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={() => void handleDeleteSection(section.id)}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium">Разделы</p>
+                    {sections.length > 0 && (
+                      <span className="rounded-md border bg-background px-1.5 py-0.5 text-[11px] tabular-nums text-muted-foreground">
+                        {sections.length}
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {sectionsOpen ? "Фильтр списка авто" : "Нажмите, чтобы развернуть"}
+                  </p>
+                </div>
+              </CollapsibleTrigger>
             </div>
-          ))}
-          <Button variant="outline" size="sm" className="w-full" onClick={() => setSectionOpen(true)}>
-            <FolderPlus className="mr-1.5 h-4 w-4" />
-            Раздел
-          </Button>
+            <CollapsiblePanel open={sectionsOpen}>
+              <div className="space-y-2 px-4 pb-4">{renderSectionsNav()}</div>
+            </CollapsiblePanel>
+          </div>
+
+          <div className="hidden space-y-2 lg:block">
+            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Разделы</p>
+            {renderSectionsNav()}
+          </div>
         </aside>
 
         <div className="min-w-0 flex-1 space-y-4">
@@ -271,10 +507,59 @@ export function CatalogPageContent() {
                 onChange={(event) => setQuery(event.target.value)}
               />
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-pressed={view === "cards"}
+              aria-label="Карточки"
+              onClick={() => setCatalogView("cards")}
+              className={cn(
+                "h-8 shrink-0 gap-1.5",
+                view === "cards" && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+              )}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Карточки</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-pressed={view === "table"}
+              aria-label="Таблицей"
+              onClick={() => setCatalogView("table")}
+              className={cn(
+                "h-8 shrink-0 gap-1.5",
+                view === "table" && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+              )}
+            >
+              <Table2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Таблицей</span>
+            </Button>
             <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading}>
               <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
               Обновить
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => void handleRefreshRates()}
+              disabled={recalculatingRates}
+            >
+              {recalculatingRates ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-4 w-4" />
+              )}
+              Обновить курс
+            </Button>
+            {cnyRate != null && (
+              <span className="text-xs tabular-nums text-muted-foreground">
+                Курс CNY: {formatCnyRate(cnyRate)} ₽
+              </span>
+            )}
             <Button
               size="sm"
               onClick={() => {
@@ -314,6 +599,8 @@ export function CatalogPageContent() {
                 </Button>
               </CardContent>
             </Card>
+          ) : view === "table" ? (
+            <VehicleTable vehicles={vehicles} />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
               {vehicles.map((vehicle) => (
