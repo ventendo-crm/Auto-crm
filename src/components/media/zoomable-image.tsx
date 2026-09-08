@@ -20,10 +20,11 @@ function pinchDistance(a: { clientX: number; clientY: number }, b: { clientX: nu
 interface ZoomableImageProps {
   src: string;
   alt: string;
+  active?: boolean;
   onSwipe?: (direction: "prev" | "next") => void;
 }
 
-export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
+export function ZoomableImage({ src, alt, active = true, onSwipe }: ZoomableImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -55,6 +56,10 @@ export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
   useEffect(() => {
     reset();
   }, [src, reset]);
+
+  useEffect(() => {
+    if (!active) reset();
+  }, [active, reset]);
 
   const zoomAt = useCallback((nextScale: number, clientX?: number, clientY?: number) => {
     const currentScale = scaleRef.current;
@@ -92,6 +97,7 @@ export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
   );
 
   useEffect(() => {
+    if (!active) return;
     const node = containerRef.current;
     if (!node) return;
 
@@ -135,9 +141,10 @@ export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
       node.removeEventListener("wheel", onWheel);
       node.removeEventListener("touchmove", onTouchMove);
     };
-  }, [zoomBy]);
+  }, [active, zoomBy]);
 
   useEffect(() => {
+    if (!active) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "+" || event.key === "=") {
         event.preventDefault();
@@ -155,7 +162,7 @@ export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [reset, zoomBy]);
+  }, [active, reset, zoomBy]);
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.pointerType === "touch" || scale <= 1) return;
@@ -264,7 +271,8 @@ export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
       <div
         ref={containerRef}
         className={cn(
-          "relative flex h-[70dvh] w-full min-w-0 touch-none items-center justify-center overflow-hidden",
+          "relative flex h-[70dvh] w-full min-w-0 items-center justify-center overflow-hidden",
+          scale > 1 ? "touch-none" : "touch-pan-x",
           scale > 1 ? (dragging ? "cursor-grabbing" : "cursor-grab") : "cursor-zoom-in",
         )}
         onPointerDown={onPointerDown}
@@ -290,6 +298,7 @@ export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
         />
       </div>
 
+      {active ? (
       <div className="pointer-events-none absolute bottom-2 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-background/90 p-1 shadow-md backdrop-blur">
         <Button
           type="button"
@@ -328,6 +337,7 @@ export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
           <RotateCcw className="h-4 w-4" />
         </Button>
       </div>
+      ) : null}
     </div>
   );
 }

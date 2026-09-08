@@ -14,7 +14,7 @@ import { z } from "zod";
 
 type AddToDealInput = z.infer<typeof addCatalogVehicleToDealSchema>;
 
-const MAX_IMAGES_TO_IMPORT = 8;
+const MAX_FILES_TO_IMPORT = 15;
 
 function buildDescription(titleRu: string, descriptionRu: string, sourceUrl: string | null): string {
   const parts = [titleRu.trim(), descriptionRu.trim()].filter(Boolean);
@@ -28,7 +28,7 @@ async function importGalleryImages(params: {
   entryId: string;
   galleryUrls: string[];
 }) {
-  const urls = params.galleryUrls.slice(0, MAX_IMAGES_TO_IMPORT);
+  const urls = params.galleryUrls.slice(0, MAX_FILES_TO_IMPORT);
   let imported = 0;
 
   for (const [index, url] of urls.entries()) {
@@ -83,7 +83,6 @@ export async function addCatalogVehicleToDeal(
     include: {
       customsEstimate: true,
       media: {
-        where: { type: MediaType.PHOTO },
         orderBy: { uploadedAt: "asc" },
       },
     },
@@ -110,7 +109,7 @@ export async function addCatalogVehicleToDeal(
   let imagesImported = 0;
 
   if (vehicle.media.length > 0) {
-    for (const [index, item] of vehicle.media.slice(0, MAX_IMAGES_TO_IMPORT).entries()) {
+    for (const [index, item] of vehicle.media.slice(0, MAX_FILES_TO_IMPORT).entries()) {
       try {
         const stored = await openStoredMediaFile(item.fileUrl, item.fileName);
         const chunks: Buffer[] = [];
@@ -131,11 +130,11 @@ export async function addCatalogVehicleToDeal(
           fileName,
           buffer,
           contentType: guessMediaContentType(fileName),
-          mediaType: MediaType.PHOTO,
+          mediaType: item.type,
         });
         await prisma.mediaFile.create({
           data: {
-            type: MediaType.PHOTO,
+            type: item.type,
             fileName,
             fileUrl: fileKey,
             thumbnailUrl: thumbnailKey,
@@ -147,7 +146,7 @@ export async function addCatalogVehicleToDeal(
         });
         imagesImported += 1;
       } catch (error) {
-        console.warn("[catalog-to-deal] failed to copy catalog photo:", item.id, error);
+        console.warn("[catalog-to-deal] failed to copy catalog media:", item.id, error);
       }
     }
   } else {

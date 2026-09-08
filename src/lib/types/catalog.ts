@@ -6,6 +6,12 @@ import type {
 export type CatalogPhoto = {
   id: string;
   fileUrl: string;
+  type: "PHOTO" | "VIDEO";
+};
+
+export type CatalogGalleryItem = {
+  url: string;
+  type: "photo" | "video";
 };
 
 export type CatalogSectionItem = {
@@ -13,6 +19,11 @@ export type CatalogSectionItem = {
   title: string;
   sortOrder: number;
   vehicleCount: number;
+};
+
+export type CatalogSectionsList = {
+  items: CatalogSectionItem[];
+  totalActiveCount: number;
 };
 
 export type CatalogVehicleListItem = {
@@ -65,6 +76,7 @@ export type PublicCatalogVehicleData = {
   title: string;
   description: string;
   photos: string[];
+  media: CatalogGalleryItem[];
   totalWithCar: number | null;
   estimateInput: CustomsCalculatorInput | null;
   estimateResult: CustomsCalculatorResult | null;

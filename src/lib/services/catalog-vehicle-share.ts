@@ -74,9 +74,8 @@ export async function getPublicCatalogVehicle(token: string): Promise<PublicCata
         include: {
           company: { select: { name: true } },
           media: {
-            where: { type: MediaType.PHOTO },
             orderBy: { uploadedAt: "asc" },
-            select: { id: true },
+            select: { id: true, type: true },
           },
           customsEstimate: true,
         },
@@ -98,12 +97,17 @@ export async function getPublicCatalogVehicle(token: string): Promise<PublicCata
     },
   });
 
-  const mediaPhotos = vehicle.media.map((item) => publicCatalogVehicleMediaPath(token, item.id));
+  const mediaItems = vehicle.media.map((item) => ({
+    url: publicCatalogVehicleMediaPath(token, item.id),
+    type: item.type === MediaType.VIDEO ? ("video" as const) : ("photo" as const),
+  }));
   const gallery = serializeGalleryUrls(vehicle.galleryUrls);
-  const photos =
-    mediaPhotos.length > 0
-      ? mediaPhotos
-      : [vehicle.coverImageUrl, ...gallery].filter((url): url is string => Boolean(url));
+  const fallbackPhotos = [vehicle.coverImageUrl, ...gallery].filter((url): url is string => Boolean(url));
+  const media =
+    mediaItems.length > 0
+      ? mediaItems
+      : fallbackPhotos.map((url) => ({ url, type: "photo" as const }));
+  const photos = media.filter((item) => item.type === "photo").map((item) => item.url);
 
   const estimate = vehicle.customsEstimate;
 
@@ -112,6 +116,7 @@ export async function getPublicCatalogVehicle(token: string): Promise<PublicCata
     title: vehicle.titleRu || vehicle.titleZh || "Авто из каталога",
     description: vehicle.descriptionRu || vehicle.descriptionZh || "",
     photos,
+    media,
     totalWithCar: estimate ? Number(estimate.totalWithCar) : null,
     estimateInput: estimate ? (estimate.input as unknown as CustomsCalculatorInput) : null,
     estimateResult: estimate ? (estimate.result as unknown as CustomsCalculatorResult) : null,

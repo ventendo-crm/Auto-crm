@@ -1,3 +1,4 @@
+import { CatalogVehicleStatus } from "@prisma/client";
 import { AuthUser } from "@/lib/permissions";
 import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +11,14 @@ import { z } from "zod";
 
 type CreateInput = z.infer<typeof createCatalogSectionSchema>;
 type UpdateInput = z.infer<typeof updateCatalogSectionSchema>;
+
+const activeVehiclesCountInclude = {
+  _count: {
+    select: {
+      vehicles: { where: { status: CatalogVehicleStatus.ACTIVE } },
+    },
+  },
+} as const;
 
 function serializeSection(record: {
   id: string;
@@ -27,12 +36,17 @@ function serializeSection(record: {
 
 export async function listCatalogSections(user: AuthUser) {
   await assertCompanyCatalogAccess(user);
-  const rows = await prisma.catalogSection.findMany({
-    where: { companyId: user.companyId },
-    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-    include: { _count: { select: { vehicles: true } } },
-  });
-  return rows.map(serializeSection);
+  const [rows, totalActiveCount] = await Promise.all([
+    prisma.catalogSection.findMany({
+      where: { companyId: user.companyId },
+      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+      include: activeVehiclesCountInclude,
+    }),
+    prisma.catalogVehicle.count({
+      where: { companyId: user.companyId, status: CatalogVehicleStatus.ACTIVE },
+    }),
+  ]);
+  return { items: rows.map(serializeSection), totalActiveCount };
 }
 
 export async function createCatalogSection(user: AuthUser, body: CreateInput) {
@@ -52,7 +66,7 @@ export async function createCatalogSection(user: AuthUser, body: CreateInput) {
       title: data.title,
       sortOrder: (last?.sortOrder ?? -1) + 1,
     },
-    include: { _count: { select: { vehicles: true } } },
+    include: activeVehiclesCountInclude,
   });
 
   await createAuditLog({
@@ -82,7 +96,7 @@ export async function updateCatalogSection(user: AuthUser, id: string, body: Upd
       ...(data.title !== undefined ? { title: data.title } : {}),
       ...(data.sortOrder !== undefined ? { sortOrder: data.sortOrder } : {}),
     },
-    include: { _count: { select: { vehicles: true } } },
+    include: activeVehiclesCountInclude,
   });
 
   return serializeSection(record);

@@ -8,12 +8,14 @@ import {
   Copy,
   ImagePlus,
   Loader2,
+  Play,
   Share2,
   UserPlus,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomsCalculator } from "@/components/calculator/customs-calculator";
+import { MediaThumb } from "@/components/media/media-thumb";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,9 +29,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiRequestError } from "@/lib/api-client";
-import { MAX_CATALOG_VEHICLE_PHOTOS } from "@/lib/constants";
+import { MAX_CATALOG_VEHICLE_MEDIA } from "@/lib/constants";
+import { MEDIA_FILE_ACCEPT } from "@/lib/validators/media";
 import { buildTelegramShareUrl } from "@/lib/calculator/offer-share";
-import type { CatalogSectionItem, CatalogVehicleDetail } from "@/lib/types/catalog";
+import type { CatalogSectionItem, CatalogSectionsList, CatalogVehicleDetail } from "@/lib/types/catalog";
 import type { DealListItem } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import type {
@@ -83,12 +86,12 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   const loadVehicle = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, sectionRows] = await Promise.all([
+      const [data, sectionsData] = await Promise.all([
         apiGet<CatalogVehicleDetail>(`/api/catalog/vehicles/${vehicleId}`),
-        apiGet<CatalogSectionItem[]>("/api/catalog/sections"),
+        apiGet<CatalogSectionsList>("/api/catalog/sections"),
       ]);
       setVehicle(data);
-      setSections(sectionRows);
+      setSections(sectionsData.items);
       setForm({
         titleRu: data.titleRu,
         descriptionRu: data.descriptionRu,
@@ -105,13 +108,18 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     void loadVehicle();
   }, [loadVehicle]);
 
-  const images = vehicle?.photos.length
-    ? vehicle.photos.map((item) => item.fileUrl)
+  const mediaItems = vehicle?.photos.length
+    ? vehicle.photos.map((item) => ({
+        id: item.id,
+        fileUrl: item.fileUrl,
+        type: item.type ?? "PHOTO",
+      }))
     : vehicle?.galleryUrls.length
-      ? vehicle.galleryUrls
+      ? vehicle.galleryUrls.map((fileUrl) => ({ fileUrl, type: "PHOTO" as const }))
       : vehicle?.coverImageUrl
-        ? [vehicle.coverImageUrl]
+        ? [{ fileUrl: vehicle.coverImageUrl, type: "PHOTO" as const }]
         : [];
+  const currentMedia = mediaItems[activeImage] ?? null;
 
   async function handleSave() {
     setSaving(true);
@@ -176,7 +184,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     }
   }
 
-  async function handlePhotos(files: FileList | null) {
+  async function handleMedia(files: FileList | null) {
     if (!files?.length) return;
     setUploading(true);
     try {
@@ -189,19 +197,19 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       });
       const json = await response.json();
       if (!response.ok || !json.success) {
-        throw new ApiRequestError(json.error ?? "Не удалось загрузить фото", response.status);
+        throw new ApiRequestError(json.error ?? "Не удалось загрузить файлы", response.status);
       }
       setVehicle(json.data as CatalogVehicleDetail);
-      toast.success("Фото добавлены");
+      toast.success("Файлы добавлены");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось загрузить фото");
+      toast.error(error instanceof Error ? error.message : "Не удалось загрузить файлы");
     } finally {
       setUploading(false);
       if (photoInputRef.current) photoInputRef.current.value = "";
     }
   }
 
-  async function handleDeletePhoto(mediaId: string) {
+  async function handleDeleteMedia(mediaId: string) {
     try {
       const saved = await apiSend<CatalogVehicleDetail>(
         `/api/catalog/vehicles/${vehicleId}/photos/${mediaId}`,
@@ -210,7 +218,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       setVehicle(saved);
       setActiveImage(0);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось удалить фото");
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить файл");
     }
   }
 
@@ -333,32 +341,50 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="overflow-hidden">
               <div className="relative aspect-[16/10] bg-muted">
-                {images[activeImage] ? (
+                {currentMedia?.type === "VIDEO" ? (
+                  <video
+                    src={currentMedia.fileUrl}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full bg-black object-contain"
+                  />
+                ) : currentMedia ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={images[activeImage]}
+                    src={currentMedia.fileUrl}
                     alt={vehicle.titleRu}
                     className="h-full w-full object-cover"
                   />
                 ) : (
                   <div className="flex h-full items-center justify-center text-muted-foreground">
-                    Нет фото
+                    Нет фото и видео
                   </div>
                 )}
               </div>
-              {images.length > 1 && (
+              {mediaItems.length > 1 && (
                 <div className="flex gap-2 overflow-x-auto p-3">
-                  {images.map((url, index) => (
+                  {mediaItems.map((item, index) => (
                     <button
-                      key={`${url}-${index}`}
+                      key={`${item.fileUrl}-${index}`}
                       type="button"
                       onClick={() => setActiveImage(index)}
-                      className={`h-16 w-24 shrink-0 overflow-hidden rounded-md border-2 ${
+                      className={`relative h-16 w-24 shrink-0 overflow-hidden rounded-md border-2 ${
                         index === activeImage ? "border-brand" : "border-transparent"
                       }`}
                     >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={url} alt="" className="h-full w-full object-cover" />
+                      <MediaThumb
+                        item={{
+                          type: item.type,
+                          fileUrl: item.fileUrl,
+                          fileName: vehicle.titleRu,
+                        }}
+                      />
+                      {item.type === "VIDEO" && (
+                        <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+                          <Play className="h-5 w-5 text-white" />
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -367,17 +393,17 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                 <input
                   ref={photoInputRef}
                   type="file"
-                  accept="image/*"
+                  accept={MEDIA_FILE_ACCEPT}
                   multiple
                   className="hidden"
-                  onChange={(event) => void handlePhotos(event.target.files)}
+                  onChange={(event) => void handleMedia(event.target.files)}
                 />
                 <div className="flex flex-wrap gap-2">
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={uploading || (vehicle.photos.length >= MAX_CATALOG_VEHICLE_PHOTOS)}
+                    disabled={uploading || vehicle.photos.length >= MAX_CATALOG_VEHICLE_MEDIA}
                     onClick={() => photoInputRef.current?.click()}
                   >
                     {uploading ? (
@@ -385,10 +411,10 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                     ) : (
                       <ImagePlus className="mr-1.5 h-4 w-4" />
                     )}
-                    Добавить фото
+                    Добавить фото или видео
                   </Button>
                   <p className="self-center text-xs text-muted-foreground">
-                    До {MAX_CATALOG_VEHICLE_PHOTOS} снимков
+                    До {MAX_CATALOG_VEHICLE_MEDIA} файлов, видео до 100 МБ
                   </p>
                 </div>
                 {vehicle.photos.length > 0 && (
@@ -398,11 +424,21 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                         key={photo.id}
                         type="button"
                         className="relative h-16 w-20 overflow-hidden rounded-md border"
-                        onClick={() => void handleDeletePhoto(photo.id)}
-                        title="Удалить фото"
+                        onClick={() => void handleDeleteMedia(photo.id)}
+                        title="Удалить"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={photo.fileUrl} alt="" className="h-full w-full object-cover" />
+                        <MediaThumb
+                          item={{
+                            type: photo.type ?? "PHOTO",
+                            fileUrl: photo.fileUrl,
+                            fileName: photo.id,
+                          }}
+                        />
+                        {photo.type === "VIDEO" && (
+                          <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                            <Play className="h-4 w-4 text-white" />
+                          </span>
+                        )}
                         <span className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5">
                           <X className="h-3 w-3" />
                         </span>

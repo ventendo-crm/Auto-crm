@@ -1,5 +1,5 @@
 import { MediaType } from "@prisma/client";
-import { MAX_CATALOG_VEHICLE_PHOTOS } from "@/lib/constants";
+import { MAX_CATALOG_VEHICLE_MEDIA } from "@/lib/constants";
 import { AuthUser } from "@/lib/permissions";
 import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +9,7 @@ import {
   detectMediaTypeFromBuffer,
   detectMediaTypeFromFile,
   getMaxSizeForType,
+  guessMediaContentType,
   UNSUPPORTED_MEDIA_FORMAT_MESSAGE,
 } from "@/lib/validators/media";
 import { removeMediaFile, storeMediaFile } from "@/lib/storage/media-storage";
@@ -22,17 +23,21 @@ export async function uploadCatalogVehiclePhoto(user: AuthUser, vehicleId: strin
   });
   if (!vehicle) throw new Error("NOT_FOUND");
 
-  if (vehicle._count.media >= MAX_CATALOG_VEHICLE_PHOTOS) {
-    throw new Error(`Максимум ${MAX_CATALOG_VEHICLE_PHOTOS} фото`);
+  if (vehicle._count.media >= MAX_CATALOG_VEHICLE_MEDIA) {
+    throw new Error(`Максимум ${MAX_CATALOG_VEHICLE_MEDIA} файлов (фото и видео)`);
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   const mediaType = detectMediaTypeFromFile(file) ?? detectMediaTypeFromBuffer(buffer);
-  if (mediaType !== MediaType.PHOTO) {
+  if (mediaType !== MediaType.PHOTO && mediaType !== MediaType.VIDEO) {
     throw new Error(UNSUPPORTED_MEDIA_FORMAT_MESSAGE);
   }
   if (file.size > getMaxSizeForType(mediaType)) {
-    throw new Error("Файл слишком большой. Максимум 10 МБ для фото");
+    throw new Error(
+      mediaType === MediaType.PHOTO
+        ? "Файл слишком большой. Максимум 10 МБ для фото"
+        : "Файл слишком большой. Максимум 100 МБ для видео",
+    );
   }
 
   const mediaId = crypto.randomUUID();
@@ -41,13 +46,13 @@ export async function uploadCatalogVehiclePhoto(user: AuthUser, vehicleId: strin
     mediaId,
     fileName: file.name,
     buffer,
-    contentType: file.type || "image/jpeg",
+    contentType: file.type || guessMediaContentType(file.name),
     mediaType,
   });
 
   const record = await prisma.mediaFile.create({
     data: {
-      type: MediaType.PHOTO,
+      type: mediaType,
       fileName: file.name,
       fileUrl: fileKey,
       thumbnailUrl: thumbnailKey,
@@ -62,7 +67,7 @@ export async function uploadCatalogVehiclePhoto(user: AuthUser, vehicleId: strin
     entity: "MediaFile",
     entityId: record.id,
     action: "CREATE",
-    newValue: { catalogVehicleId: vehicleId, fileName: file.name },
+    newValue: { catalogVehicleId: vehicleId, fileName: file.name, type: mediaType },
   });
 
   return getCatalogVehicle(user, vehicleId);

@@ -19,7 +19,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiRequestError } from "@/lib/api-client";
-import type { CatalogSectionItem, CatalogVehicleListItem } from "@/lib/types/catalog";
+import { mediaVideoPreviewSrc } from "@/components/media/media-thumb";
+import type { CatalogSectionItem, CatalogSectionsList, CatalogVehicleListItem } from "@/lib/types/catalog";
 import { cn, formatCurrency } from "@/lib/utils";
 
 async function apiGet<T>(path: string): Promise<T> {
@@ -46,7 +47,9 @@ async function apiSend<T>(path: string, method: string, body?: unknown): Promise
 }
 
 function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
-  const image = vehicle.photos[0]?.fileUrl ?? vehicle.coverImageUrl ?? vehicle.galleryUrls[0] ?? null;
+  const photo = vehicle.photos.find((item) => item.type !== "VIDEO");
+  const video = vehicle.photos.find((item) => item.type === "VIDEO");
+  const image = photo?.fileUrl ?? vehicle.coverImageUrl ?? vehicle.galleryUrls[0] ?? null;
   const total = vehicle.estimate?.totalWithCar ?? null;
   return (
     <Link href={`/catalog/${vehicle.id}`} className="group block">
@@ -55,6 +58,19 @@ function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
           {image ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={image} alt={vehicle.titleRu} className="h-full w-full object-cover" />
+          ) : video ? (
+            <>
+              <video
+                src={mediaVideoPreviewSrc(video.fileUrl)}
+                muted
+                playsInline
+                preload="metadata"
+                className="h-full w-full bg-slate-900 object-cover"
+              />
+              <span className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
+                <span className="rounded-full bg-black/50 px-2 py-1 text-xs text-white">Видео</span>
+              </span>
+            </>
           ) : (
             <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               Нет фото
@@ -83,6 +99,7 @@ export function CatalogPageContent() {
   const router = useRouter();
   const [vehicles, setVehicles] = useState<CatalogVehicleListItem[]>([]);
   const [sections, setSections] = useState<CatalogSectionItem[]>([]);
+  const [totalActiveCount, setTotalActiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [sectionId, setSectionId] = useState<string>("all");
   const [query, setQuery] = useState("");
@@ -109,10 +126,11 @@ export function CatalogPageContent() {
     try {
       const [vehiclesData, sectionsData] = await Promise.all([
         apiGet<{ items: CatalogVehicleListItem[] }>(`/api/catalog/vehicles?${queryString}`),
-        apiGet<CatalogSectionItem[]>("/api/catalog/sections"),
+        apiGet<CatalogSectionsList>("/api/catalog/sections"),
       ]);
       setVehicles(vehiclesData.items);
-      setSections(sectionsData);
+      setSections(sectionsData.items);
+      setTotalActiveCount(sectionsData.totalActiveCount);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось загрузить каталог");
     } finally {
@@ -201,7 +219,7 @@ export function CatalogPageContent() {
             )}
           >
             Все
-            <span className="text-xs text-muted-foreground">{vehicles.length}</span>
+            <span className="text-xs text-muted-foreground">{totalActiveCount}</span>
           </button>
           {sections.map((section) => (
             <div key={section.id} className="flex items-center gap-1">
@@ -350,7 +368,7 @@ export function CatalogPageContent() {
               />
             </div>
             <p className="text-xs text-muted-foreground">
-              Расчёт «под ключ» — тот же калькулятор, что в Подборе. Он откроется в карточке после создания.
+              Фото, видео и расчёт «под ключ» — в карточке после создания. Калькулятор тот же, что в Подборе.
             </p>
           </div>
           <div className="flex justify-end gap-2">

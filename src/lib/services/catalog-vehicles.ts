@@ -29,9 +29,8 @@ const vehicleInclude = {
   createdBy: { select: { id: true, name: true } },
   section: { select: { id: true, title: true } },
   media: {
-    where: { type: MediaType.PHOTO },
     orderBy: { uploadedAt: "asc" as const },
-    select: { id: true },
+    select: { id: true, type: true },
   },
   customsEstimate: {
     include: { createdBy: { select: { name: true } } },
@@ -75,7 +74,7 @@ function serializeVehicle(record: {
   updatedAt: Date;
   createdBy: { id: string; name: string };
   section: { id: string; title: string } | null;
-  media: Array<{ id: string }>;
+  media: Array<{ id: string; type: MediaType }>;
     customsEstimate?: {
       id: string;
       totalWithCar: Prisma.Decimal;
@@ -92,10 +91,12 @@ function serializeVehicle(record: {
   const photos = record.media.map((item) => ({
     id: item.id,
     fileUrl: `/api/media/${item.id}/file`,
+    type: item.type,
   }));
   const galleryUrls = serializeGalleryUrls(record.galleryUrls);
+  const firstPhoto = photos.find((item) => item.type === MediaType.PHOTO);
   const coverImageUrl =
-    photos[0]?.fileUrl ?? record.coverImageUrl ?? galleryUrls[0] ?? null;
+    firstPhoto?.fileUrl ?? record.coverImageUrl ?? galleryUrls[0] ?? null;
 
   return {
     id: record.id,
@@ -123,7 +124,8 @@ function serializeVehicle(record: {
     sectionId: record.section?.id ?? null,
     sectionTitle: record.section?.title ?? null,
     coverImageUrl,
-    galleryUrls: photos.length > 0 ? photos.map((item) => item.fileUrl) : galleryUrls,
+    galleryUrls:
+      firstPhoto != null ? photos.filter((item) => item.type === MediaType.PHOTO).map((item) => item.fileUrl) : galleryUrls,
     photos,
     videoUrl: record.videoUrl,
     status: record.status,

@@ -67,8 +67,14 @@ export function PublicCatalogVehicleView({ token }: { token: string }) {
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
         <SwipeGallery
-          images={data.photos}
-          labels={data.photos.map((_, index) => `${data.title} · фото ${index + 1}`)}
+          items={(data.media ?? data.photos.map((url) => ({ url, type: "photo" as const }))).map(
+            (item, index) => ({
+              src: item.url,
+              type: item.type,
+              label:
+                item.type === "video" ? `${data.title} · видео` : `${data.title} · фото ${index + 1}`,
+            }),
+          )}
         />
 
         {data.description.trim() ? (

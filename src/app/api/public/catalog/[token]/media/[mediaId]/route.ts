@@ -7,21 +7,64 @@ import { uploadContentDisposition } from "@/lib/storage/local-uploads";
 
 export const runtime = "nodejs";
 
-export const GET = withPublic(async (_request, { params }) => {
+function mediaHeaders(params: {
+  contentType: string;
+  fileName: string;
+  size: number;
+  rangeStart?: number;
+  rangeEnd?: number;
+  unsatisfiable?: boolean;
+}): Headers {
+  const headers = new Headers({
+    "Content-Type": params.contentType,
+    "Content-Disposition": uploadContentDisposition(params.fileName, false),
+    "Cache-Control": "public, max-age=86400",
+    "Accept-Ranges": "bytes",
+  });
+
+  if (params.unsatisfiable) {
+    headers.set("Content-Range", `bytes */${params.size}`);
+    return headers;
+  }
+
+  if (params.rangeStart != null && params.rangeEnd != null) {
+    headers.set("Content-Range", `bytes ${params.rangeStart}-${params.rangeEnd}/${params.size}`);
+    headers.set("Content-Length", String(params.rangeEnd - params.rangeStart + 1));
+    return headers;
+  }
+
+  headers.set("Content-Length", String(params.size));
+  return headers;
+}
+
+export const GET = withPublic(async (request, { params }) => {
   try {
     const media = await getPublicCatalogVehicleMedia(params.token, params.mediaId);
-    const file = await openStoredMediaFile(media.fileUrl, media.fileName);
+    const file = await openStoredMediaFile(
+      media.fileUrl,
+      media.fileName,
+      request.headers.get("range"),
+    );
     if (file.status === 416 || !file.stream) {
-      return error("Файл не найден", 404);
+      return new NextResponse(null, {
+        status: 416,
+        headers: mediaHeaders({
+          contentType: file.contentType,
+          fileName: file.fileName,
+          size: file.size,
+          unsatisfiable: true,
+        }),
+      });
     }
     return new NextResponse(file.stream, {
-      status: 200,
-      headers: {
-        "Content-Type": file.contentType,
-        "Content-Length": String(file.size),
-        "Content-Disposition": uploadContentDisposition(file.fileName, false),
-        "Cache-Control": "public, max-age=86400",
-      },
+      status: file.status,
+      headers: mediaHeaders({
+        contentType: file.contentType,
+        fileName: file.fileName,
+        size: file.size,
+        rangeStart: file.range?.start,
+        rangeEnd: file.range?.end,
+      }),
     });
   } catch (err) {
     if (err instanceof Error) {

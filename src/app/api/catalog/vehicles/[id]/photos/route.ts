@@ -3,6 +3,7 @@ import { error, ok } from "@/lib/api-response";
 import { canAccessCatalog } from "@/lib/permissions";
 import { uploadCatalogVehiclePhoto } from "@/lib/services/catalog-vehicle-photos";
 import { serialize } from "@/lib/serialize";
+import { UNSUPPORTED_MEDIA_FORMAT_MESSAGE } from "@/lib/validators/media";
 
 export const POST = withAuth(async (request, { user, params }) => {
   assertAllowed(canAccessCatalog(user.role));
@@ -10,7 +11,7 @@ export const POST = withAuth(async (request, { user, params }) => {
     const form = await request.formData();
     const files = form.getAll("files").filter((item): item is File => item instanceof File);
     if (files.length === 0) {
-      return error("Добавьте фото", 400);
+      return error("Добавьте фото или видео", 400);
     }
     let vehicle = null;
     for (const file of files) {
@@ -20,7 +21,11 @@ export const POST = withAuth(async (request, { user, params }) => {
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === "NOT_FOUND") return error("Авто не найдено", 404);
-      if (err.message.startsWith("Максимум") || err.message.includes("большой")) {
+      if (
+        err.message.startsWith("Максимум") ||
+        err.message.includes("большой") ||
+        err.message === UNSUPPORTED_MEDIA_FORMAT_MESSAGE
+      ) {
         return error(err.message, 422);
       }
     }
