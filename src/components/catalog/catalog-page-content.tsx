@@ -605,7 +605,7 @@ export function CatalogPageContent() {
               size="sm"
               onClick={() => void openRatesDialog()}
             >
-              Курсы
+              Курс валют
             </Button>
             <Button
               size="sm"
@@ -667,7 +667,7 @@ export function CatalogPageContent() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Курсы валют</DialogTitle>
+            <DialogTitle>Курс валют</DialogTitle>
             <DialogDescription>
               Актуальные курсы можно поправить.{" "}
               {ratesLoading
