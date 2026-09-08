@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Calculator,
   Copy,
   ImagePlus,
   Loader2,
@@ -14,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { CustomsEstimateSnapshot } from "@/components/calculator/customs-estimate-snapshot";
+import { CustomsCalculator } from "@/components/calculator/customs-calculator";
 import { Header } from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -68,7 +67,6 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   const [sections, setSections] = useState<CatalogSectionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
-  const [estimating, setEstimating] = useState(false);
   const [saving, setSaving] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -80,12 +78,6 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     titleRu: "",
     descriptionRu: "",
     sectionId: "",
-    carYear: "",
-    powerHp: "",
-    volumeCc: "",
-    priceCny: "",
-    priceCurrency: "CNY",
-    origin: "china",
   });
 
   const loadVehicle = useCallback(async () => {
@@ -97,20 +89,10 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       ]);
       setVehicle(data);
       setSections(sectionRows);
-      const origin =
-        data.estimate?.input && typeof data.estimate.input === "object"
-          ? String((data.estimate.input as { originCountry?: string }).originCountry ?? "china")
-          : "china";
       setForm({
         titleRu: data.titleRu,
         descriptionRu: data.descriptionRu,
         sectionId: data.sectionId ?? "",
-        carYear: data.carYear?.toString() ?? "",
-        powerHp: data.powerHp?.toString() ?? "",
-        volumeCc: data.volumeCc?.toString() ?? "",
-        priceCny: data.priceCny?.toString() ?? "",
-        priceCurrency: data.priceCurrency || "CNY",
-        origin,
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось загрузить авто");
@@ -138,11 +120,6 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
         titleRu: form.titleRu,
         descriptionRu: form.descriptionRu,
         sectionId: form.sectionId || null,
-        carYear: form.carYear ? Number(form.carYear) : undefined,
-        powerHp: form.powerHp ? Number(form.powerHp) : undefined,
-        volumeCc: form.volumeCc ? Number(form.volumeCc) : undefined,
-        priceCny: form.priceCny ? Number(form.priceCny) : undefined,
-        priceCurrency: form.priceCurrency,
       });
       setVehicle(saved);
       toast.success("Сохранено");
@@ -153,50 +130,32 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     }
   }
 
-  async function handleEstimate() {
-    setEstimating(true);
+  async function handleCalculated(input: CustomsCalculatorInput, calcResult: CustomsCalculatorResult) {
     try {
-      await apiSend(`/api/catalog/vehicles/${vehicleId}`, "PATCH", {
-        carYear: form.carYear ? Number(form.carYear) : undefined,
-        powerHp: form.powerHp ? Number(form.powerHp) : undefined,
-        volumeCc: form.volumeCc ? Number(form.volumeCc) : undefined,
-        priceCny: form.priceCny ? Number(form.priceCny) : undefined,
-        priceCurrency: form.priceCurrency,
-      });
-      await apiSend(`/api/catalog/vehicles/${vehicleId}/estimate`, "POST", {
-        destinationCountry: form.origin,
-        price: Number(form.priceCny),
-        currency: form.priceCurrency,
-        powerHp: Number(form.powerHp),
-        volumeCc: Number(form.volumeCc),
-        carYear: Number(form.carYear),
-      });
-      toast.success("Расчёт обновлён");
-      await loadVehicle();
+      const saved = await apiSend<{
+        totalWithCar: number;
+        input: unknown;
+        result: unknown;
+      }>(`/api/catalog/vehicles/${vehicleId}/estimate`, "POST", { input });
+      setVehicle((current) =>
+        current
+          ? {
+              ...current,
+              priceCny: input.price,
+              priceCurrency: input.currency,
+              powerHp: Math.round(input.powerHp),
+              volumeCc: Math.round(input.volumeCc),
+              estimate: {
+                totalWithCar: saved.totalWithCar ?? calcResult.totalWithCar,
+                input: saved.input ?? input,
+                result: saved.result ?? calcResult,
+              },
+            }
+          : current,
+      );
+      toast.success("Расчёт сохранён");
     } catch (error) {
-      toast.error(error instanceof ApiRequestError ? error.message : "Не удалось рассчитать");
-    } finally {
-      setEstimating(false);
-    }
-  }
-
-  async function handleAutoEstimate() {
-    setEstimating(true);
-    try {
-      const response = await fetch(`/api/catalog/vehicles/${vehicleId}/estimate`, {
-        method: "PUT",
-        credentials: "include",
-      });
-      const json = await response.json();
-      if (!response.ok || !json.success) {
-        throw new ApiRequestError(json.error ?? "Не удалось рассчитать", response.status);
-      }
-      toast.success("Расчёт обновлён");
-      await loadVehicle();
-    } catch (error) {
-      toast.error(error instanceof ApiRequestError ? error.message : "Не удалось рассчитать");
-    } finally {
-      setEstimating(false);
+      toast.error(error instanceof ApiRequestError ? error.message : "Не удалось сохранить расчёт");
     }
   }
 
@@ -304,14 +263,17 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   }
 
   const estimate = vehicle.estimate;
-  const estimateInput = estimate?.input as CustomsCalculatorInput | undefined;
-  const estimateResult = estimate?.result as CustomsCalculatorResult | undefined;
+  const initialInput = (estimate?.input as CustomsCalculatorInput | undefined) ?? null;
 
   return (
     <>
       <Header
         title={vehicle.titleRu || vehicle.titleZh}
-        subtitle={vehicle.sectionTitle ?? "Каталог"}
+        subtitle={
+          estimate?.totalWithCar != null
+            ? `${vehicle.sectionTitle ?? "Каталог"} · ${formatCurrency(estimate.totalWithCar)}`
+            : (vehicle.sectionTitle ?? "Каталог")
+        }
       />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
@@ -367,8 +329,8 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
           </Card>
         )}
 
-        <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.2fr_1fr]">
-          <div className="space-y-4">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <div className="grid gap-6 lg:grid-cols-2">
             <Card className="overflow-hidden">
               <div className="relative aspect-[16/10] bg-muted">
                 {images[activeImage] ? (
@@ -501,118 +463,15 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
             </Card>
           </div>
 
-          <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Цена и расчёт «под ключ»</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="price">Цена авто</Label>
-                    <Input
-                      id="price"
-                      inputMode="decimal"
-                      value={form.priceCny}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, priceCny: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="currency">Валюта</Label>
-                    <select
-                      id="currency"
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={form.priceCurrency}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, priceCurrency: event.target.value }))
-                      }
-                    >
-                      <option value="CNY">CNY</option>
-                      <option value="USD">USD</option>
-                      <option value="KRW">KRW</option>
-                      <option value="RUB">RUB</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="year">Год</Label>
-                    <Input
-                      id="year"
-                      inputMode="numeric"
-                      value={form.carYear}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, carYear: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="origin">Страна</Label>
-                    <select
-                      id="origin"
-                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                      value={form.origin}
-                      onChange={(event) => setForm((current) => ({ ...current, origin: event.target.value }))}
-                    >
-                      <option value="china">Китай</option>
-                      <option value="korea">Корея</option>
-                      <option value="kyrgyzstan">Киргизия</option>
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="hp">Мощность, л.с.</Label>
-                    <Input
-                      id="hp"
-                      inputMode="numeric"
-                      value={form.powerHp}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, powerHp: event.target.value }))
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="cc">Объём, см³</Label>
-                    <Input
-                      id="cc"
-                      inputMode="numeric"
-                      value={form.volumeCc}
-                      onChange={(event) =>
-                        setForm((current) => ({ ...current, volumeCc: event.target.value }))
-                      }
-                    />
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    onClick={() => void handleEstimate()}
-                    disabled={
-                      estimating || !form.priceCny || !form.carYear || !form.powerHp || !form.volumeCc
-                    }
-                  >
-                    {estimating ? (
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Calculator className="mr-1.5 h-4 w-4" />
-                    )}
-                    Рассчитать
-                  </Button>
-                  <Button variant="outline" onClick={() => void handleAutoEstimate()} disabled={estimating}>
-                    Пересчитать
-                  </Button>
-                </div>
-                {estimate?.totalWithCar != null && (
-                  <p className="text-xl font-semibold">Итого: {formatCurrency(estimate.totalWithCar)}</p>
-                )}
-                {estimate && estimateResult && estimateInput ? (
-                  <CustomsEstimateSnapshot input={estimateInput} result={estimateResult} />
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    Укажите цену, год, мощность и объём — клиент увидит итоговую сумму в рублях.
-                  </p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+          <CustomsCalculator
+            key={vehicleId}
+            embedded
+            persistLocal={false}
+            initialInput={initialInput}
+            onCalculated={(input, result) => {
+              void handleCalculated(input, result);
+            }}
+          />
         </div>
       </div>
 

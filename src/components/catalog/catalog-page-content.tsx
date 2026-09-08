@@ -94,11 +94,6 @@ export function CatalogPageContent() {
     titleRu: "",
     descriptionRu: "",
     sectionId: "",
-    carYear: "",
-    powerHp: "",
-    volumeCc: "",
-    priceCny: "",
-    priceCurrency: "CNY",
   });
   const [sectionTitle, setSectionTitle] = useState("");
 
@@ -179,11 +174,6 @@ export function CatalogPageContent() {
         titleRu: form.titleRu.trim(),
         descriptionRu: form.descriptionRu.trim() || undefined,
         sectionId: form.sectionId || null,
-        carYear: form.carYear ? Number(form.carYear) : undefined,
-        powerHp: form.powerHp ? Number(form.powerHp) : undefined,
-        volumeCc: form.volumeCc ? Number(form.volumeCc) : undefined,
-        priceCny: form.priceCny ? Number(form.priceCny) : undefined,
-        priceCurrency: form.priceCurrency,
       });
       toast.success("Авто добавлено");
       setCreateOpen(false);
@@ -267,7 +257,17 @@ export function CatalogPageContent() {
               <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
               Обновить
             </Button>
-            <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Button
+              size="sm"
+              onClick={() => {
+                setForm({
+                  titleRu: "",
+                  descriptionRu: "",
+                  sectionId: sectionId !== "all" ? sectionId : "",
+                });
+                setCreateOpen(true);
+              }}
+            >
               <Plus className="mr-1.5 h-4 w-4" />
               Добавить авто
             </Button>
@@ -281,7 +281,16 @@ export function CatalogPageContent() {
             <Card>
               <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
                 <p className="text-muted-foreground">Пока нет авто в каталоге</p>
-                <Button onClick={() => setCreateOpen(true)}>
+                <Button
+                  onClick={() => {
+                    setForm({
+                      titleRu: "",
+                      descriptionRu: "",
+                      sectionId: sectionId !== "all" ? sectionId : "",
+                    });
+                    setCreateOpen(true);
+                  }}
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   Добавить авто
                 </Button>
@@ -337,62 +346,12 @@ export function CatalogPageContent() {
                 onChange={(event) =>
                   setForm((current) => ({ ...current, descriptionRu: event.target.value }))
                 }
+                placeholder="Комплектация, комментарий клиенту"
               />
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-1.5">
-                <Label htmlFor="new-year">Год</Label>
-                <Input
-                  id="new-year"
-                  inputMode="numeric"
-                  value={form.carYear}
-                  onChange={(event) => setForm((current) => ({ ...current, carYear: event.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-price">Цена авто</Label>
-                <Input
-                  id="new-price"
-                  inputMode="decimal"
-                  value={form.priceCny}
-                  onChange={(event) => setForm((current) => ({ ...current, priceCny: event.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-hp">Мощность, л.с.</Label>
-                <Input
-                  id="new-hp"
-                  inputMode="numeric"
-                  value={form.powerHp}
-                  onChange={(event) => setForm((current) => ({ ...current, powerHp: event.target.value }))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="new-cc">Объём, см³</Label>
-                <Input
-                  id="new-cc"
-                  inputMode="numeric"
-                  value={form.volumeCc}
-                  onChange={(event) => setForm((current) => ({ ...current, volumeCc: event.target.value }))}
-                />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-currency">Валюта цены авто</Label>
-              <select
-                id="new-currency"
-                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                value={form.priceCurrency}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, priceCurrency: event.target.value }))
-                }
-              >
-                <option value="CNY">CNY</option>
-                <option value="USD">USD</option>
-                <option value="KRW">KRW</option>
-                <option value="RUB">RUB</option>
-              </select>
-            </div>
+            <p className="text-xs text-muted-foreground">
+              Расчёт «под ключ» — тот же калькулятор, что в Подборе. Он откроется в карточке после создания.
+            </p>
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="outline" onClick={() => setCreateOpen(false)}>

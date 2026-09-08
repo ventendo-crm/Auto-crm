@@ -50,6 +50,7 @@ import {
   CarAge,
   CurrencyCode,
   CustomsCalculatorInput,
+  CustomsCalculatorResult,
   DEFAULT_BROKER_FEE_RUB,
   DEFAULT_DELIVERY_RUB,
   DEFAULT_ESCORT_RUB,
@@ -626,9 +627,18 @@ export type CalculatorCaptureApi = {
 interface CustomsCalculatorProps {
   captureApiRef?: MutableRefObject<CalculatorCaptureApi | null>;
   embedded?: boolean;
+  persistLocal?: boolean;
+  initialInput?: CustomsCalculatorInput | null;
+  onCalculated?: (input: CustomsCalculatorInput, result: CustomsCalculatorResult) => void;
 }
 
-export function CustomsCalculator({ captureApiRef, embedded = false }: CustomsCalculatorProps = {}) {
+export function CustomsCalculator({
+  captureApiRef,
+  embedded = false,
+  persistLocal = true,
+  initialInput = null,
+  onCalculated,
+}: CustomsCalculatorProps = {}) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
   const [shareSupported, setShareSupported] = useState(false);
@@ -689,32 +699,45 @@ export function CustomsCalculator({ captureApiRef, embedded = false }: CustomsCa
   const resultSectionRef = useRef<HTMLDivElement>(null);
   const lastHistorySignatureRef = useRef<string | null>(null);
 
+  const lastCalcInputRef = useRef<CustomsCalculatorInput | null>(null);
+  const saveOnNextResultRef = useRef(false);
+  const onCalculatedRef = useRef(onCalculated);
+  onCalculatedRef.current = onCalculated;
+
   useEffect(() => {
-    const stored = loadPersistedState();
-    setOriginCountry(stored.originCountry);
-    setImporter(stored.importer);
-    setAge(stored.age);
-    setEngine(stored.engine);
-    setPowerHp(stored.powerHp);
-    setVolumeCc(stored.volumeCc);
-    setPrice(stored.price);
-    setCustomsPrice(stored.customsPrice);
-    setCurrency(stored.currency);
-    setChinaExpensesCny(stored.chinaExpensesCny);
-    setCityDeliveryUsd(stored.cityDeliveryUsd);
-    setKoreaDocsDeliveryKrw(stored.koreaDocsDeliveryKrw);
-    setParkingFeeKrw(stored.parkingFeeKrw);
-    setBrokerFeeRub(stored.brokerFeeRub);
-    setDeliveryRoute(stored.deliveryRoute);
-    setDeliveryRub(stored.deliveryRub);
-    setDeliveryUsd(stored.deliveryUsd);
-    setEscortRub(stored.escortRub);
-    setKyrgyzstanCustomsCleared(stored.kyrgyzstanCustomsCleared);
-    setRates(stored.rates);
-    setRatesUpdatedAt(stored.ratesUpdatedAt);
-    setSubmitted(stored.submitted);
+    const stored = persistLocal ? loadPersistedState() : DEFAULT_STATE;
+    const source = initialInput ? inputToCalculatorState(initialInput) : stored;
+    setOriginCountry(source.originCountry);
+    setImporter(source.importer);
+    setAge(source.age);
+    setEngine(source.engine);
+    setPowerHp(source.powerHp);
+    setVolumeCc(source.volumeCc);
+    setPrice(source.price);
+    setCustomsPrice(source.customsPrice);
+    setCurrency(source.currency);
+    setChinaExpensesCny(source.chinaExpensesCny);
+    setCityDeliveryUsd(source.cityDeliveryUsd);
+    setKoreaDocsDeliveryKrw(source.koreaDocsDeliveryKrw);
+    setParkingFeeKrw(source.parkingFeeKrw);
+    setBrokerFeeRub(source.brokerFeeRub);
+    setDeliveryRoute(source.deliveryRoute);
+    setDeliveryRub(source.deliveryRub);
+    setDeliveryUsd(source.deliveryUsd);
+    setEscortRub(source.escortRub);
+    setKyrgyzstanCustomsCleared(source.kyrgyzstanCustomsCleared);
+    setRates(source.rates);
+    setRatesUpdatedAt(source.ratesUpdatedAt);
+    setSubmitted(source.submitted);
+    setExtraAmounts(
+      Object.fromEntries(
+        (initialInput?.extraExpenses ?? []).map((item) => [item.id, String(item.amount)]),
+      ),
+    );
     setHistory(loadCalculatorHistory());
     setHydrated(true);
+    // initialInput / persistLocal только на первом монтировании
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -834,7 +857,7 @@ export function CustomsCalculator({ captureApiRef, embedded = false }: CustomsCa
   };
 
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !persistLocal) return;
     savePersistedState({
       originCountry,
       importer,
@@ -883,12 +906,13 @@ export function CustomsCalculator({ captureApiRef, embedded = false }: CustomsCa
     rates,
     ratesUpdatedAt,
     submitted,
+    persistLocal,
   ]);
 
   const result = useMemo(() => {
     if (!submitted) return null;
     const customsPriceNumber = Number(customsPrice.replace(",", "."));
-    return calculateCustoms({
+    const input: CustomsCalculatorInput = {
       originCountry,
       importer,
       age,
@@ -920,7 +944,9 @@ export function CustomsCalculator({ captureApiRef, embedded = false }: CustomsCa
         amount: amountOrZero(true, extraAmounts[item.id] ?? String(item.defaultAmount)),
         currency: item.currency,
       })),
-    });
+    };
+    lastCalcInputRef.current = input;
+    return calculateCustoms(input);
   }, [
     submitted,
     originCountry,
@@ -947,6 +973,12 @@ export function CustomsCalculator({ captureApiRef, embedded = false }: CustomsCa
     extraExpenseItems,
     extraAmounts,
   ]);
+
+  useEffect(() => {
+    if (!saveOnNextResultRef.current || !result || !lastCalcInputRef.current) return;
+    saveOnNextResultRef.current = false;
+    onCalculatedRef.current?.(lastCalcInputRef.current, result);
+  }, [result]);
 
   useEffect(() => {
     if (!captureApiRef) return;
@@ -1070,6 +1102,12 @@ export function CustomsCalculator({ captureApiRef, embedded = false }: CustomsCa
   ]);
 
   const handleCalculate = () => {
+    const callback = onCalculatedRef.current;
+    if (callback && submitted && result && lastCalcInputRef.current) {
+      callback(lastCalcInputRef.current, result);
+    } else if (callback) {
+      saveOnNextResultRef.current = true;
+    }
     setSubmitted(true);
 
     const isStackedLayout =

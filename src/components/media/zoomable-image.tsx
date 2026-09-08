@@ -20,9 +20,10 @@ function pinchDistance(a: { clientX: number; clientY: number }, b: { clientX: nu
 interface ZoomableImageProps {
   src: string;
   alt: string;
+  onSwipe?: (direction: "prev" | "next") => void;
 }
 
-export function ZoomableImage({ src, alt }: ZoomableImageProps) {
+export function ZoomableImage({ src, alt, onSwipe }: ZoomableImageProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
@@ -40,6 +41,8 @@ export function ZoomableImage({ src, alt }: ZoomableImageProps) {
 
   scaleRef.current = scale;
   offsetRef.current = offset;
+
+  const swipeRef = useRef<{ x: number; y: number } | null>(null);
 
   const reset = useCallback(() => {
     setScale(1);
@@ -213,6 +216,11 @@ export function ZoomableImage({ src, alt }: ZoomableImageProps) {
         oy: offset.y,
       };
       setDragging(true);
+      return;
+    }
+
+    if (event.touches.length === 1 && scale <= 1 && onSwipe) {
+      swipeRef.current = { x: event.touches[0].clientX, y: event.touches[0].clientY };
     }
   };
 
@@ -229,10 +237,22 @@ export function ZoomableImage({ src, alt }: ZoomableImageProps) {
     }
   };
 
-  const onTouchEnd = () => {
-    if (pinchRef.current) pinchRef.current = null;
+  const onTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => {
+    const swipe = swipeRef.current;
+    const wasPinch = Boolean(pinchRef.current);
+    swipeRef.current = null;
+    pinchRef.current = null;
     dragRef.current = null;
     setDragging(false);
+
+    if (wasPinch || !onSwipe || scaleRef.current > 1 || !swipe || event.changedTouches.length === 0) {
+      return;
+    }
+    const touch = event.changedTouches[0];
+    const dx = touch.clientX - swipe.x;
+    const dy = touch.clientY - swipe.y;
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.4) return;
+    onSwipe(dx < 0 ? "next" : "prev");
   };
 
   const percent = Math.round(scale * 100);

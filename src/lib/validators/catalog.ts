@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { customsEstimateInputSchema } from "@/lib/validators/customs-estimate";
 
 export const catalogVehicleFiltersSchema = z.object({
   q: z.string().trim().optional(),
@@ -94,4 +95,8 @@ export const catalogEstimateSchema = z.object({
   carYear: z.coerce.number().int().min(1990).max(2100),
   exchangeRate: z.coerce.number().positive().optional(),
   note: z.string().trim().optional(),
+});
+
+export const catalogEstimateFromCalculatorSchema = z.object({
+  input: customsEstimateInputSchema,
 });

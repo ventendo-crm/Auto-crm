@@ -5,8 +5,9 @@ import {
   autoEstimateCatalogVehicle,
   getCatalogVehicleEstimate,
   upsertCatalogVehicleEstimate,
+  upsertCatalogVehicleEstimateFromInput,
 } from "@/lib/services/catalog-estimates";
-import { catalogEstimateSchema } from "@/lib/validators/catalog";
+import { catalogEstimateFromCalculatorSchema, catalogEstimateSchema } from "@/lib/validators/catalog";
 import { serialize } from "@/lib/serialize";
 
 export const GET = withAuth(async (_request, { user, params }) => {
@@ -18,8 +19,11 @@ export const GET = withAuth(async (_request, { user, params }) => {
 export const POST = withAuth(async (request, { user, params }) => {
   assertAllowed(canAccessCatalog(user.role));
   try {
-    const body = catalogEstimateSchema.parse(await request.json());
-    const estimate = await upsertCatalogVehicleEstimate(user, params.id, body);
+    const json = await request.json();
+    const fromCalculator = catalogEstimateFromCalculatorSchema.safeParse(json);
+    const estimate = fromCalculator.success
+      ? await upsertCatalogVehicleEstimateFromInput(user, params.id, fromCalculator.data.input)
+      : await upsertCatalogVehicleEstimate(user, params.id, catalogEstimateSchema.parse(json));
     return ok(serialize(estimate));
   } catch (err) {
     if (err instanceof Error && err.message === "INVALID_CALCULATION") {

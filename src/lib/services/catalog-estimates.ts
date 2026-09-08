@@ -17,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
 import { catalogEstimateSchema } from "@/lib/validators/catalog";
+import { customsEstimateInputSchema } from "@/lib/validators/customs-estimate";
 import { z } from "zod";
 
 type EstimateInput = z.infer<typeof catalogEstimateSchema>;
@@ -195,6 +196,86 @@ export async function upsertCatalogVehicleEstimate(
       volumeCc: parsed.volumeCc,
       carYear: parsed.carYear,
       note: parsed.note?.trim() || null,
+      input: input as unknown as Prisma.InputJsonValue,
+      result: result as unknown as Prisma.InputJsonValue,
+      totalWithCar: new Prisma.Decimal(result.totalWithCar),
+    },
+    include: { createdBy: { select: { name: true } } },
+  });
+
+  await createAuditLog({
+    userId: user.id,
+    entity: "CatalogVehicleCustomsEstimate",
+    entityId: saved.id,
+    action: "UPSERT",
+    newValue: {
+      catalogVehicleId: vehicleId,
+      totalWithCar: Number(saved.totalWithCar),
+    },
+  });
+
+  return serializeEstimate(saved);
+}
+
+function carYearFromAge(age: CarAge): number {
+  const year = new Date().getFullYear();
+  if (age === "new") return year;
+  if (age === "under3") return year - 1;
+  if (age === "from3to5") return year - 4;
+  if (age === "from5to7") return year - 6;
+  return year - 8;
+}
+
+export async function upsertCatalogVehicleEstimateFromInput(
+  user: AuthUser,
+  vehicleId: string,
+  rawInput: unknown,
+) {
+  await assertCompanyCatalogAccess(user);
+  const input = customsEstimateInputSchema.parse(rawInput) as CustomsCalculatorInput;
+
+  const vehicle = await prisma.catalogVehicle.findFirst({
+    where: { id: vehicleId, companyId: user.companyId },
+    select: { id: true },
+  });
+  if (!vehicle) throw new Error("NOT_FOUND");
+
+  const result = calculateCustoms(input);
+  if (!result) throw new Error("INVALID_CALCULATION");
+  const carYear = carYearFromAge(input.age);
+
+  await prisma.catalogVehicle.update({
+    where: { id: vehicleId },
+    data: {
+      priceCny: new Prisma.Decimal(input.price),
+      priceCurrency: input.currency,
+      powerHp: Math.round(input.powerHp),
+      volumeCc: Math.round(input.volumeCc),
+      carYear,
+    },
+  });
+
+  const saved = await prisma.catalogVehicleCustomsEstimate.upsert({
+    where: { catalogVehicleId: vehicleId },
+    create: {
+      catalogVehicleId: vehicleId,
+      createdById: user.id,
+      price: new Prisma.Decimal(input.price),
+      currency: input.currency,
+      powerHp: Math.round(input.powerHp),
+      volumeCc: Math.round(input.volumeCc),
+      carYear,
+      input: input as unknown as Prisma.InputJsonValue,
+      result: result as unknown as Prisma.InputJsonValue,
+      totalWithCar: new Prisma.Decimal(result.totalWithCar),
+    },
+    update: {
+      createdById: user.id,
+      price: new Prisma.Decimal(input.price),
+      currency: input.currency,
+      powerHp: Math.round(input.powerHp),
+      volumeCc: Math.round(input.volumeCc),
+      carYear,
       input: input as unknown as Prisma.InputJsonValue,
       result: result as unknown as Prisma.InputJsonValue,
       totalWithCar: new Prisma.Decimal(result.totalWithCar),

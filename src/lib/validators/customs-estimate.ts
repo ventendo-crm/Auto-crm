@@ -27,6 +27,17 @@ export const customsEstimateInputSchema = z.object({
   deliveryUsd: z.number().nonnegative().optional(),
   escortRub: z.number().nonnegative().optional(),
   kyrgyzstanCustomsCleared: z.boolean().optional(),
+  customsPrice: z.number().positive().optional(),
+  extraExpenses: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string(),
+        amount: z.number().nonnegative(),
+        currency: z.enum(["RUB", "USD", "CNY", "KRW"]),
+      }),
+    )
+    .optional(),
 });
 
 export const createCustomsEstimateSchema = z.object({

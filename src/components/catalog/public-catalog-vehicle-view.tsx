@@ -1,113 +1,14 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { CustomsEstimateSnapshot } from "@/components/calculator/customs-estimate-snapshot";
-import { ZoomableImage } from "@/components/media/zoomable-image";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { SwipeGallery } from "@/components/media/swipe-gallery";
 import type { PublicCatalogVehicleData } from "@/lib/types/catalog";
 import { formatCurrency } from "@/lib/utils";
 
 function BlockDivider() {
   return <div className="h-px bg-border" role="separator" />;
-}
-
-function ImageGallery({ images, labels }: { images: string[]; labels: string[] }) {
-  const [index, setIndex] = useState<number | null>(null);
-  const open = index != null;
-  const current = index != null ? images[index] : null;
-  const hasPrev = index != null && index > 0;
-  const hasNext = index != null && index < images.length - 1;
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "ArrowLeft") {
-        event.preventDefault();
-        setIndex((currentIndex) =>
-          currentIndex != null && currentIndex > 0 ? currentIndex - 1 : currentIndex,
-        );
-      }
-      if (event.key === "ArrowRight") {
-        event.preventDefault();
-        setIndex((currentIndex) =>
-          currentIndex != null && currentIndex < images.length - 1
-            ? currentIndex + 1
-            : currentIndex,
-        );
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open, images.length]);
-
-  if (images.length === 0) return null;
-
-  return (
-    <>
-      <section className="grid grid-cols-2 gap-1 sm:grid-cols-3">
-        {images.map((url, imageIndex) => (
-          <button
-            key={`${url}-${imageIndex}`}
-            type="button"
-            onClick={() => setIndex(imageIndex)}
-            className="block overflow-hidden rounded-md text-left"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={url} alt={labels[imageIndex] ?? ""} className="aspect-[4/3] w-full object-cover" />
-          </button>
-        ))}
-      </section>
-
-      <Dialog open={open} onOpenChange={(next) => !next && setIndex(null)}>
-        {current && index != null ? (
-          <DialogContent className="z-[100] flex h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[96dvh] sm:max-w-6xl sm:rounded-xl">
-            <DialogHeader className="shrink-0 border-b px-3 py-2 sm:px-4">
-              <DialogTitle className="pr-8 text-sm">
-                {labels[index] ?? "Фото"}
-                {images.length > 1 ? ` · ${index + 1} из ${images.length}` : ""}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="relative flex min-h-0 w-full flex-1 items-center justify-center bg-black">
-              {images.length > 1 && (
-                <>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    className="absolute left-1 top-1/2 z-10 -translate-y-1/2 bg-background/80 shadow-md sm:left-3"
-                    disabled={!hasPrev}
-                    onClick={() => setIndex(index - 1)}
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="icon"
-                    className="absolute right-1 top-1/2 z-10 -translate-y-1/2 bg-background/80 shadow-md sm:right-3"
-                    disabled={!hasNext}
-                    onClick={() => setIndex(index + 1)}
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </Button>
-                </>
-              )}
-              <div className="flex h-full w-full min-w-0 items-center justify-center">
-                <ZoomableImage key={current} src={current} alt={labels[index] ?? ""} />
-              </div>
-            </div>
-          </DialogContent>
-        ) : null}
-      </Dialog>
-    </>
-  );
 }
 
 export function PublicCatalogVehicleView({ token }: { token: string }) {
@@ -165,7 +66,7 @@ export function PublicCatalogVehicleView({ token }: { token: string }) {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
-        <ImageGallery
+        <SwipeGallery
           images={data.photos}
           labels={data.photos.map((_, index) => `${data.title} · фото ${index + 1}`)}
         />
