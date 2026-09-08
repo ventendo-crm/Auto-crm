@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -152,7 +152,13 @@ function VehicleThumb({
   if (cover.image) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={cover.image} alt="" className={cn("h-full w-full object-cover", className)} />
+      <img
+        src={cover.image}
+        alt=""
+        loading="lazy"
+        decoding="async"
+        className={cn("h-full w-full object-cover", className)}
+      />
     );
   }
   if (cover.videoUrl) {
@@ -271,6 +277,8 @@ export function CatalogPageContent() {
   const [loading, setLoading] = useState(true);
   const [sectionId, setSectionId] = useState<string>("all");
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const hasLoadedOnce = useRef(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [sectionOpen, setSectionOpen] = useState(false);
   const [rename, setRename] = useState<{ id: string; title: string } | null>(null);
@@ -304,23 +312,36 @@ export function CatalogPageContent() {
     saveCatalogSectionsOpen(next);
   }
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
-    if (query.trim()) params.set("q", query.trim());
+    if (debouncedQuery) params.set("q", debouncedQuery);
     if (sectionId !== "all") params.set("sectionId", sectionId);
+    params.set("limit", "100");
     return params.toString();
-  }, [query, sectionId]);
+  }, [debouncedQuery, sectionId]);
 
   const loadData = useCallback(async () => {
-    setLoading(true);
+    const firstLoad = !hasLoadedOnce.current;
+    if (firstLoad) setLoading(true);
     try {
-      const [vehiclesData, sectionsData] = await Promise.all([
-        apiGet<{ items: CatalogVehicleListItem[] }>(`/api/catalog/vehicles?${queryString}`),
-        apiGet<CatalogSectionsList>("/api/catalog/sections"),
-      ]);
+      const vehiclesPromise = apiGet<{ items: CatalogVehicleListItem[] }>(
+        `/api/catalog/vehicles?${queryString}`,
+      );
+      const sectionsPromise = firstLoad
+        ? apiGet<CatalogSectionsList>("/api/catalog/sections")
+        : Promise.resolve(null);
+      const [vehiclesData, sectionsData] = await Promise.all([vehiclesPromise, sectionsPromise]);
       setVehicles(vehiclesData.items);
-      setSections(sectionsData.items);
-      setTotalActiveCount(sectionsData.totalActiveCount);
+      if (sectionsData) {
+        setSections(sectionsData.items);
+        setTotalActiveCount(sectionsData.totalActiveCount);
+      }
+      hasLoadedOnce.current = true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось загрузить каталог");
     } finally {

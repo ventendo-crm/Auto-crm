@@ -44,6 +44,43 @@ const vehicleInclude = {
   },
 };
 
+/** Список каталога: обложка и цена, без описаний и JSON калькулятора. */
+const listVehicleSelect = {
+  id: true,
+  source: true,
+  sourceUrl: true,
+  titleRu: true,
+  titleZh: true,
+  brand: true,
+  model: true,
+  carYear: true,
+  mileageKm: true,
+  priceCny: true,
+  priceCurrency: true,
+  coverImageUrl: true,
+  videoUrl: true,
+  status: true,
+  section: { select: { id: true, title: true } },
+  media: {
+    orderBy: { uploadedAt: "asc" as const },
+    take: 4,
+    select: { id: true, type: true },
+  },
+  trims: {
+    orderBy: { sortOrder: "asc" as const },
+    select: {
+      id: true,
+      title: true,
+      sortOrder: true,
+      customsEstimate: { select: { totalWithCar: true } },
+    },
+  },
+} satisfies Prisma.CatalogVehicleSelect;
+
+function mediaFileUrl(id: string, variant: "full" | "thumb" = "full") {
+  return variant === "thumb" ? `/api/media/${id}/file?variant=thumb` : `/api/media/${id}/file`;
+}
+
 async function assertCatalogAccess(user: AuthUser) {
   await assertCompanyCatalogAccess(user);
 }
@@ -195,6 +232,81 @@ function serializeVehicle(record: {
   };
 }
 
+function serializeListVehicle(record: {
+  id: string;
+  source: CatalogVehicleSource;
+  sourceUrl: string | null;
+  titleZh: string;
+  titleRu: string;
+  brand: string | null;
+  model: string | null;
+  carYear: number | null;
+  mileageKm: number | null;
+  priceCny: Prisma.Decimal | null;
+  priceCurrency: string;
+  coverImageUrl: string | null;
+  videoUrl: string | null;
+  status: CatalogVehicleStatus;
+  section: { id: string; title: string } | null;
+  media: Array<{ id: string; type: MediaType }>;
+  trims: Array<{
+    id: string;
+    title: string;
+    sortOrder: number;
+    customsEstimate: { totalWithCar: Prisma.Decimal } | null;
+  }>;
+}) {
+  const photo = record.media.find((item) => item.type === MediaType.PHOTO);
+  const video = record.media.find((item) => item.type === MediaType.VIDEO);
+  const photos: Array<{ id: string; fileUrl: string; type: MediaType }> = [];
+  if (photo) {
+    photos.push({
+      id: photo.id,
+      fileUrl: mediaFileUrl(photo.id, "thumb"),
+      type: photo.type,
+    });
+  } else if (video) {
+    photos.push({
+      id: video.id,
+      fileUrl: mediaFileUrl(video.id),
+      type: video.type,
+    });
+  }
+
+  const trims = record.trims.map((trim) => ({
+    id: trim.id,
+    title: trim.title,
+    sortOrder: trim.sortOrder,
+    estimate: trim.customsEstimate
+      ? { totalWithCar: Number(trim.customsEstimate.totalWithCar) }
+      : null,
+  }));
+  const cheapest = minCatalogTrimTotal(trims);
+
+  return {
+    id: record.id,
+    source: record.source,
+    sourceUrl: record.sourceUrl,
+    titleZh: record.titleZh,
+    titleRu: record.titleRu,
+    brand: record.brand,
+    model: record.model,
+    carYear: record.carYear,
+    mileageKm: record.mileageKm,
+    priceCny: record.priceCny != null ? Number(record.priceCny) : null,
+    priceCurrency: record.priceCurrency,
+    sectionId: record.section?.id ?? null,
+    sectionTitle: record.section?.title ?? null,
+    coverImageUrl: photo ? mediaFileUrl(photo.id, "thumb") : record.coverImageUrl,
+    galleryUrls: [] as string[],
+    photos,
+    videoUrl: record.videoUrl,
+    status: record.status,
+    trims,
+    estimate: cheapest ? { totalWithCar: cheapest.min } : null,
+  };
+}
+
 function buildWhere(companyId: string, filters: FiltersInput): Prisma.CatalogVehicleWhereInput {
   const where: Prisma.CatalogVehicleWhereInput = { companyId };
 
@@ -251,7 +363,7 @@ export async function listCatalogVehicles(user: AuthUser, rawFilters: FiltersInp
   await assertCatalogAccess(user);
   const filters = catalogVehicleFiltersSchema.parse(rawFilters);
   const page = filters.page ?? 1;
-  const limit = filters.limit ?? 24;
+  const limit = filters.limit ?? 100;
   const where = buildWhere(user.companyId, filters);
 
   const [items, total] = await Promise.all([
@@ -260,13 +372,13 @@ export async function listCatalogVehicles(user: AuthUser, rawFilters: FiltersInp
       orderBy: { updatedAt: "desc" },
       skip: (page - 1) * limit,
       take: limit,
-      include: vehicleInclude,
+      select: listVehicleSelect,
     }),
     prisma.catalogVehicle.count({ where }),
   ]);
 
   return {
-    items: items.map(serializeVehicle),
+    items: items.map(serializeListVehicle),
     total,
     page,
     limit,

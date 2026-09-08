@@ -40,8 +40,8 @@ export type CatalogTrimItem = {
   sortOrder: number;
   estimate: {
     totalWithCar: number;
-    input: unknown;
-    result: unknown;
+    input?: unknown;
+    result?: unknown;
   } | null;
 };
 
@@ -67,8 +67,8 @@ export type CatalogVehicleListItem = {
   trims: CatalogTrimItem[];
   estimate: {
     totalWithCar: number;
-    input: unknown;
-    result: unknown;
+    input?: unknown;
+    result?: unknown;
   } | null;
 };
 

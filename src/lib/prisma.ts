@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
 // Увеличивайте при изменении prisma/schema.prisma, чтобы dev-сервер подхватил новый клиент.
-const PRISMA_SCHEMA_VERSION = 8;
+const PRISMA_SCHEMA_VERSION = 9;
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
