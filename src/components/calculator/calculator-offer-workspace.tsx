@@ -14,12 +14,15 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
 import {
+  buildOfferLinkCaption,
+  buildOfferLinkClipboard,
   buildTelegramShareUrl,
   OFFER_MAX_TOTAL_BYTES,
   OFFER_VEHICLE_TITLE_MAX,
   resolvePublicOfferAbsoluteUrl,
 } from "@/lib/calculator/offer-share";
 import { isPhoneFileShare, buildOfferShareText, shareOfferPackage } from "@/lib/calculator/share-export";
+import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { formatCurrency } from "@/lib/utils";
 
 const MAX_PHOTOS = 15;
@@ -40,6 +43,8 @@ function isImageFile(file: File) {
 }
 
 export function CalculatorOfferWorkspace() {
+  const { settings } = useCompanyWorkspace();
+  const captionTemplate = settings.offerLinkCaptionTemplate;
   const captureApiRef = useRef<CalculatorCaptureApi | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [vehicleTitle, setVehicleTitle] = useState("");
@@ -137,7 +142,6 @@ export function CalculatorOfferWorkspace() {
   };
 
   const publishOfferLink = async (
-    text: string,
     photoFiles: File[],
     estimate: File | null,
     totalLabel: string | null,
@@ -157,9 +161,8 @@ export function CalculatorOfferWorkspace() {
       estimate,
     });
     const url = resolvePublicOfferAbsoluteUrl(created.token);
-    const clipboard = [text, url].filter(Boolean).join("\n\n");
     try {
-      await navigator.clipboard.writeText(clipboard);
+      await navigator.clipboard.writeText(buildOfferLinkClipboard(url, vehicleTitle, captionTemplate));
     } catch {
       // ссылку всё равно покажем на экране
     }
@@ -227,7 +230,7 @@ export function CalculatorOfferWorkspace() {
         }
       }
 
-      await publishOfferLink(text, photoFiles, estimate, totalLabel);
+      await publishOfferLink(photoFiles, estimate, totalLabel);
       toastCreatedLink();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
@@ -261,7 +264,7 @@ export function CalculatorOfferWorkspace() {
     setCreatingLink(true);
     try {
       const { text, photoFiles, estimate, totalLabel } = await collectSharePayload();
-      await publishOfferLink(text, photoFiles, estimate, totalLabel);
+      await publishOfferLink(photoFiles, estimate, totalLabel);
       toastCreatedLink();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
@@ -372,7 +375,7 @@ export function CalculatorOfferWorkspace() {
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  void navigator.clipboard.writeText(createdLink);
+                  void navigator.clipboard.writeText(buildOfferLinkClipboard(createdLink, vehicleTitle, captionTemplate));
                   toast.success("Ссылка скопирована");
                 }}
               >
@@ -380,7 +383,7 @@ export function CalculatorOfferWorkspace() {
                 Копировать ссылку
               </Button>
               <Button type="button" size="sm" variant="brand" asChild>
-                <a href={buildTelegramShareUrl(createdLink, "Подбор авто")} target="_blank" rel="noreferrer">
+                <a href={buildTelegramShareUrl(createdLink, buildOfferLinkCaption(vehicleTitle, captionTemplate))} target="_blank" rel="noreferrer">
                   Открыть в Telegram
                 </a>
               </Button>

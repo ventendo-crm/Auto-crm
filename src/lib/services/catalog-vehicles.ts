@@ -1,4 +1,4 @@
-import { CatalogVehicleSource, CatalogVehicleStatus, Prisma } from "@prisma/client";
+import { CatalogVehicleSource, CatalogVehicleStatus, MediaType, Prisma } from "@prisma/client";
 import { fetchChinaPage } from "@/lib/http/china-fetch";
 import {
   normalizeChe168Url,
@@ -10,6 +10,7 @@ import { AuthUser } from "@/lib/permissions";
 import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
+import { assertSectionInCompany } from "@/lib/services/catalog-sections";
 import { serializeGalleryUrls } from "@/lib/services/catalog-serialize";
 import {
   catalogVehicleFiltersSchema,
@@ -26,6 +27,12 @@ type ImportInput = z.infer<typeof importChe168Schema>;
 
 const vehicleInclude = {
   createdBy: { select: { id: true, name: true } },
+  section: { select: { id: true, title: true } },
+  media: {
+    where: { type: MediaType.PHOTO },
+    orderBy: { uploadedAt: "asc" as const },
+    select: { id: true },
+  },
   customsEstimate: {
     include: { createdBy: { select: { name: true } } },
   },
@@ -50,6 +57,7 @@ function serializeVehicle(record: {
   carYear: number | null;
   mileageKm: number | null;
   priceCny: Prisma.Decimal | null;
+  priceCurrency: string;
   volumeCc: number | null;
   powerHp: number | null;
   fuelType: string | null;
@@ -66,6 +74,8 @@ function serializeVehicle(record: {
   createdAt: Date;
   updatedAt: Date;
   createdBy: { id: string; name: string };
+  section: { id: string; title: string } | null;
+  media: Array<{ id: string }>;
     customsEstimate?: {
       id: string;
       totalWithCar: Prisma.Decimal;
@@ -79,6 +89,14 @@ function serializeVehicle(record: {
       createdBy: { name: string };
     } | null;
 }) {
+  const photos = record.media.map((item) => ({
+    id: item.id,
+    fileUrl: `/api/media/${item.id}/file`,
+  }));
+  const galleryUrls = serializeGalleryUrls(record.galleryUrls);
+  const coverImageUrl =
+    photos[0]?.fileUrl ?? record.coverImageUrl ?? galleryUrls[0] ?? null;
+
   return {
     id: record.id,
     companyId: record.companyId,
@@ -94,6 +112,7 @@ function serializeVehicle(record: {
     carYear: record.carYear,
     mileageKm: record.mileageKm,
     priceCny: record.priceCny != null ? Number(record.priceCny) : null,
+    priceCurrency: record.priceCurrency,
     volumeCc: record.volumeCc,
     powerHp: record.powerHp,
     fuelType: record.fuelType,
@@ -101,8 +120,11 @@ function serializeVehicle(record: {
     color: record.color,
     location: record.location,
     vin: record.vin,
-    coverImageUrl: record.coverImageUrl,
-    galleryUrls: serializeGalleryUrls(record.galleryUrls),
+    sectionId: record.section?.id ?? null,
+    sectionTitle: record.section?.title ?? null,
+    coverImageUrl,
+    galleryUrls: photos.length > 0 ? photos.map((item) => item.fileUrl) : galleryUrls,
+    photos,
     videoUrl: record.videoUrl,
     status: record.status,
     importedAt: record.importedAt?.toISOString() ?? null,
@@ -138,6 +160,12 @@ function buildWhere(companyId: string, filters: FiltersInput): Prisma.CatalogVeh
 
   if (filters.source && filters.source !== "ALL") {
     where.source = filters.source;
+  }
+
+  if (filters.sectionId === "none") {
+    where.sectionId = null;
+  } else if (filters.sectionId) {
+    where.sectionId = filters.sectionId;
   }
 
   if (filters.brand) {
@@ -213,12 +241,14 @@ export async function getCatalogVehicle(user: AuthUser, id: string) {
 export async function createCatalogVehicle(user: AuthUser, body: CreateInput) {
   await assertCatalogAccess(user);
   const data = createCatalogVehicleSchema.parse(body);
+  const sectionId = await assertSectionInCompany(user.companyId, data.sectionId);
 
   const record = await prisma.catalogVehicle.create({
     data: {
       companyId: user.companyId,
       createdById: user.id,
       source: CatalogVehicleSource.MANUAL,
+      sectionId,
       titleRu: data.titleRu,
       titleZh: data.titleZh ?? "",
       descriptionRu: data.descriptionRu ?? "",
@@ -228,6 +258,7 @@ export async function createCatalogVehicle(user: AuthUser, body: CreateInput) {
       carYear: data.carYear ?? null,
       mileageKm: data.mileageKm ?? null,
       priceCny: data.priceCny != null ? new Prisma.Decimal(data.priceCny) : null,
+      priceCurrency: data.priceCurrency ?? "CNY",
       volumeCc: data.volumeCc ?? null,
       powerHp: data.powerHp ?? null,
       fuelType: data.fuelType || null,
@@ -263,6 +294,11 @@ export async function updateCatalogVehicle(user: AuthUser, id: string, body: Upd
   });
   if (!existing) throw new Error("NOT_FOUND");
 
+  const sectionId =
+    data.sectionId !== undefined
+      ? await assertSectionInCompany(user.companyId, data.sectionId)
+      : undefined;
+
   const record = await prisma.catalogVehicle.update({
     where: { id },
     data: {
@@ -277,6 +313,7 @@ export async function updateCatalogVehicle(user: AuthUser, id: string, body: Upd
       ...(data.priceCny !== undefined
         ? { priceCny: data.priceCny != null ? new Prisma.Decimal(data.priceCny) : null }
         : {}),
+      ...(data.priceCurrency !== undefined ? { priceCurrency: data.priceCurrency } : {}),
       ...(data.volumeCc !== undefined ? { volumeCc: data.volumeCc ?? null } : {}),
       ...(data.powerHp !== undefined ? { powerHp: data.powerHp ?? null } : {}),
       ...(data.fuelType !== undefined ? { fuelType: data.fuelType || null } : {}),
@@ -284,6 +321,7 @@ export async function updateCatalogVehicle(user: AuthUser, id: string, body: Upd
       ...(data.color !== undefined ? { color: data.color || null } : {}),
       ...(data.location !== undefined ? { location: data.location || null } : {}),
       ...(data.vin !== undefined ? { vin: data.vin || null } : {}),
+      ...(sectionId !== undefined ? { sectionId } : {}),
       ...(data.coverImageUrl !== undefined ? { coverImageUrl: data.coverImageUrl || null } : {}),
       ...(data.galleryUrls !== undefined ? { galleryUrls: data.galleryUrls } : {}),
       ...(data.videoUrl !== undefined ? { videoUrl: data.videoUrl || null } : {}),

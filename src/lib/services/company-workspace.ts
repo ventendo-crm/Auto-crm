@@ -55,6 +55,7 @@ export async function ensureCompanyWorkspaceSettings(
       documentTypes: toJson(resolved.documentTypes),
       additionalOptionGroups: toJson(resolved.additionalOptionGroups),
       modules: toJson(resolved.modules),
+      offerLinkCaptionTemplate: resolved.offerLinkCaptionTemplate,
     },
   });
 
@@ -130,6 +131,7 @@ export async function saveCompanyWorkspaceSettings(
     documentTypes: input.documentTypes ?? current.documentTypes,
     additionalOptionGroups: input.additionalOptionGroups ?? current.additionalOptionGroups,
     modules: { ...current.modules, ...input.modules },
+    offerLinkCaptionTemplate: input.offerLinkCaptionTemplate ?? current.offerLinkCaptionTemplate,
   });
 
   const record = await prisma.companyWorkspaceSettings.update({
@@ -143,6 +145,7 @@ export async function saveCompanyWorkspaceSettings(
       documentTypes: toJson(resolved.documentTypes),
       additionalOptionGroups: toJson(resolved.additionalOptionGroups),
       modules: toJson(resolved.modules),
+      offerLinkCaptionTemplate: resolved.offerLinkCaptionTemplate,
     },
   });
 

@@ -8,6 +8,7 @@ import {
   STAGE_ORDER,
 } from "@/lib/constants";
 import { CATALOG_ENABLED } from "@/lib/features";
+import { DEFAULT_OFFER_LINK_CAPTION_TEMPLATE } from "@/lib/calculator/offer-share";
 import type {
   CompanyDocumentType,
   ResolvedCompanyWorkspace,
@@ -62,6 +63,7 @@ export function getDefaultCompanyWorkspace(): ResolvedCompanyWorkspace {
       carCarrier: true,
       googleCalendar: true,
     },
+    offerLinkCaptionTemplate: DEFAULT_OFFER_LINK_CAPTION_TEMPLATE,
   };
 }
 

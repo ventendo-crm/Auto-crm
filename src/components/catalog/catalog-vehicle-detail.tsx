@@ -1,21 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calculator,
-  ExternalLink,
-  FolderPlus,
+  Copy,
+  ImagePlus,
   Loader2,
   Share2,
   UserPlus,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CustomsEstimateSnapshot } from "@/components/calculator/customs-estimate-snapshot";
 import { Header } from "@/components/layout/header";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -26,16 +26,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiRequestError } from "@/lib/api-client";
-import type { CatalogVehicleDetail } from "@/lib/types/catalog";
+import { MAX_CATALOG_VEHICLE_PHOTOS } from "@/lib/constants";
+import { buildTelegramShareUrl } from "@/lib/calculator/offer-share";
+import type { CatalogSectionItem, CatalogVehicleDetail } from "@/lib/types/catalog";
 import type { DealListItem } from "@/lib/types";
 import { formatCurrency } from "@/lib/utils";
 import type {
@@ -52,11 +47,11 @@ async function apiGet<T>(path: string): Promise<T> {
   return json.data as T;
 }
 
-async function apiPost<T>(path: string, body?: unknown, method = "POST"): Promise<T> {
+async function apiSend<T>(path: string, method: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
     method,
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: body ? { "Content-Type": "application/json" } : undefined,
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await response.json();
@@ -66,34 +61,59 @@ async function apiPost<T>(path: string, body?: unknown, method = "POST"): Promis
   return json.data as T;
 }
 
-function formatCny(value: number | null): string {
-  if (value == null) return "—";
-  return `${value.toLocaleString("ru-RU")} ¥`;
-}
-
 export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   const router = useRouter();
+  const photoInputRef = useRef<HTMLInputElement>(null);
   const [vehicle, setVehicle] = useState<CatalogVehicleDetail | null>(null);
+  const [sections, setSections] = useState<CatalogSectionItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeImage, setActiveImage] = useState(0);
   const [estimating, setEstimating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [dealOpen, setDealOpen] = useState(false);
-  const [selectionOpen, setSelectionOpen] = useState(false);
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [selectedDealId, setSelectedDealId] = useState("");
-  const [selections, setSelections] = useState<Array<{ id: string; title: string }>>([]);
-  const [selectedSelectionId, setSelectedSelectionId] = useState("");
-  const [editRu, setEditRu] = useState({ titleRu: "", descriptionRu: "" });
-  const [saving, setSaving] = useState(false);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    titleRu: "",
+    descriptionRu: "",
+    sectionId: "",
+    carYear: "",
+    powerHp: "",
+    volumeCc: "",
+    priceCny: "",
+    priceCurrency: "CNY",
+    origin: "china",
+  });
 
   const loadVehicle = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await apiGet<CatalogVehicleDetail>(`/api/catalog/vehicles/${vehicleId}`);
+      const [data, sectionRows] = await Promise.all([
+        apiGet<CatalogVehicleDetail>(`/api/catalog/vehicles/${vehicleId}`),
+        apiGet<CatalogSectionItem[]>("/api/catalog/sections"),
+      ]);
       setVehicle(data);
-      setEditRu({ titleRu: data.titleRu, descriptionRu: data.descriptionRu });
+      setSections(sectionRows);
+      const origin =
+        data.estimate?.input && typeof data.estimate.input === "object"
+          ? String((data.estimate.input as { originCountry?: string }).originCountry ?? "china")
+          : "china";
+      setForm({
+        titleRu: data.titleRu,
+        descriptionRu: data.descriptionRu,
+        sectionId: data.sectionId ?? "",
+        carYear: data.carYear?.toString() ?? "",
+        powerHp: data.powerHp?.toString() ?? "",
+        volumeCc: data.volumeCc?.toString() ?? "",
+        priceCny: data.priceCny?.toString() ?? "",
+        priceCurrency: data.priceCurrency || "CNY",
+        origin,
+      });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось загрузить объявление");
+      toast.error(error instanceof Error ? error.message : "Не удалось загрузить авто");
     } finally {
       setLoading(false);
     }
@@ -103,17 +123,54 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     void loadVehicle();
   }, [loadVehicle]);
 
-  const images =
-    vehicle?.galleryUrls.length
+  const images = vehicle?.photos.length
+    ? vehicle.photos.map((item) => item.fileUrl)
+    : vehicle?.galleryUrls.length
       ? vehicle.galleryUrls
       : vehicle?.coverImageUrl
         ? [vehicle.coverImageUrl]
         : [];
 
-  async function handleAutoEstimate() {
+  async function handleSave() {
+    setSaving(true);
+    try {
+      const saved = await apiSend<CatalogVehicleDetail>(`/api/catalog/vehicles/${vehicleId}`, "PATCH", {
+        titleRu: form.titleRu,
+        descriptionRu: form.descriptionRu,
+        sectionId: form.sectionId || null,
+        carYear: form.carYear ? Number(form.carYear) : undefined,
+        powerHp: form.powerHp ? Number(form.powerHp) : undefined,
+        volumeCc: form.volumeCc ? Number(form.volumeCc) : undefined,
+        priceCny: form.priceCny ? Number(form.priceCny) : undefined,
+        priceCurrency: form.priceCurrency,
+      });
+      setVehicle(saved);
+      toast.success("Сохранено");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleEstimate() {
     setEstimating(true);
     try {
-      await apiPost(`/api/catalog/vehicles/${vehicleId}/estimate`, undefined, "PUT");
+      await apiSend(`/api/catalog/vehicles/${vehicleId}`, "PATCH", {
+        carYear: form.carYear ? Number(form.carYear) : undefined,
+        powerHp: form.powerHp ? Number(form.powerHp) : undefined,
+        volumeCc: form.volumeCc ? Number(form.volumeCc) : undefined,
+        priceCny: form.priceCny ? Number(form.priceCny) : undefined,
+        priceCurrency: form.priceCurrency,
+      });
+      await apiSend(`/api/catalog/vehicles/${vehicleId}/estimate`, "POST", {
+        destinationCountry: form.origin,
+        price: Number(form.priceCny),
+        currency: form.priceCurrency,
+        powerHp: Number(form.powerHp),
+        volumeCc: Number(form.volumeCc),
+        carYear: Number(form.carYear),
+      });
       toast.success("Расчёт обновлён");
       await loadVehicle();
     } catch (error) {
@@ -123,20 +180,78 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     }
   }
 
-  async function handleSaveText() {
-    setSaving(true);
+  async function handleAutoEstimate() {
+    setEstimating(true);
     try {
-      await apiPost(
-        `/api/catalog/vehicles/${vehicleId}`,
-        { titleRu: editRu.titleRu, descriptionRu: editRu.descriptionRu },
-        "PATCH",
-      );
-      toast.success("Сохранено");
+      const response = await fetch(`/api/catalog/vehicles/${vehicleId}/estimate`, {
+        method: "PUT",
+        credentials: "include",
+      });
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        throw new ApiRequestError(json.error ?? "Не удалось рассчитать", response.status);
+      }
+      toast.success("Расчёт обновлён");
       await loadVehicle();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+      toast.error(error instanceof ApiRequestError ? error.message : "Не удалось рассчитать");
     } finally {
-      setSaving(false);
+      setEstimating(false);
+    }
+  }
+
+  async function handleShare() {
+    setSharing(true);
+    try {
+      const result = await apiSend<{ url: string; clipboard: string }>(
+        `/api/catalog/vehicles/${vehicleId}/share`,
+        "POST",
+      );
+      setShareUrl(result.url);
+      await navigator.clipboard.writeText(result.clipboard);
+      toast.success("Ссылка скопирована");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  async function handlePhotos(files: FileList | null) {
+    if (!files?.length) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      Array.from(files).forEach((file) => formData.append("files", file));
+      const response = await fetch(`/api/catalog/vehicles/${vehicleId}/photos`, {
+        method: "POST",
+        credentials: "include",
+        body: formData,
+      });
+      const json = await response.json();
+      if (!response.ok || !json.success) {
+        throw new ApiRequestError(json.error ?? "Не удалось загрузить фото", response.status);
+      }
+      setVehicle(json.data as CatalogVehicleDetail);
+      toast.success("Фото добавлены");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось загрузить фото");
+    } finally {
+      setUploading(false);
+      if (photoInputRef.current) photoInputRef.current.value = "";
+    }
+  }
+
+  async function handleDeletePhoto(mediaId: string) {
+    try {
+      const saved = await apiSend<CatalogVehicleDetail>(
+        `/api/catalog/vehicles/${vehicleId}/photos/${mediaId}`,
+        "DELETE",
+      );
+      setVehicle(saved);
+      setActiveImage(0);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить фото");
     }
   }
 
@@ -150,21 +265,12 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     }
   }
 
-  async function openSelectionDialog() {
-    try {
-      const data = await apiGet<Array<{ id: string; title: string }>>("/api/catalog/selections");
-      setSelections(data.map((s) => ({ id: s.id, title: s.title })));
-      setSelectionOpen(true);
-    } catch {
-      toast.error("Не удалось загрузить подборки");
-    }
-  }
-
   async function handleAddToDeal() {
     if (!selectedDealId) return;
     try {
-      const result = await apiPost<{ entryId: string; dealId: string }>(
+      const result = await apiSend<{ entryId: string; dealId: string }>(
         `/api/catalog/vehicles/${vehicleId}/add-to-deal`,
+        "POST",
         { dealId: selectedDealId, publish: false },
       );
       toast.success("Добавлено в сделку");
@@ -175,17 +281,14 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     }
   }
 
-  async function handleAddToSelection() {
-    if (!selectedSelectionId) return;
+  async function handleArchive() {
+    if (!confirm("Снять авто с витрины?")) return;
     try {
-      await apiPost(`/api/catalog/selections/${selectedSelectionId}/items`, {
-        catalogVehicleId: vehicleId,
-      });
-      toast.success("Добавлено в подборку");
-      setSelectionOpen(false);
-      router.push(`/catalog/selections/${selectedSelectionId}`);
+      await apiSend(`/api/catalog/vehicles/${vehicleId}`, "PATCH", { status: "ARCHIVED" });
+      toast.success("Снято с витрины");
+      router.push("/catalog");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось добавить");
+      toast.error(error instanceof Error ? error.message : "Не удалось скрыть");
     }
   }
 
@@ -208,7 +311,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     <>
       <Header
         title={vehicle.titleRu || vehicle.titleZh}
-        subtitle={[vehicle.brand, vehicle.model, vehicle.carYear?.toString()].filter(Boolean).join(" · ")}
+        subtitle={vehicle.sectionTitle ?? "Каталог"}
       />
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
@@ -219,27 +322,55 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
               Назад
             </Link>
           </Button>
-          {vehicle.sourceUrl && (
-            <Button variant="outline" size="sm" asChild>
-              <a href={vehicle.sourceUrl} target="_blank" rel="noreferrer">
-                <ExternalLink className="mr-1.5 h-4 w-4" />
-                Che168
-              </a>
-            </Button>
-          )}
-          <Button variant="outline" size="sm" onClick={() => void openSelectionDialog()}>
-            <FolderPlus className="mr-1.5 h-4 w-4" />
-            В подборку
+          <Button size="sm" onClick={() => void handleShare()} disabled={sharing}>
+            {sharing ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Share2 className="mr-1.5 h-4 w-4" />
+            )}
+            Поделиться
           </Button>
-          <Button size="sm" onClick={() => void openDealDialog()}>
+          <Button variant="outline" size="sm" onClick={() => void openDealDialog()}>
             <UserPlus className="mr-1.5 h-4 w-4" />
             В сделку
           </Button>
+          <Button variant="outline" size="sm" onClick={() => void handleArchive()}>
+            Снять с витрины
+          </Button>
         </div>
+
+        {shareUrl && (
+          <Card className="mb-4">
+            <CardContent className="flex flex-wrap items-center gap-2 p-3">
+              <p className="min-w-0 flex-1 truncate text-sm">{shareUrl}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  void navigator.clipboard.writeText(shareUrl);
+                  toast.success("Ссылка скопирована");
+                }}
+              >
+                <Copy className="mr-1.5 h-4 w-4" />
+                Копировать
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <a
+                  href={buildTelegramShareUrl(shareUrl, vehicle.titleRu)}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Открыть в Telegram
+                </a>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
         <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.2fr_1fr]">
           <div className="space-y-4">
             <Card className="overflow-hidden">
-              <div className="aspect-[16/10] bg-muted">
+              <div className="relative aspect-[16/10] bg-muted">
                 {images[activeImage] ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -257,7 +388,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                 <div className="flex gap-2 overflow-x-auto p-3">
                   {images.map((url, index) => (
                     <button
-                      key={url}
+                      key={`${url}-${index}`}
                       type="button"
                       onClick={() => setActiveImage(index)}
                       className={`h-16 w-24 shrink-0 overflow-hidden rounded-md border-2 ${
@@ -270,54 +401,101 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                   ))}
                 </div>
               )}
+              <CardContent className="space-y-3 p-4">
+                <input
+                  ref={photoInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                  onChange={(event) => void handlePhotos(event.target.files)}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploading || (vehicle.photos.length >= MAX_CATALOG_VEHICLE_PHOTOS)}
+                    onClick={() => photoInputRef.current?.click()}
+                  >
+                    {uploading ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <ImagePlus className="mr-1.5 h-4 w-4" />
+                    )}
+                    Добавить фото
+                  </Button>
+                  <p className="self-center text-xs text-muted-foreground">
+                    До {MAX_CATALOG_VEHICLE_PHOTOS} снимков
+                  </p>
+                </div>
+                {vehicle.photos.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {vehicle.photos.map((photo) => (
+                      <button
+                        key={photo.id}
+                        type="button"
+                        className="relative h-16 w-20 overflow-hidden rounded-md border"
+                        onClick={() => void handleDeletePhoto(photo.id)}
+                        title="Удалить фото"
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={photo.fileUrl} alt="" className="h-full w-full object-cover" />
+                        <span className="absolute right-0.5 top-0.5 rounded-full bg-background/80 p-0.5">
+                          <X className="h-3 w-3" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
             </Card>
-
-            {vehicle.videoUrl && (
-              <Card>
-                <CardHeader>
-                  <CardTitle>Видео</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <video controls className="w-full rounded-lg" src={vehicle.videoUrl} />
-                </CardContent>
-              </Card>
-            )}
 
             <Card>
               <CardHeader>
-                <CardTitle>Описание</CardTitle>
+                <CardTitle>Карточка</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="title-ru">Название (RU)</Label>
+                  <Label htmlFor="title-ru">Марка, модель</Label>
                   <Input
                     id="title-ru"
-                    value={editRu.titleRu}
-                    onChange={(e) => setEditRu((v) => ({ ...v, titleRu: e.target.value }))}
+                    value={form.titleRu}
+                    onChange={(event) => setForm((current) => ({ ...current, titleRu: event.target.value }))}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="desc-ru">Описание (RU)</Label>
+                  <Label htmlFor="section">Раздел</Label>
+                  <select
+                    id="section"
+                    className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                    value={form.sectionId}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, sectionId: event.target.value }))
+                    }
+                  >
+                    <option value="">Без раздела</option>
+                    {sections.map((section) => (
+                      <option key={section.id} value={section.id}>
+                        {section.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="desc-ru">Описание</Label>
                   <Textarea
                     id="desc-ru"
                     rows={8}
-                    value={editRu.descriptionRu}
-                    onChange={(e) => setEditRu((v) => ({ ...v, descriptionRu: e.target.value }))}
+                    value={form.descriptionRu}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, descriptionRu: event.target.value }))
+                    }
                   />
                 </div>
-                {vehicle.descriptionZh && (
-                  <details className="text-sm">
-                    <summary className="cursor-pointer text-muted-foreground">
-                      Оригинал (中文)
-                    </summary>
-                    <p className="mt-2 whitespace-pre-wrap text-muted-foreground">
-                      {vehicle.descriptionZh}
-                    </p>
-                  </details>
-                )}
-                <Button onClick={() => void handleSaveText()} disabled={saving}>
+                <Button onClick={() => void handleSave()} disabled={saving}>
                   {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                  Сохранить текст
+                  Сохранить
                 </Button>
               </CardContent>
             </Card>
@@ -326,88 +504,110 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Характеристики</CardTitle>
+                <CardTitle>Цена и расчёт «под ключ»</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Цена в Китае</span>
-                  <span className="font-medium">{formatCny(vehicle.priceCny)}</span>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="price">Цена авто</Label>
+                    <Input
+                      id="price"
+                      inputMode="decimal"
+                      value={form.priceCny}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, priceCny: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="currency">Валюта</Label>
+                    <select
+                      id="currency"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={form.priceCurrency}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, priceCurrency: event.target.value }))
+                      }
+                    >
+                      <option value="CNY">CNY</option>
+                      <option value="USD">USD</option>
+                      <option value="KRW">KRW</option>
+                      <option value="RUB">RUB</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="year">Год</Label>
+                    <Input
+                      id="year"
+                      inputMode="numeric"
+                      value={form.carYear}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, carYear: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="origin">Страна</Label>
+                    <select
+                      id="origin"
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={form.origin}
+                      onChange={(event) => setForm((current) => ({ ...current, origin: event.target.value }))}
+                    >
+                      <option value="china">Китай</option>
+                      <option value="korea">Корея</option>
+                      <option value="kyrgyzstan">Киргизия</option>
+                    </select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="hp">Мощность, л.с.</Label>
+                    <Input
+                      id="hp"
+                      inputMode="numeric"
+                      value={form.powerHp}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, powerHp: event.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="cc">Объём, см³</Label>
+                    <Input
+                      id="cc"
+                      inputMode="numeric"
+                      value={form.volumeCc}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, volumeCc: event.target.value }))
+                      }
+                    />
+                  </div>
                 </div>
-                {vehicle.mileageKm != null && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Пробег</span>
-                    <span>{vehicle.mileageKm.toLocaleString("ru-RU")} км</span>
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => void handleEstimate()}
+                    disabled={
+                      estimating || !form.priceCny || !form.carYear || !form.powerHp || !form.volumeCc
+                    }
+                  >
+                    {estimating ? (
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Calculator className="mr-1.5 h-4 w-4" />
+                    )}
+                    Рассчитать
+                  </Button>
+                  <Button variant="outline" onClick={() => void handleAutoEstimate()} disabled={estimating}>
+                    Пересчитать
+                  </Button>
+                </div>
+                {estimate?.totalWithCar != null && (
+                  <p className="text-xl font-semibold">Итого: {formatCurrency(estimate.totalWithCar)}</p>
                 )}
-                {vehicle.volumeCc && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Объём</span>
-                    <span>{vehicle.volumeCc} см³</span>
-                  </div>
-                )}
-                {vehicle.powerHp && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Мощность</span>
-                    <span>{vehicle.powerHp} л.с.</span>
-                  </div>
-                )}
-                {vehicle.transmission && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">КПП</span>
-                    <span>{vehicle.transmission}</span>
-                  </div>
-                )}
-                {vehicle.color && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Цвет</span>
-                    <span>{vehicle.color}</span>
-                  </div>
-                )}
-                {vehicle.location && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Город</span>
-                    <span>{vehicle.location}</span>
-                  </div>
-                )}
-                {vehicle.source === "CHE168" && (
-                  <Badge variant="secondary" className="w-fit">
-                    Импорт Che168
-                  </Badge>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>Расчёт «под ключ»</CardTitle>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void handleAutoEstimate()}
-                  disabled={estimating}
-                >
-                  {estimating ? (
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Calculator className="mr-1.5 h-4 w-4" />
-                  )}
-                  Пересчитать
-                </Button>
-              </CardHeader>
-              <CardContent>
                 {estimate && estimateResult && estimateInput ? (
                   <CustomsEstimateSnapshot input={estimateInput} result={estimateResult} />
                 ) : (
-                  <div className="space-y-3 text-sm text-muted-foreground">
-                    <p>Автоматический расчёт по цене и году из объявления.</p>
-                    <Button onClick={() => void handleAutoEstimate()} disabled={estimating}>
-                      Рассчитать цену
-                    </Button>
-                  </div>
-                )}
-                {estimate?.totalWithCar != null && (
-                  <p className="mt-4 text-lg font-semibold">
-                    Итого: {formatCurrency(estimate.totalWithCar)}
+                  <p className="text-sm text-muted-foreground">
+                    Укажите цену, год, мощность и объём — клиент увидит итоговую сумму в рублях.
                   </p>
                 )}
               </CardContent>
@@ -421,46 +621,21 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
           <DialogHeader>
             <DialogTitle>Добавить в сделку</DialogTitle>
           </DialogHeader>
-          <Select value={selectedDealId} onValueChange={setSelectedDealId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Выберите сделку" />
-            </SelectTrigger>
-            <SelectContent>
-              {deals.map((deal) => (
-                <SelectItem key={deal.id} value={deal.id}>
-                  {deal.clientName} · {deal.carBrand} {deal.carModel}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <select
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+            value={selectedDealId}
+            onChange={(event) => setSelectedDealId(event.target.value)}
+          >
+            <option value="">Выберите сделку</option>
+            {deals.map((deal) => (
+              <option key={deal.id} value={deal.id}>
+                {deal.clientName} · {deal.carBrand} {deal.carModel}
+              </option>
+            ))}
+          </select>
           <div className="flex justify-end">
             <Button onClick={() => void handleAddToDeal()} disabled={!selectedDealId}>
               Добавить как вариант
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={selectionOpen} onOpenChange={setSelectionOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Добавить в подборку</DialogTitle>
-          </DialogHeader>
-          <Select value={selectedSelectionId} onValueChange={setSelectedSelectionId}>
-            <SelectTrigger>
-              <SelectValue placeholder="Выберите подборку" />
-            </SelectTrigger>
-            <SelectContent>
-              {selections.map((selection) => (
-                <SelectItem key={selection.id} value={selection.id}>
-                  {selection.title}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <div className="flex justify-end">
-            <Button onClick={() => void handleAddToSelection()} disabled={!selectedSelectionId}>
-              Добавить
             </Button>
           </div>
         </DialogContent>

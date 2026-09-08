@@ -43,6 +43,8 @@ function dtoToSettings(dto: CompanyWorkspaceDto): ResolvedCompanyWorkspace {
     documentTypes: dto.documentTypes,
     additionalOptionGroups: dto.additionalOptionGroups,
     modules: dto.modules,
+    offerLinkCaptionTemplate:
+      dto.offerLinkCaptionTemplate ?? getDefaultCompanyWorkspace().offerLinkCaptionTemplate,
   };
 }
 

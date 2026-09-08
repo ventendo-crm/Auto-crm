@@ -1,6 +1,7 @@
 import { DealStageType } from "@prisma/client";
 import type { AdditionalOptionGroupDefinition } from "@/lib/additional-options";
 import { STAGE_ORDER } from "@/lib/constants";
+import { DEFAULT_OFFER_LINK_CAPTION_TEMPLATE, OFFER_LINK_CAPTION_TEMPLATE_MAX } from "@/lib/calculator/offer-share";
 import { getDefaultCompanyWorkspace, getDefaultDocumentTypes } from "@/lib/company-workspace/defaults";
 import {
   COMPANION_DOCUMENT_PARENT,
@@ -217,6 +218,12 @@ function resolveModules(raw: unknown): CompanyModules {
   return result;
 }
 
+function resolveOfferLinkCaptionTemplate(raw: unknown): string {
+  if (typeof raw !== "string") return DEFAULT_OFFER_LINK_CAPTION_TEMPLATE;
+  const trimmed = raw.trim().slice(0, OFFER_LINK_CAPTION_TEMPLATE_MAX);
+  return trimmed || DEFAULT_OFFER_LINK_CAPTION_TEMPLATE;
+}
+
 export interface CompanyWorkspaceRaw {
   stageLabels?: unknown;
   clientVisibleStages?: unknown;
@@ -226,6 +233,7 @@ export interface CompanyWorkspaceRaw {
   documentTypes?: unknown;
   additionalOptionGroups?: unknown;
   modules?: unknown;
+  offerLinkCaptionTemplate?: unknown;
 }
 
 export function resolveCompanyWorkspace(raw?: CompanyWorkspaceRaw | null): ResolvedCompanyWorkspace {
@@ -239,5 +247,6 @@ export function resolveCompanyWorkspace(raw?: CompanyWorkspaceRaw | null): Resol
     documentTypes: resolveDocumentTypes(raw.documentTypes),
     additionalOptionGroups: resolveAdditionalOptionGroups(raw.additionalOptionGroups),
     modules: resolveModules(raw.modules),
+    offerLinkCaptionTemplate: resolveOfferLinkCaptionTemplate(raw.offerLinkCaptionTemplate),
   };
 }

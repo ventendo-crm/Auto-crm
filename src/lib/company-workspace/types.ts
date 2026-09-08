@@ -52,6 +52,7 @@ export interface ResolvedCompanyWorkspace {
   documentTypes: CompanyDocumentType[];
   additionalOptionGroups: AdditionalOptionGroupDefinition[];
   modules: CompanyModules;
+  offerLinkCaptionTemplate: string;
 }
 
 export interface CompanyWorkspaceDto extends ResolvedCompanyWorkspace {

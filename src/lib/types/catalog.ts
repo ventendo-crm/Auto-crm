@@ -1,3 +1,20 @@
+import type {
+  CustomsCalculatorInput,
+  CustomsCalculatorResult,
+} from "@/lib/customs-calculator";
+
+export type CatalogPhoto = {
+  id: string;
+  fileUrl: string;
+};
+
+export type CatalogSectionItem = {
+  id: string;
+  title: string;
+  sortOrder: number;
+  vehicleCount: number;
+};
+
 export type CatalogVehicleListItem = {
   id: string;
   source: "MANUAL" | "CHE168";
@@ -9,8 +26,12 @@ export type CatalogVehicleListItem = {
   carYear: number | null;
   mileageKm: number | null;
   priceCny: number | null;
+  priceCurrency: string;
+  sectionId: string | null;
+  sectionTitle: string | null;
   coverImageUrl: string | null;
   galleryUrls: string[];
+  photos: CatalogPhoto[];
   videoUrl: string | null;
   status: "ACTIVE" | "ARCHIVED";
   estimate: {
@@ -32,6 +53,21 @@ export type CatalogVehicleDetail = CatalogVehicleListItem & {
   vin: string | null;
   importedAt: string | null;
   createdByName: string;
+};
+
+export type CatalogShareLink = {
+  token: string;
+  url: string;
+};
+
+export type PublicCatalogVehicleData = {
+  companyName: string;
+  title: string;
+  description: string;
+  photos: string[];
+  totalWithCar: number | null;
+  estimateInput: CustomsCalculatorInput | null;
+  estimateResult: CustomsCalculatorResult | null;
 };
 
 export type CatalogSelectionListItem = {
@@ -57,14 +93,6 @@ export type CatalogSelectionListItem = {
     active: boolean;
     viewCount: number;
   }>;
-};
-
-export type CatalogShareLink = {
-  id: string;
-  token: string;
-  url: string;
-  label: string | null;
-  expiresAt: string | null;
 };
 
 export type PublicSelectionData = {

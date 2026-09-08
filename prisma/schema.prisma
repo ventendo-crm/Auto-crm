@@ -35,6 +35,7 @@ model Company {
   googleCalendarEvents   GoogleCalendarEventMap[]
   catalogVehicles        CatalogVehicle[]
   catalogSelections      CatalogSelection[]
+  catalogSections        CatalogSection[]
 
   @@map("companies")
 }
@@ -85,7 +86,9 @@ model User {
   createdCatalogVehicles CatalogVehicle[] @relation("CatalogVehicleCreatedBy")
   createdCatalogSelections CatalogSelection[] @relation("CatalogSelectionCreatedBy")
   createdCatalogShareTokens CatalogSelectionShareToken[] @relation("CatalogShareTokenCreatedBy")
+  createdCatalogVehicleShareTokens CatalogVehicleShareToken[] @relation("CatalogVehicleShareTokenCreatedBy")
   createdCatalogEstimates CatalogVehicleCustomsEstimate[] @relation("CatalogEstimateCreatedBy")
+  createdCatalogSections CatalogSection[] @relation("CatalogSectionCreatedBy")
 
   @@unique([companyId, email])
   @@index([roleId])
@@ -412,6 +415,7 @@ model CompanyWorkspaceSettings {
   documentTypes           Json     @default("[]")
   additionalOptionGroups  Json     @default("[]")
   modules                 Json     @default("{}")
+  offerLinkCaptionTemplate String?
   updatedAt               DateTime @updatedAt
   company                 Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
@@ -652,9 +656,27 @@ enum CatalogVehicleStatus {
   ARCHIVED
 }
 
+model CatalogSection {
+  id          String   @id @default(cuid())
+  companyId   String
+  title       String
+  sortOrder   Int      @default(0)
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User     @relation("CatalogSectionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  vehicles    CatalogVehicle[]
+
+  @@index([companyId, sortOrder])
+  @@index([createdById])
+  @@map("catalog_sections")
+}
+
 model CatalogVehicle {
   id              String               @id @default(cuid())
   companyId       String
+  sectionId       String?
   source          CatalogVehicleSource @default(MANUAL)
   sourceUrl       String?
   externalId      String?
@@ -667,6 +689,7 @@ model CatalogVehicle {
   carYear         Int?
   mileageKm       Int?
   priceCny        Decimal?             @db.Decimal(14, 2)
+  priceCurrency   String               @default("CNY")
   volumeCc        Int?
   powerHp         Int?
   fuelType        String?
@@ -684,16 +707,19 @@ model CatalogVehicle {
   createdAt       DateTime             @default(now())
   updatedAt       DateTime             @updatedAt
   company         Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  section         CatalogSection?      @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   createdBy       User                 @relation("CatalogVehicleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   media           MediaFile[]
   selectionItems  CatalogSelectionItem[]
   customsEstimate CatalogVehicleCustomsEstimate?
   searchProcessEntries SearchProcessEntry[]
+  shareTokens     CatalogVehicleShareToken[]
 
   @@unique([companyId, source, externalId])
   @@index([companyId, status])
   @@index([companyId, brand])
   @@index([companyId, carYear])
+  @@index([sectionId])
   @@index([createdById])
   @@map("catalog_vehicles")
 }
@@ -772,6 +798,25 @@ model CatalogSelectionShareToken {
   @@index([selectionId])
   @@index([createdById])
   @@map("catalog_selection_share_tokens")
+}
+
+model CatalogVehicleShareToken {
+  id               String         @id @default(cuid())
+  catalogVehicleId String
+  tokenHash        String         @unique
+  publicToken      String?
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  viewCount        Int            @default(0)
+  lastViewedAt     DateTime?
+  createdById      String
+  createdAt        DateTime       @default(now())
+  catalogVehicle   CatalogVehicle @relation(fields: [catalogVehicleId], references: [id], onDelete: Cascade)
+  createdBy        User           @relation("CatalogVehicleShareTokenCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([catalogVehicleId])
+  @@index([createdById])
+  @@map("catalog_vehicle_share_tokens")
 }
 
 enum GoogleCalendarSourceType {

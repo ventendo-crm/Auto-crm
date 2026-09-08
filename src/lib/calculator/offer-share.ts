@@ -5,6 +5,8 @@ export const OFFER_MAX_TOTAL_BYTES = 90 * 1024 * 1024;
 export const OFFER_DESCRIPTION_MAX = 4000;
 export const OFFER_VEHICLE_TITLE_MAX = 120;
 export const OFFER_TOKEN_PATTERN = /^[a-f0-9]{48}$/;
+export const DEFAULT_OFFER_LINK_CAPTION_TEMPLATE = 'Расчет автомобиля "{марка}"';
+export const OFFER_LINK_CAPTION_TEMPLATE_MAX = 200;
 
 export type PublicCalculatorOffer = {
   companyName: string;
@@ -47,6 +49,32 @@ export function buildTelegramShareUrl(url: string, text: string): string {
   params.set("url", url);
   if (text.trim()) params.set("text", text.trim());
   return `https://t.me/share/url?${params.toString()}`;
+}
+
+export function buildOfferLinkCaption(vehicleTitle?: string | null, template?: string | null) {
+  const title = vehicleTitle?.trim() ?? "";
+  const source = (template?.trim() || DEFAULT_OFFER_LINK_CAPTION_TEMPLATE).slice(
+    0,
+    OFFER_LINK_CAPTION_TEMPLATE_MAX,
+  );
+  let result = source.replaceAll("{марка}", title).replaceAll("{title}", title);
+  result = result
+    .replace(/\s*"\s*"/g, "")
+    .replace(/\s*«\s*»/g, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  if (!result) {
+    return title ? `Расчет автомобиля "${title}"` : "Расчет автомобиля";
+  }
+  return result;
+}
+
+export function buildOfferLinkClipboard(
+  url: string,
+  vehicleTitle?: string | null,
+  template?: string | null,
+) {
+  return `${buildOfferLinkCaption(vehicleTitle, template)}\n\n${url}`;
 }
 
 export function sanitizeOfferHttpUrl(value: string): string | null {

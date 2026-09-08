@@ -3,17 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  ExternalLink,
-  FolderPlus,
-  Import,
-  Loader2,
-  Plus,
-  RefreshCw,
-  Search,
-  Wifi,
-  WifiOff,
-} from "lucide-react";
+import { FolderPlus, Loader2, Pencil, Plus, RefreshCw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Header } from "@/components/layout/header";
 import { Badge } from "@/components/ui/badge";
@@ -27,9 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { ApiRequestError } from "@/lib/api-client";
-import type { CatalogSelectionListItem, CatalogVehicleListItem } from "@/lib/types/catalog";
+import type { CatalogSectionItem, CatalogVehicleListItem } from "@/lib/types/catalog";
 import { cn, formatCurrency } from "@/lib/utils";
 
 async function apiGet<T>(path: string): Promise<T> {
@@ -41,27 +31,23 @@ async function apiGet<T>(path: string): Promise<T> {
   return json.data as T;
 }
 
-async function apiPost<T>(path: string, body: unknown): Promise<T> {
+async function apiSend<T>(path: string, method: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
-    method: "POST",
+    method,
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    headers: body ? { "Content-Type": "application/json" } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
   });
-  const json = await response.json();
-  if (!response.ok || !json.success) {
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok || (json.success === false)) {
     throw new ApiRequestError(json.error ?? "Ошибка запроса", response.status);
   }
   return json.data as T;
 }
 
-function formatCny(value: number | null): string {
-  if (value == null) return "—";
-  return `${value.toLocaleString("ru-RU")} ¥`;
-}
-
 function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
-  const image = vehicle.coverImageUrl ?? vehicle.galleryUrls[0] ?? null;
+  const image = vehicle.photos[0]?.fileUrl ?? vehicle.coverImageUrl ?? vehicle.galleryUrls[0] ?? null;
+  const total = vehicle.estimate?.totalWithCar ?? null;
   return (
     <Link href={`/catalog/${vehicle.id}`} className="group block">
       <Card className="overflow-hidden transition-shadow hover:shadow-md">
@@ -74,9 +60,9 @@ function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
               Нет фото
             </div>
           )}
-          {vehicle.source === "CHE168" && (
+          {vehicle.sectionTitle && (
             <Badge className="absolute left-2 top-2" variant="secondary">
-              Che168
+              {vehicle.sectionTitle}
             </Badge>
           )}
         </div>
@@ -84,57 +70,9 @@ function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
           <h3 className="line-clamp-2 text-sm font-semibold leading-snug group-hover:text-brand">
             {vehicle.titleRu || vehicle.titleZh}
           </h3>
-          <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-            {vehicle.carYear && <span>{vehicle.carYear} г.</span>}
-            {vehicle.mileageKm != null && (
-              <span>{vehicle.mileageKm.toLocaleString("ru-RU")} км</span>
-            )}
-            {vehicle.brand && <span>{vehicle.brand}</span>}
-          </div>
-          <div className="flex items-end justify-between gap-2">
-            <p className="text-sm font-medium">{formatCny(vehicle.priceCny)}</p>
-            {vehicle.estimate?.totalWithCar != null && (
-              <p className="text-xs text-muted-foreground">
-                ≈ {formatCurrency(vehicle.estimate.totalWithCar)}
-              </p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
-  );
-}
-
-function SelectionCard({ selection }: { selection: CatalogSelectionListItem }) {
-  const preview = selection.items.slice(0, 3);
-  return (
-    <Link href={`/catalog/selections/${selection.id}`}>
-      <Card className="transition-shadow hover:shadow-md">
-        <CardContent className="space-y-3 p-4">
-          <div className="flex items-start justify-between gap-2">
-            <div>
-              <h3 className="font-semibold">{selection.title}</h3>
-              <p className="text-xs text-muted-foreground">
-                {selection.items.length} авто · {selection.createdByName}
-              </p>
-            </div>
-            {selection.shareTokens.some((t) => t.active) && (
-              <Badge variant="outline">Есть ссылка</Badge>
-            )}
-          </div>
-          <div className="flex -space-x-2">
-            {preview.map((item) =>
-              item.vehicle.coverImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  key={item.id}
-                  src={item.vehicle.coverImageUrl}
-                  alt=""
-                  className="h-10 w-10 rounded-full border-2 border-card object-cover"
-                />
-              ) : null,
-            )}
-          </div>
+          <p className="text-base font-semibold">
+            {total != null ? formatCurrency(total) : "Нет расчёта"}
+          </p>
         </CardContent>
       </Card>
     </Link>
@@ -143,53 +81,43 @@ function SelectionCard({ selection }: { selection: CatalogSelectionListItem }) {
 
 export function CatalogPageContent() {
   const router = useRouter();
-  const [tab, setTab] = useState("vehicles");
   const [vehicles, setVehicles] = useState<CatalogVehicleListItem[]>([]);
-  const [selections, setSelections] = useState<CatalogSelectionListItem[]>([]);
-  const [brands, setBrands] = useState<string[]>([]);
+  const [sections, setSections] = useState<CatalogSectionItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [importOpen, setImportOpen] = useState(false);
-  const [importUrl, setImportUrl] = useState("");
-  const [importing, setImporting] = useState(false);
-  const [selectionOpen, setSelectionOpen] = useState(false);
-  const [selectionTitle, setSelectionTitle] = useState("");
-  const [proxyOk, setProxyOk] = useState<boolean | null>(null);
-  const [filters, setFilters] = useState({
-    q: "",
-    brand: "",
-    yearFrom: "",
-    yearTo: "",
-    priceFrom: "",
-    priceTo: "",
+  const [sectionId, setSectionId] = useState<string>("all");
+  const [query, setQuery] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState(false);
+  const [rename, setRename] = useState<{ id: string; title: string } | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({
+    titleRu: "",
+    descriptionRu: "",
+    sectionId: "",
+    carYear: "",
+    powerHp: "",
+    volumeCc: "",
+    priceCny: "",
+    priceCurrency: "CNY",
   });
+  const [sectionTitle, setSectionTitle] = useState("");
 
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
-    if (filters.q) params.set("q", filters.q);
-    if (filters.brand) params.set("brand", filters.brand);
-    if (filters.yearFrom) params.set("yearFrom", filters.yearFrom);
-    if (filters.yearTo) params.set("yearTo", filters.yearTo);
-    if (filters.priceFrom) params.set("priceFrom", filters.priceFrom);
-    if (filters.priceTo) params.set("priceTo", filters.priceTo);
+    if (query.trim()) params.set("q", query.trim());
+    if (sectionId !== "all") params.set("sectionId", sectionId);
     return params.toString();
-  }, [filters]);
+  }, [query, sectionId]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      const [vehiclesData, selectionsData, brandsData, proxyData] = await Promise.all([
+      const [vehiclesData, sectionsData] = await Promise.all([
         apiGet<{ items: CatalogVehicleListItem[] }>(`/api/catalog/vehicles?${queryString}`),
-        apiGet<CatalogSelectionListItem[]>("/api/catalog/selections"),
-        apiGet<string[]>("/api/catalog/brands"),
-        apiGet<{ ok: boolean; message: string }>("/api/catalog/proxy-health").catch(() => ({
-          ok: false,
-          message: "Не удалось проверить прокси",
-        })),
+        apiGet<CatalogSectionItem[]>("/api/catalog/sections"),
       ]);
       setVehicles(vehiclesData.items);
-      setSelections(selectionsData);
-      setBrands(brandsData);
-      setProxyOk(proxyData.ok);
+      setSections(sectionsData);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось загрузить каталог");
     } finally {
@@ -201,221 +129,321 @@ export function CatalogPageContent() {
     void loadData();
   }, [loadData]);
 
-  async function handleImport() {
-    if (!importUrl.trim()) return;
-    setImporting(true);
+  async function handleCreateSection() {
+    if (!sectionTitle.trim()) return;
     try {
-      const result = await apiPost<{ vehicle: CatalogVehicleListItem; created: boolean }>(
-        "/api/catalog/vehicles/import-che168",
-        { url: importUrl.trim(), translate: true },
-      );
-      toast.success(result.created ? "Объявление импортировано" : "Объявление обновлено");
-      setImportOpen(false);
-      setImportUrl("");
-      router.push(`/catalog/${result.vehicle.id}`);
+      const section = await apiSend<CatalogSectionItem>("/api/catalog/sections", "POST", {
+        title: sectionTitle.trim(),
+      });
+      toast.success("Раздел создан");
+      setSectionOpen(false);
+      setSectionTitle("");
+      setSections((current) => [...current, section]);
+      setSectionId(section.id);
     } catch (error) {
-      toast.error(error instanceof ApiRequestError ? error.message : "Ошибка импорта");
-    } finally {
-      setImporting(false);
+      toast.error(error instanceof Error ? error.message : "Не удалось создать раздел");
     }
   }
 
-  async function handleCreateSelection() {
-    if (!selectionTitle.trim()) return;
+  async function handleRenameSection() {
+    if (!rename?.title.trim()) return;
     try {
-      const selection = await apiPost<CatalogSelectionListItem>("/api/catalog/selections", {
-        title: selectionTitle.trim(),
+      const updated = await apiSend<CatalogSectionItem>(`/api/catalog/sections/${rename.id}`, "PATCH", {
+        title: rename.title.trim(),
       });
-      toast.success("Подборка создана");
-      setSelectionOpen(false);
-      setSelectionTitle("");
-      router.push(`/catalog/selections/${selection.id}`);
+      setSections((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+      setRename(null);
+      toast.success("Раздел переименован");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось создать подборку");
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+    }
+  }
+
+  async function handleDeleteSection(id: string) {
+    if (!confirm("Удалить раздел? Авто останутся в каталоге без раздела.")) return;
+    try {
+      await apiSend(`/api/catalog/sections/${id}`, "DELETE");
+      setSections((current) => current.filter((item) => item.id !== id));
+      if (sectionId === id) setSectionId("all");
+      toast.success("Раздел удалён");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить");
+    }
+  }
+
+  async function handleCreateVehicle() {
+    if (!form.titleRu.trim()) return;
+    setCreating(true);
+    try {
+      const vehicle = await apiSend<{ id: string }>("/api/catalog/vehicles", "POST", {
+        titleRu: form.titleRu.trim(),
+        descriptionRu: form.descriptionRu.trim() || undefined,
+        sectionId: form.sectionId || null,
+        carYear: form.carYear ? Number(form.carYear) : undefined,
+        powerHp: form.powerHp ? Number(form.powerHp) : undefined,
+        volumeCc: form.volumeCc ? Number(form.volumeCc) : undefined,
+        priceCny: form.priceCny ? Number(form.priceCny) : undefined,
+        priceCurrency: form.priceCurrency,
+      });
+      toast.success("Авто добавлено");
+      setCreateOpen(false);
+      router.push(`/catalog/${vehicle.id}`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось создать");
+    } finally {
+      setCreating(false);
     }
   }
 
   return (
     <>
-      <Header
-        title="Каталог"
-        subtitle="Авто из Китая: импорт Che168, подборки и расчёт цены"
-      />
+      <Header title="Каталог" subtitle="Новые авто: фото, описание, цена «под ключ» и ссылка клиенту" />
 
-      <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6">
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading}>
-            <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
-            Обновить
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
-            <Import className="mr-1.5 h-4 w-4" />
-            Che168
-          </Button>
-          <Button size="sm" onClick={() => setSelectionOpen(true)}>
+      <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6 lg:flex-row">
+        <aside className="w-full shrink-0 space-y-2 lg:w-56">
+          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Разделы</p>
+          <button
+            type="button"
+            onClick={() => setSectionId("all")}
+            className={cn(
+              "flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm",
+              sectionId === "all" ? "bg-brand-muted text-brand" : "hover:bg-muted",
+            )}
+          >
+            Все
+            <span className="text-xs text-muted-foreground">{vehicles.length}</span>
+          </button>
+          {sections.map((section) => (
+            <div key={section.id} className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSectionId(section.id)}
+                className={cn(
+                  "flex min-w-0 flex-1 items-center justify-between rounded-lg px-3 py-2 text-left text-sm",
+                  sectionId === section.id ? "bg-brand-muted text-brand" : "hover:bg-muted",
+                )}
+              >
+                <span className="truncate">{section.title}</span>
+                <span className="ml-2 text-xs text-muted-foreground">{section.vehicleCount}</span>
+              </button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setRename({ id: section.id, title: section.title })}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => void handleDeleteSection(section.id)}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+          <Button variant="outline" size="sm" className="w-full" onClick={() => setSectionOpen(true)}>
             <FolderPlus className="mr-1.5 h-4 w-4" />
-            Подборка
+            Раздел
           </Button>
-        </div>
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          {proxyOk === true ? (
-            <Badge variant="outline" className="gap-1 text-emerald-600">
-              <Wifi className="h-3.5 w-3.5" />
-              Прокси для Che168 OK
-            </Badge>
-          ) : proxyOk === false ? (
-            <Badge variant="outline" className="gap-1 text-amber-600">
-              <WifiOff className="h-3.5 w-3.5" />
-              Прокси недоступен — импорт может не работать
-            </Badge>
-          ) : null}
-        </div>
+        </aside>
 
-        <Tabs value={tab} onValueChange={setTab}>
-          <TabsList>
-            <TabsTrigger value="vehicles">Авто</TabsTrigger>
-            <TabsTrigger value="selections">Подборки</TabsTrigger>
-          </TabsList>
+        <div className="min-w-0 flex-1 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative min-w-[180px] flex-1">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Поиск по названию..."
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+              />
+            </div>
+            <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading}>
+              <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
+              Обновить
+            </Button>
+            <Button size="sm" onClick={() => setCreateOpen(true)}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Добавить авто
+            </Button>
+          </div>
 
-          <TabsContent value="vehicles" className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : vehicles.length === 0 ? (
             <Card>
-              <CardContent className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-6">
-                <div className="relative lg:col-span-2">
-                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    placeholder="Поиск..."
-                    value={filters.q}
-                    onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
-                  />
-                </div>
-                <Input
-                  placeholder="Марка"
-                  list="catalog-brands"
-                  value={filters.brand}
-                  onChange={(e) => setFilters((f) => ({ ...f, brand: e.target.value }))}
-                />
-                <datalist id="catalog-brands">
-                  {brands.map((brand) => (
-                    <option key={brand} value={brand} />
-                  ))}
-                </datalist>
-                <Input
-                  placeholder="Год от"
-                  inputMode="numeric"
-                  value={filters.yearFrom}
-                  onChange={(e) => setFilters((f) => ({ ...f, yearFrom: e.target.value }))}
-                />
-                <Input
-                  placeholder="Год до"
-                  inputMode="numeric"
-                  value={filters.yearTo}
-                  onChange={(e) => setFilters((f) => ({ ...f, yearTo: e.target.value }))}
-                />
-                <Input
-                  placeholder="Цена ¥ до"
-                  inputMode="numeric"
-                  value={filters.priceTo}
-                  onChange={(e) => setFilters((f) => ({ ...f, priceTo: e.target.value }))}
-                />
+              <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+                <p className="text-muted-foreground">Пока нет авто в каталоге</p>
+                <Button onClick={() => setCreateOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Добавить авто
+                </Button>
               </CardContent>
             </Card>
-
-            {loading ? (
-              <div className="flex justify-center py-16">
-                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : vehicles.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-                  <p className="text-muted-foreground">Пока нет объявлений</p>
-                  <Button onClick={() => setImportOpen(true)}>
-                    <Import className="mr-2 h-4 w-4" />
-                    Импорт с Che168
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                {vehicles.map((vehicle) => (
-                  <VehicleCard key={vehicle.id} vehicle={vehicle} />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-
-          <TabsContent value="selections" className="space-y-4">
-            {selections.length === 0 ? (
-              <Card>
-                <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-                  <p className="text-muted-foreground">Подборок пока нет</p>
-                  <Button onClick={() => setSelectionOpen(true)}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Создать подборку
-                  </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {selections.map((selection) => (
-                  <SelectionCard key={selection.id} selection={selection} />
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {vehicles.map((vehicle) => (
+                <VehicleCard key={vehicle.id} vehicle={vehicle} />
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
-      <Dialog open={importOpen} onOpenChange={setImportOpen}>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Импорт с Che168</DialogTitle>
+            <DialogTitle>Новое авто</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="che168-url">Ссылка на объявление</Label>
-            <Input
-              id="che168-url"
-              placeholder="https://www.che168.com/dealer/..."
-              value={importUrl}
-              onChange={(e) => setImportUrl(e.target.value)}
-            />
-            <p className="text-xs text-muted-foreground">
-              Страница загружается через китайский прокси сервера (CHINA_PROXY_URL). Описание
-              переводится на русский автоматически.
-            </p>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="new-title">Марка, модель</Label>
+              <Input
+                id="new-title"
+                value={form.titleRu}
+                onChange={(event) => setForm((current) => ({ ...current, titleRu: event.target.value }))}
+                placeholder="Changan UNI-K"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-section">Раздел</Label>
+              <select
+                id="new-section"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={form.sectionId}
+                onChange={(event) => setForm((current) => ({ ...current, sectionId: event.target.value }))}
+              >
+                <option value="">Без раздела</option>
+                {sections.map((section) => (
+                  <option key={section.id} value={section.id}>
+                    {section.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-desc">Описание</Label>
+              <Textarea
+                id="new-desc"
+                rows={4}
+                value={form.descriptionRu}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, descriptionRu: event.target.value }))
+                }
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="new-year">Год</Label>
+                <Input
+                  id="new-year"
+                  inputMode="numeric"
+                  value={form.carYear}
+                  onChange={(event) => setForm((current) => ({ ...current, carYear: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-price">Цена авто</Label>
+                <Input
+                  id="new-price"
+                  inputMode="decimal"
+                  value={form.priceCny}
+                  onChange={(event) => setForm((current) => ({ ...current, priceCny: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-hp">Мощность, л.с.</Label>
+                <Input
+                  id="new-hp"
+                  inputMode="numeric"
+                  value={form.powerHp}
+                  onChange={(event) => setForm((current) => ({ ...current, powerHp: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="new-cc">Объём, см³</Label>
+                <Input
+                  id="new-cc"
+                  inputMode="numeric"
+                  value={form.volumeCc}
+                  onChange={(event) => setForm((current) => ({ ...current, volumeCc: event.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="new-currency">Валюта цены авто</Label>
+              <select
+                id="new-currency"
+                className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={form.priceCurrency}
+                onChange={(event) =>
+                  setForm((current) => ({ ...current, priceCurrency: event.target.value }))
+                }
+              >
+                <option value="CNY">CNY</option>
+                <option value="USD">USD</option>
+                <option value="KRW">KRW</option>
+                <option value="RUB">RUB</option>
+              </select>
+            </div>
           </div>
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setImportOpen(false)}>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>
               Отмена
             </Button>
-            <Button onClick={() => void handleImport()} disabled={importing || !importUrl.trim()}>
-              {importing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Импортировать
+            <Button onClick={() => void handleCreateVehicle()} disabled={creating || !form.titleRu.trim()}>
+              {creating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Создать
             </Button>
           </div>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={selectionOpen} onOpenChange={setSelectionOpen}>
+      <Dialog open={sectionOpen} onOpenChange={setSectionOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Новая подборка</DialogTitle>
+            <DialogTitle>Новый раздел</DialogTitle>
           </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="selection-title">Название</Label>
-            <Input
-              id="selection-title"
-              placeholder="Подборка для Иванова"
-              value={selectionTitle}
-              onChange={(e) => setSelectionTitle(e.target.value)}
-            />
-          </div>
+          <Input
+            placeholder="Кроссоверы"
+            value={sectionTitle}
+            onChange={(event) => setSectionTitle(event.target.value)}
+          />
           <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setSelectionOpen(false)}>
+            <Button variant="outline" onClick={() => setSectionOpen(false)}>
               Отмена
             </Button>
-            <Button onClick={() => void handleCreateSelection()} disabled={!selectionTitle.trim()}>
+            <Button onClick={() => void handleCreateSection()} disabled={!sectionTitle.trim()}>
               Создать
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(rename)} onOpenChange={(open) => !open && setRename(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Переименовать раздел</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={rename?.title ?? ""}
+            onChange={(event) =>
+              setRename((current) => (current ? { ...current, title: event.target.value } : current))
+            }
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRename(null)}>
+              Отмена
+            </Button>
+            <Button onClick={() => void handleRenameSection()} disabled={!rename?.title.trim()}>
+              Сохранить
             </Button>
           </div>
         </DialogContent>

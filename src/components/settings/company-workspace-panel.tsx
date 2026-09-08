@@ -19,6 +19,11 @@ import type {
   ResolvedCompanyWorkspace,
 } from "@/lib/company-workspace/types";
 import { STAGE_ORDER } from "@/lib/constants";
+import {
+  buildOfferLinkCaption,
+  DEFAULT_OFFER_LINK_CAPTION_TEMPLATE,
+  OFFER_LINK_CAPTION_TEMPLATE_MAX,
+} from "@/lib/calculator/offer-share";
 
 function CheckRow({
   checked,
@@ -66,6 +71,7 @@ export function CompanyWorkspacePanel() {
         documentTypes: data.documentTypes,
         additionalOptionGroups: data.additionalOptionGroups,
         modules: data.modules,
+        offerLinkCaptionTemplate: data.offerLinkCaptionTemplate,
       });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Не удалось загрузить настройки компании");
@@ -92,6 +98,7 @@ export function CompanyWorkspacePanel() {
         documentTypes: saved.documentTypes,
         additionalOptionGroups: saved.additionalOptionGroups,
         modules: saved.modules,
+        offerLinkCaptionTemplate: saved.offerLinkCaptionTemplate,
       });
       toast.success("Настройки компании сохранены");
     } catch (err) {
@@ -153,7 +160,7 @@ export function CompanyWorkspacePanel() {
             checked={form.modules.catalog}
             onChange={(catalog) => setForm((current) => ({ ...current, modules: { ...current.modules, catalog } }))}
           >
-            Каталог
+            Каталог новых авто
           </CheckRow>
           <CheckRow
             checked={form.modules.calculator}
@@ -182,6 +189,38 @@ export function CompanyWorkspacePanel() {
           >
             Google Календарь
           </CheckRow>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-card">
+        <CardHeader>
+          <CardTitle className="text-base">Подбор: текст ссылки</CardTitle>
+          <CardDescription>
+            Подпись, которая копируется вместе со ссылкой расчёта. Плейсхолдер {"{марка}"} заменяется
+            на поле «Марка, модель».
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          <Label htmlFor="offer-link-caption-template">Текст при создании ссылки</Label>
+          <Input
+            id="offer-link-caption-template"
+            value={form.offerLinkCaptionTemplate}
+            maxLength={OFFER_LINK_CAPTION_TEMPLATE_MAX}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                offerLinkCaptionTemplate: event.target.value.slice(0, OFFER_LINK_CAPTION_TEMPLATE_MAX),
+              }))
+            }
+            placeholder={DEFAULT_OFFER_LINK_CAPTION_TEMPLATE}
+          />
+          <p className="text-xs text-muted-foreground">
+            Пример: {buildOfferLinkCaption("Toyota Camry", form.offerLinkCaptionTemplate)}
+          </p>
+          <p className="text-xs text-muted-foreground">
+            До {OFFER_LINK_CAPTION_TEMPLATE_MAX} символов. Действует для ссылки с компьютера и кнопки
+            «Создать ссылку» на телефоне.
+          </p>
         </CardContent>
       </Card>
 

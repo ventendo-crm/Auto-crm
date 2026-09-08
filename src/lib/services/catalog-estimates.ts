@@ -223,9 +223,11 @@ export async function autoEstimateCatalogVehicle(user: AuthUser, vehicleId: stri
     where: { id: vehicleId, companyId: user.companyId },
     select: {
       priceCny: true,
+      priceCurrency: true,
       powerHp: true,
       volumeCc: true,
       carYear: true,
+      customsEstimate: { select: { input: true } },
     },
   });
   if (!vehicle) throw new Error("NOT_FOUND");
@@ -233,10 +235,21 @@ export async function autoEstimateCatalogVehicle(user: AuthUser, vehicleId: stri
     throw new Error("INSUFFICIENT_DATA");
   }
 
+  const previousInput = vehicle.customsEstimate?.input as { originCountry?: string } | null;
+  const destinationCountry =
+    typeof previousInput?.originCountry === "string" && previousInput.originCountry
+      ? previousInput.originCountry
+      : "china";
+  const currency = (["CNY", "USD", "KRW", "RUB"] as const).includes(
+    vehicle.priceCurrency as "CNY" | "USD" | "KRW" | "RUB",
+  )
+    ? (vehicle.priceCurrency as "CNY" | "USD" | "KRW" | "RUB")
+    : "CNY";
+
   return upsertCatalogVehicleEstimate(user, vehicleId, {
-    destinationCountry: "china",
+    destinationCountry,
     price: Number(vehicle.priceCny),
-    currency: "CNY",
+    currency,
     powerHp: vehicle.powerHp ?? 150,
     volumeCc: vehicle.volumeCc ?? 2000,
     carYear: vehicle.carYear,

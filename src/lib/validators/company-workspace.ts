@@ -65,6 +65,7 @@ export const companyWorkspacePutSchema = z.object({
     })
     .partial()
     .optional(),
+  offerLinkCaptionTemplate: z.string().max(200).optional(),
 });
 
 export type CompanyWorkspacePutInput = z.infer<typeof companyWorkspacePutSchema>;

@@ -7,7 +7,7 @@ import { createAuditLog } from "@/lib/services/audit";
 import { assertDealMediaAccess } from "@/lib/services/media";
 import { serializeGalleryUrls } from "@/lib/services/catalog-serialize";
 import { upsertSearchProcessEntryEstimate } from "@/lib/services/search-process-entry-estimates";
-import { storeMediaFile } from "@/lib/storage/media-storage";
+import { openStoredMediaFile, storeMediaFile } from "@/lib/storage/media-storage";
 import { guessMediaContentType } from "@/lib/validators/media";
 import { addCatalogVehicleToDealSchema } from "@/lib/validators/catalog";
 import { z } from "zod";
@@ -80,7 +80,13 @@ export async function addCatalogVehicleToDeal(
 
   const vehicle = await prisma.catalogVehicle.findFirst({
     where: { id: vehicleId, companyId: user.companyId },
-    include: { customsEstimate: true },
+    include: {
+      customsEstimate: true,
+      media: {
+        where: { type: MediaType.PHOTO },
+        orderBy: { uploadedAt: "asc" },
+      },
+    },
   });
   if (!vehicle) throw new Error("NOT_FOUND");
 
@@ -101,14 +107,59 @@ export async function addCatalogVehicleToDeal(
   });
 
   const galleryUrls = serializeGalleryUrls(vehicle.galleryUrls);
-  const imagesImported = await importGalleryImages({
-    user,
-    dealId: data.dealId,
-    entryId: entry.id,
-    galleryUrls: vehicle.coverImageUrl
-      ? [vehicle.coverImageUrl, ...galleryUrls.filter((url) => url !== vehicle.coverImageUrl)]
-      : galleryUrls,
-  });
+  let imagesImported = 0;
+
+  if (vehicle.media.length > 0) {
+    for (const [index, item] of vehicle.media.slice(0, MAX_IMAGES_TO_IMPORT).entries()) {
+      try {
+        const stored = await openStoredMediaFile(item.fileUrl, item.fileName);
+        const chunks: Buffer[] = [];
+        if (!stored.stream) continue;
+        const reader = stored.stream.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) chunks.push(Buffer.from(value));
+        }
+        const buffer = Buffer.concat(chunks);
+        if (buffer.length < 1024) continue;
+        const mediaId = crypto.randomUUID();
+        const fileName = `catalog-${index + 1}-${item.fileName}`;
+        const { fileKey, thumbnailKey } = await storeMediaFile({
+          dealId: data.dealId,
+          mediaId,
+          fileName,
+          buffer,
+          contentType: guessMediaContentType(fileName),
+          mediaType: MediaType.PHOTO,
+        });
+        await prisma.mediaFile.create({
+          data: {
+            type: MediaType.PHOTO,
+            fileName,
+            fileUrl: fileKey,
+            thumbnailUrl: thumbnailKey,
+            size: buffer.length,
+            dealId: data.dealId,
+            searchProcessEntryId: entry.id,
+            uploadedById: user.id,
+          },
+        });
+        imagesImported += 1;
+      } catch (error) {
+        console.warn("[catalog-to-deal] failed to copy catalog photo:", item.id, error);
+      }
+    }
+  } else {
+    imagesImported = await importGalleryImages({
+      user,
+      dealId: data.dealId,
+      entryId: entry.id,
+      galleryUrls: vehicle.coverImageUrl
+        ? [vehicle.coverImageUrl, ...galleryUrls.filter((url) => url !== vehicle.coverImageUrl)]
+        : galleryUrls,
+    });
+  }
 
   if (vehicle.customsEstimate) {
     const estimate = vehicle.customsEstimate;

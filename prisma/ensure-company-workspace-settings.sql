@@ -31,6 +31,9 @@ CREATE TABLE IF NOT EXISTS "company_workspace_settings" (
   CONSTRAINT "company_workspace_settings_pkey" PRIMARY KEY ("companyId")
 );
 
+ALTER TABLE "company_workspace_settings"
+  ADD COLUMN IF NOT EXISTS "offerLinkCaptionTemplate" TEXT;
+
 DO $$
 BEGIN
   IF NOT EXISTS (

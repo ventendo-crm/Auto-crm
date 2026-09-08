@@ -10,6 +10,7 @@ export const catalogVehicleFiltersSchema = z.object({
   mileageTo: z.coerce.number().int().nonnegative().optional(),
   status: z.enum(["ACTIVE", "ARCHIVED", "ALL"]).optional(),
   source: z.enum(["MANUAL", "CHE168", "ALL"]).optional(),
+  sectionId: z.string().trim().optional(),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(100).optional(),
 });
@@ -24,6 +25,7 @@ export const createCatalogVehicleSchema = z.object({
   carYear: z.coerce.number().int().min(1990).max(2100).optional(),
   mileageKm: z.coerce.number().int().nonnegative().optional(),
   priceCny: z.coerce.number().nonnegative().optional(),
+  priceCurrency: z.enum(["CNY", "USD", "KRW", "RUB"]).optional(),
   volumeCc: z.coerce.number().int().positive().optional(),
   powerHp: z.coerce.number().int().positive().optional(),
   fuelType: z.string().trim().optional(),
@@ -31,6 +33,7 @@ export const createCatalogVehicleSchema = z.object({
   color: z.string().trim().optional(),
   location: z.string().trim().optional(),
   vin: z.string().trim().optional(),
+  sectionId: z.string().trim().nullable().optional(),
   coverImageUrl: z.string().url().optional().or(z.literal("")),
   galleryUrls: z.array(z.string().url()).optional(),
   videoUrl: z.string().url().optional().or(z.literal("")),
@@ -43,6 +46,15 @@ export const updateCatalogVehicleSchema = createCatalogVehicleSchema.partial().e
 export const importChe168Schema = z.object({
   url: z.string().trim().min(1, "Укажите ссылку на Che168"),
   translate: z.boolean().optional(),
+});
+
+export const createCatalogSectionSchema = z.object({
+  title: z.string().trim().min(1, "Укажите название раздела").max(80),
+});
+
+export const updateCatalogSectionSchema = z.object({
+  title: z.string().trim().min(1).max(80).optional(),
+  sortOrder: z.coerce.number().int().optional(),
 });
 
 export const createCatalogSelectionSchema = z.object({

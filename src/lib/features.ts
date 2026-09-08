@@ -1,2 +1,2 @@
-/** Каталог (Che168). Включить после подключения API (auto-api.com). */
-export const CATALOG_ENABLED = false;
+/** Каталог новых авто (витрина компании). Che168 пока отключён. */
+export const CATALOG_ENABLED = true;
