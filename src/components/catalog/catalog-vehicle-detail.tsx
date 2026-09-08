@@ -8,7 +8,9 @@ import {
   Copy,
   ImagePlus,
   Loader2,
+  Pencil,
   Play,
+  Plus,
   Share2,
   Trash2,
   UserPlus,
@@ -31,11 +33,12 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiRequestError } from "@/lib/api-client";
 import { MAX_CATALOG_VEHICLE_MEDIA } from "@/lib/constants";
+import { minCatalogTrimTotal } from "@/lib/catalog/trims";
+import { cn, formatCurrency } from "@/lib/utils";
 import { MEDIA_FILE_ACCEPT } from "@/lib/validators/media";
 import { buildTelegramShareUrl } from "@/lib/calculator/offer-share";
 import type { CatalogSectionItem, CatalogSectionsList, CatalogVehicleDetail } from "@/lib/types/catalog";
 import type { DealListItem } from "@/lib/types";
-import { formatCurrency } from "@/lib/utils";
 import type {
   CustomsCalculatorInput,
   CustomsCalculatorResult,
@@ -79,6 +82,14 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [selectedDealId, setSelectedDealId] = useState("");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [selectedTrimId, setSelectedTrimId] = useState("");
+  const [addTrimOpen, setAddTrimOpen] = useState(false);
+  const [addTrimTitle, setAddTrimTitle] = useState("");
+  const [addTrimCopy, setAddTrimCopy] = useState(true);
+  const [renameTrimOpen, setRenameTrimOpen] = useState(false);
+  const [renameTrimTitle, setRenameTrimTitle] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareTrimIds, setShareTrimIds] = useState<string[]>([]);
   const [form, setForm] = useState({
     titleRu: "",
     descriptionRu: "",
@@ -99,6 +110,9 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
         descriptionRu: data.descriptionRu,
         sectionId: data.sectionId ?? "",
       });
+      setSelectedTrimId((current) =>
+        data.trims.some((trim) => trim.id === current) ? current : (data.trims[0]?.id ?? ""),
+      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось загрузить авто");
     } finally {
@@ -151,37 +165,61 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
         totalWithCar: number;
         input: unknown;
         result: unknown;
-      }>(`/api/catalog/vehicles/${vehicleId}/estimate`, "POST", { input });
-      setVehicle((current) =>
-        current
-          ? {
-              ...current,
-              priceCny: input.price,
-              priceCurrency: input.currency,
-              powerHp: Math.round(input.powerHp),
-              volumeCc: Math.round(input.volumeCc),
-              estimate: {
-                totalWithCar: saved.totalWithCar ?? calcResult.totalWithCar,
+      }>(`/api/catalog/vehicles/${vehicleId}/estimate`, "POST", {
+        input,
+        trimId: selectedTrimId || undefined,
+      });
+      setVehicle((current) => {
+        if (!current) return current;
+        const trims = current.trims.map((trim) =>
+          trim.id === selectedTrimId
+            ? {
+                ...trim,
+                estimate: {
+                  totalWithCar: saved.totalWithCar ?? calcResult.totalWithCar,
+                  input: saved.input ?? input,
+                  result: saved.result ?? calcResult,
+                },
+              }
+            : trim,
+        );
+        const cheapest = minCatalogTrimTotal(trims);
+        return {
+          ...current,
+          priceCny: input.price,
+          priceCurrency: input.currency,
+          powerHp: Math.round(input.powerHp),
+          volumeCc: Math.round(input.volumeCc),
+          trims,
+          estimate: cheapest
+            ? {
+                totalWithCar: cheapest.min,
                 input: saved.input ?? input,
                 result: saved.result ?? calcResult,
-              },
-            }
-          : current,
-      );
+              }
+            : current.estimate,
+        };
+      });
       toast.success("Расчёт сохранён");
     } catch (error) {
       toast.error(error instanceof ApiRequestError ? error.message : "Не удалось сохранить расчёт");
     }
   }
 
-  async function handleShare() {
+  async function submitShare(trimIds: string[]) {
+    if (trimIds.length === 0) {
+      toast.error("Выберите хотя бы одну комплектацию");
+      return;
+    }
     setSharing(true);
     try {
       const result = await apiSend<{ url: string; clipboard: string }>(
         `/api/catalog/vehicles/${vehicleId}/share`,
         "POST",
+        { trimIds },
       );
       setShareUrl(result.url);
+      setShareOpen(false);
       await navigator.clipboard.writeText(result.clipboard);
       toast.success("Ссылка скопирована");
     } catch (error) {
@@ -189,6 +227,16 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     } finally {
       setSharing(false);
     }
+  }
+
+  function handleShare() {
+    const trims = vehicle?.trims ?? [];
+    if (trims.length <= 1) {
+      void submitShare(trims.map((trim) => trim.id).filter(Boolean));
+      return;
+    }
+    setShareTrimIds(trims.map((trim) => trim.id));
+    setShareOpen(true);
   }
 
   async function handleMedia(files: FileList | null) {
@@ -254,13 +302,67 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       const result = await apiSend<{ entryId: string; dealId: string }>(
         `/api/catalog/vehicles/${vehicleId}/add-to-deal`,
         "POST",
-        { dealId: selectedDealId, publish: false },
+        { dealId: selectedDealId, publish: false, trimId: selectedTrimId || undefined },
       );
       toast.success("Добавлено в сделку");
       setDealOpen(false);
       router.push(`/deals/${result.dealId}?tab=search`);
     } catch (error) {
       toast.error(error instanceof ApiRequestError ? error.message : "Не удалось добавить");
+    }
+  }
+
+  async function handleCreateTrim() {
+    if (!addTrimTitle.trim()) return;
+    try {
+      const saved = await apiSend<CatalogVehicleDetail>(`/api/catalog/vehicles/${vehicleId}/trims`, "POST", {
+        title: addTrimTitle.trim(),
+        copyFromTrimId: addTrimCopy && selectedTrimId ? selectedTrimId : undefined,
+      });
+      setVehicle(saved);
+      const created = saved.trims.find((trim) => !vehicle?.trims.some((item) => item.id === trim.id));
+      setSelectedTrimId(created?.id ?? saved.trims[saved.trims.length - 1]?.id ?? "");
+      setAddTrimOpen(false);
+      setAddTrimTitle("");
+      toast.success("Комплектация добавлена");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось добавить комплектацию");
+    }
+  }
+
+  async function handleRenameTrim() {
+    if (!selectedTrimId || !renameTrimTitle.trim()) return;
+    try {
+      const saved = await apiSend<CatalogVehicleDetail>(
+        `/api/catalog/vehicles/${vehicleId}/trims/${selectedTrimId}`,
+        "PATCH",
+        { title: renameTrimTitle.trim() },
+      );
+      setVehicle(saved);
+      setRenameTrimOpen(false);
+      toast.success("Комплектация переименована");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось сохранить");
+    }
+  }
+
+  async function handleDeleteTrim() {
+    if (!selectedTrimId) return;
+    if ((vehicle?.trims.length ?? 0) <= 1) {
+      toast.error("Нельзя удалить последнюю комплектацию");
+      return;
+    }
+    if (!confirm("Удалить эту комплектацию и её расчёт?")) return;
+    try {
+      const saved = await apiSend<CatalogVehicleDetail>(
+        `/api/catalog/vehicles/${vehicleId}/trims/${selectedTrimId}`,
+        "DELETE",
+      );
+      setVehicle(saved);
+      setSelectedTrimId(saved.trims[0]?.id ?? "");
+      toast.success("Комплектация удалена");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось удалить");
     }
   }
 
@@ -286,16 +388,19 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     );
   }
 
-  const estimate = vehicle.estimate;
-  const initialInput = (estimate?.input as CustomsCalculatorInput | undefined) ?? null;
+  const trims = vehicle.trims ?? [];
+  const selectedTrim = trims.find((trim) => trim.id === selectedTrimId) ?? trims[0] ?? null;
+  const selectedEstimate = selectedTrim?.estimate ?? null;
+  const initialInput = (selectedEstimate?.input as CustomsCalculatorInput | undefined) ?? null;
+  const listPrice = minCatalogTrimTotal(trims);
 
   return (
     <>
       <Header
         title={vehicle.titleRu || vehicle.titleZh}
         subtitle={
-          estimate?.totalWithCar != null
-            ? `${vehicle.sectionTitle ?? "Каталог"} · ${formatCurrency(estimate.totalWithCar)}`
+          listPrice
+            ? `${vehicle.sectionTitle ?? "Каталог"} · ${listPrice.count > 1 ? "от " : ""}${formatCurrency(listPrice.min)}`
             : (vehicle.sectionTitle ?? "Каталог")
         }
       />
@@ -531,17 +636,196 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
             </Card>
           </div>
 
-          <CustomsCalculator
-            key={vehicleId}
-            embedded
-            persistLocal={false}
-            initialInput={initialInput}
-            onCalculated={(input, result) => {
-              void handleCalculated(input, result);
-            }}
-          />
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Комплектации</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex flex-wrap gap-2">
+                  {trims.map((trim) => (
+                    <Button
+                      key={trim.id}
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-pressed={trim.id === selectedTrim?.id}
+                      onClick={() => setSelectedTrimId(trim.id)}
+                      className={cn(
+                        "h-8",
+                        trim.id === selectedTrim?.id &&
+                          "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+                      )}
+                    >
+                      {trim.title}
+                      {trim.estimate?.totalWithCar != null
+                        ? ` · ${formatCurrency(trim.estimate.totalWithCar)}`
+                        : ""}
+                    </Button>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setAddTrimTitle("");
+                      setAddTrimCopy(true);
+                      setAddTrimOpen(true);
+                    }}
+                  >
+                    <Plus className="mr-1.5 h-4 w-4" />
+                    Добавить комплектацию
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={!selectedTrim}
+                    onClick={() => {
+                      setRenameTrimTitle(selectedTrim?.title ?? "");
+                      setRenameTrimOpen(true);
+                    }}
+                  >
+                    <Pencil className="mr-1.5 h-4 w-4" />
+                    Переименовать
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={trims.length <= 1}
+                    onClick={() => void handleDeleteTrim()}
+                  >
+                    <Trash2 className="mr-1.5 h-4 w-4" />
+                    Удалить
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Калькулятор ниже относится к выбранной комплектации. При отправке клиенту можно
+                  показать не все версии.
+                </p>
+              </CardContent>
+            </Card>
+
+            <CustomsCalculator
+              key={`${vehicleId}-${selectedTrim?.id ?? "none"}`}
+              embedded
+              persistLocal={false}
+              initialInput={initialInput}
+              onCalculated={(input, result) => {
+                void handleCalculated(input, result);
+              }}
+            />
+          </div>
         </div>
       </div>
+
+      <Dialog open={shareOpen} onOpenChange={setShareOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Какие комплектации показать клиенту?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            В ссылке останутся только выбранные версии. Другому клиенту можно отправить другой набор.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {trims.map((trim) => {
+              const selected = shareTrimIds.includes(trim.id);
+              return (
+                <Button
+                  key={trim.id}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  aria-pressed={selected}
+                  onClick={() =>
+                    setShareTrimIds((current) =>
+                      selected ? current.filter((id) => id !== trim.id) : [...current, trim.id],
+                    )
+                  }
+                  className={cn(
+                    "h-8",
+                    selected && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+                  )}
+                >
+                  {trim.title}
+                </Button>
+              );
+            })}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setShareOpen(false)}>
+              Отмена
+            </Button>
+            <Button onClick={() => void submitShare(shareTrimIds)} disabled={sharing || shareTrimIds.length === 0}>
+              {sharing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Поделиться
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addTrimOpen} onOpenChange={setAddTrimOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Новая комплектация</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="trim-title">Название</Label>
+              <Input
+                id="trim-title"
+                value={addTrimTitle}
+                onChange={(event) => setAddTrimTitle(event.target.value)}
+                placeholder="Comfort / Luxury / 2.0 AWD"
+              />
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-pressed={addTrimCopy}
+              onClick={() => setAddTrimCopy((value) => !value)}
+              className={cn(
+                "h-8",
+                addTrimCopy && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+              )}
+            >
+              Скопировать расчёт с текущей
+            </Button>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAddTrimOpen(false)}>
+              Отмена
+            </Button>
+            <Button onClick={() => void handleCreateTrim()} disabled={!addTrimTitle.trim()}>
+              Добавить
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={renameTrimOpen} onOpenChange={setRenameTrimOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Переименовать комплектацию</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameTrimTitle}
+            onChange={(event) => setRenameTrimTitle(event.target.value)}
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setRenameTrimOpen(false)}>
+              Отмена
+            </Button>
+            <Button onClick={() => void handleRenameTrim()} disabled={!renameTrimTitle.trim()}>
+              Сохранить
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={dealOpen} onOpenChange={setDealOpen}>
         <DialogContent>

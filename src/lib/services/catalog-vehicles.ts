@@ -12,6 +12,8 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { assertSectionInCompany } from "@/lib/services/catalog-sections";
 import { serializeGalleryUrls } from "@/lib/services/catalog-serialize";
+import { minCatalogTrimTotal } from "@/lib/catalog/trims";
+import { DEFAULT_CATALOG_TRIM_TITLE } from "@/lib/constants";
 import {
   catalogVehicleFiltersSchema,
   createCatalogVehicleSchema,
@@ -32,10 +34,15 @@ const vehicleInclude = {
     orderBy: { uploadedAt: "asc" as const },
     select: { id: true, type: true },
   },
-  customsEstimate: {
-    include: { createdBy: { select: { name: true } } },
+  trims: {
+    orderBy: { sortOrder: "asc" as const },
+    include: {
+      customsEstimate: {
+        include: { createdBy: { select: { name: true } } },
+      },
+    },
   },
-} as const;
+};
 
 async function assertCatalogAccess(user: AuthUser) {
   await assertCompanyCatalogAccess(user);
@@ -75,7 +82,11 @@ function serializeVehicle(record: {
   createdBy: { id: string; name: string };
   section: { id: string; title: string } | null;
   media: Array<{ id: string; type: MediaType }>;
-    customsEstimate?: {
+  trims: Array<{
+    id: string;
+    title: string;
+    sortOrder: number;
+    customsEstimate: {
       id: string;
       totalWithCar: Prisma.Decimal;
       currency: string;
@@ -87,6 +98,7 @@ function serializeVehicle(record: {
       result: Prisma.JsonValue;
       createdBy: { name: string };
     } | null;
+  }>;
 }) {
   const photos = record.media.map((item) => ({
     id: item.id,
@@ -134,20 +146,52 @@ function serializeVehicle(record: {
     createdByName: record.createdBy.name,
     createdAt: record.createdAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
-    estimate: record.customsEstimate
-      ? {
-          id: record.customsEstimate.id,
-          totalWithCar: Number(record.customsEstimate.totalWithCar),
-          currency: record.customsEstimate.currency,
-          price: Number(record.customsEstimate.price),
-          carYear: record.customsEstimate.carYear,
-          powerHp: record.customsEstimate.powerHp,
-          volumeCc: record.customsEstimate.volumeCc,
-          input: record.customsEstimate.input,
-          result: record.customsEstimate.result,
-          createdByName: record.customsEstimate.createdBy.name,
-        }
-      : null,
+    trims: record.trims.map((trim) => ({
+      id: trim.id,
+      title: trim.title,
+      sortOrder: trim.sortOrder,
+      estimate: trim.customsEstimate
+        ? {
+            id: trim.customsEstimate.id,
+            totalWithCar: Number(trim.customsEstimate.totalWithCar),
+            currency: trim.customsEstimate.currency,
+            price: Number(trim.customsEstimate.price),
+            carYear: trim.customsEstimate.carYear,
+            powerHp: trim.customsEstimate.powerHp,
+            volumeCc: trim.customsEstimate.volumeCc,
+            input: trim.customsEstimate.input,
+            result: trim.customsEstimate.result,
+            createdByName: trim.customsEstimate.createdBy.name,
+          }
+        : null,
+    })),
+    estimate: (() => {
+      const cheapest = minCatalogTrimTotal(
+        record.trims.map((trim) => ({
+          estimate: trim.customsEstimate
+            ? { totalWithCar: Number(trim.customsEstimate.totalWithCar) }
+            : null,
+        })),
+      );
+      if (!cheapest) return null;
+      const trim = record.trims.find(
+        (item) => Number(item.customsEstimate?.totalWithCar) === cheapest.min,
+      );
+      const estimate = trim?.customsEstimate;
+      if (!estimate) return null;
+      return {
+        id: estimate.id,
+        totalWithCar: cheapest.min,
+        currency: estimate.currency,
+        price: Number(estimate.price),
+        carYear: estimate.carYear,
+        powerHp: estimate.powerHp,
+        volumeCc: estimate.volumeCc,
+        input: estimate.input,
+        result: estimate.result,
+        createdByName: estimate.createdBy.name,
+      };
+    })(),
   };
 }
 
@@ -271,6 +315,9 @@ export async function createCatalogVehicle(user: AuthUser, body: CreateInput) {
       coverImageUrl: data.coverImageUrl || null,
       galleryUrls: data.galleryUrls ?? [],
       videoUrl: data.videoUrl || null,
+      trims: {
+        create: { title: DEFAULT_CATALOG_TRIM_TITLE, sortOrder: 0 },
+      },
     },
     include: vehicleInclude,
   });
@@ -394,6 +441,9 @@ async function upsertFromChe168Parsed(
       source: CatalogVehicleSource.CHE168,
       externalId: parsed.externalId,
       ...payload,
+      trims: {
+        create: { title: DEFAULT_CATALOG_TRIM_TITLE, sortOrder: 0 },
+      },
     },
     include: vehicleInclude,
   });

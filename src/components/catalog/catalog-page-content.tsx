@@ -9,7 +9,6 @@ import {
   Loader2,
   Pencil,
   Plus,
-  RefreshCw,
   Search,
   Table2,
   Trash2,
@@ -23,6 +22,7 @@ import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsibl
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -31,13 +31,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiRequestError } from "@/lib/api-client";
 import { mediaVideoPreviewSrc } from "@/components/media/media-thumb";
-import { exchangeRateDecimals } from "@/lib/customs-calculator/rates";
+import {
+  DEFAULT_EXCHANGE_RATES,
+  roundExchangeRates,
+  type ExchangeRates,
+} from "@/lib/customs-calculator/rates";
 import type {
   CatalogRatesRecalcResult,
   CatalogSectionItem,
   CatalogSectionsList,
   CatalogVehicleListItem,
 } from "@/lib/types/catalog";
+import { minCatalogTrimTotal } from "@/lib/catalog/trims";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const CATALOG_VIEW_STORAGE = "crm-catalog-view";
@@ -102,11 +107,29 @@ async function apiSend<T>(path: string, method: string, body?: unknown): Promise
   return json.data as T;
 }
 
-function formatCnyRate(value: number) {
-  return value.toLocaleString("ru-RU", {
-    maximumFractionDigits: exchangeRateDecimals("CNY"),
-    minimumFractionDigits: exchangeRateDecimals("CNY"),
-  });
+const RATE_CODES = ["USD", "EUR", "CNY", "KRW"] as const;
+type RateDraft = Record<(typeof RATE_CODES)[number], string>;
+
+function ratesToDraft(rates: ExchangeRates): RateDraft {
+  return {
+    USD: String(rates.USD),
+    EUR: String(rates.EUR),
+    CNY: String(rates.CNY),
+    KRW: String(rates.KRW),
+  };
+}
+
+function parseRateDraft(draft: RateDraft): ExchangeRates | null {
+  const parsed = {
+    USD: Number(draft.USD.replace(",", ".")),
+    EUR: Number(draft.EUR.replace(",", ".")),
+    CNY: Number(draft.CNY.replace(",", ".")),
+    KRW: Number(draft.KRW.replace(",", ".")),
+  };
+  if (RATE_CODES.some((code) => !Number.isFinite(parsed[code]) || parsed[code] <= 0)) {
+    return null;
+  }
+  return roundExchangeRates(parsed);
 }
 
 function vehicleCover(vehicle: CatalogVehicleListItem) {
@@ -150,9 +173,16 @@ function VehicleThumb({
   );
 }
 
+function catalogPriceLabel(vehicle: CatalogVehicleListItem) {
+  const priced = minCatalogTrimTotal(vehicle.trims ?? []);
+  if (!priced) return "Нет расчёта";
+  const label = formatCurrency(priced.min);
+  return priced.count > 1 ? `от ${label}` : label;
+}
+
 function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
-  const total = vehicle.estimate?.totalWithCar ?? null;
   const cover = vehicleCover(vehicle);
+  const trimCount = vehicle.trims?.length ?? 0;
   return (
     <Link href={`/catalog/${vehicle.id}`} className="group block">
       <Card className="overflow-hidden transition-shadow hover:shadow-md">
@@ -173,9 +203,10 @@ function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
           <h3 className="line-clamp-2 text-sm font-semibold leading-snug group-hover:text-brand">
             {vehicle.titleRu || vehicle.titleZh}
           </h3>
-          <p className="text-base font-semibold">
-            {total != null ? formatCurrency(total) : "Нет расчёта"}
-          </p>
+          <p className="text-base font-semibold">{catalogPriceLabel(vehicle)}</p>
+          {trimCount > 1 ? (
+            <p className="text-xs text-muted-foreground">{trimCount} комплектации</p>
+          ) : null}
         </CardContent>
       </Card>
     </Link>
@@ -196,7 +227,6 @@ function VehicleTable({ vehicles }: { vehicles: CatalogVehicleListItem[] }) {
         </thead>
         <tbody>
           {vehicles.map((vehicle) => {
-            const total = vehicle.estimate?.totalWithCar ?? null;
             return (
               <tr key={vehicle.id} className="cursor-pointer border-b last:border-0 hover:bg-muted/40">
                 <td className="px-3 py-2">
@@ -221,7 +251,7 @@ function VehicleTable({ vehicles }: { vehicles: CatalogVehicleListItem[] }) {
                 </td>
                 <td className="px-3 py-2 text-right font-semibold tabular-nums">
                   <Link href={`/catalog/${vehicle.id}`} className="block hover:text-brand">
-                    {total != null ? formatCurrency(total) : "Нет расчёта"}
+                    {catalogPriceLabel(vehicle)}
                   </Link>
                 </td>
               </tr>
@@ -253,8 +283,11 @@ export function CatalogPageContent() {
   const [sectionTitle, setSectionTitle] = useState("");
   const [view, setView] = useState<CatalogView>("cards");
   const [sectionsOpen, setSectionsOpen] = useState(false);
+  const [ratesOpen, setRatesOpen] = useState(false);
+  const [ratesLoading, setRatesLoading] = useState(false);
   const [recalculatingRates, setRecalculatingRates] = useState(false);
-  const [cnyRate, setCnyRate] = useState<number | null>(null);
+  const [rateDraft, setRateDraft] = useState<RateDraft>(() => ratesToDraft(DEFAULT_EXCHANGE_RATES));
+  const [ratesFetchedAt, setRatesFetchedAt] = useState<string | null>(null);
 
   useEffect(() => {
     setView(loadCatalogView());
@@ -299,21 +332,28 @@ export function CatalogPageContent() {
     void loadData();
   }, [loadData]);
 
-  useEffect(() => {
-    void (async () => {
-      try {
-        const data = await apiGet<{ rates: { CNY: number } }>("/api/exchange-rates");
-        setCnyRate(data.rates.CNY);
-      } catch {
-        // Калькулятор может быть выключен — курс покажем после «Обновить курс».
-      }
-    })();
-  }, []);
+  async function openRatesDialog() {
+    setRatesOpen(true);
+    setRatesLoading(true);
+    try {
+      const data = await apiGet<{ rates: ExchangeRates; fetchedAt: string }>(
+        "/api/catalog/vehicles/estimates/recalculate",
+      );
+      setRateDraft(ratesToDraft(roundExchangeRates(data.rates)));
+      setRatesFetchedAt(data.fetchedAt);
+    } catch {
+      setRateDraft(ratesToDraft(DEFAULT_EXCHANGE_RATES));
+      setRatesFetchedAt(null);
+      toast.error("Не удалось загрузить актуальные курсы. Проверьте значения вручную.");
+    } finally {
+      setRatesLoading(false);
+    }
+  }
 
-  async function handleRefreshRates() {
-    if (
-      !confirm("Курс обновится, все авто с расчётом пересчитаются. Продолжить?")
-    ) {
+  async function handleApplyRates() {
+    const rates = parseRateDraft(rateDraft);
+    if (!rates) {
+      toast.error("Проверьте курсы валют");
       return;
     }
 
@@ -322,8 +362,8 @@ export function CatalogPageContent() {
       const result = await apiSend<CatalogRatesRecalcResult>(
         "/api/catalog/vehicles/estimates/recalculate",
         "POST",
+        { rates },
       );
-      setCnyRate(result.rates.CNY);
 
       if (result.updated === 0 && result.failed === 0) {
         toast.message("Нет авто с расчётом — пересчитывать нечего");
@@ -335,9 +375,10 @@ export function CatalogPageContent() {
         toast.success(`Пересчитано авто: ${result.updated}`);
       }
 
+      setRatesOpen(false);
       await loadData();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось обновить курс");
+      toast.error(error instanceof Error ? error.message : "Не удалось обновить расчёты");
     } finally {
       setRecalculatingRates(false);
     }
@@ -537,29 +578,14 @@ export function CatalogPageContent() {
               <Table2 className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Таблицей</span>
             </Button>
-            <Button variant="outline" size="sm" onClick={() => void loadData()} disabled={loading}>
-              <RefreshCw className={cn("mr-1.5 h-4 w-4", loading && "animate-spin")} />
-              Обновить
-            </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => void handleRefreshRates()}
-              disabled={recalculatingRates}
+              onClick={() => void openRatesDialog()}
             >
-              {recalculatingRates ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="mr-1.5 h-4 w-4" />
-              )}
-              Обновить курс
+              Курсы
             </Button>
-            {cnyRate != null && (
-              <span className="text-xs tabular-nums text-muted-foreground">
-                Курс CNY: {formatCnyRate(cnyRate)} ₽
-              </span>
-            )}
             <Button
               size="sm"
               onClick={() => {
@@ -610,6 +636,65 @@ export function CatalogPageContent() {
           )}
         </div>
       </div>
+
+      <Dialog
+        open={ratesOpen}
+        onOpenChange={(open) => {
+          if (recalculatingRates) return;
+          setRatesOpen(open);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Курсы валют</DialogTitle>
+            <DialogDescription>
+              Актуальные курсы можно поправить.{" "}
+              {ratesLoading
+                ? "Загрузка…"
+                : ratesFetchedAt
+                  ? `Загружены ${new Date(ratesFetchedAt).toLocaleString("ru-RU")}.`
+                  : "Проверьте значения перед пересчётом."}{" "}
+              «Обновить» пересчитает все авто с уже сохранённым расчётом.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {RATE_CODES.map((code) => (
+              <div key={code} className="space-y-1.5">
+                <Label htmlFor={`catalog-rate-${code}`} className="text-xs text-muted-foreground">
+                  {code}, ₽
+                </Label>
+                <Input
+                  id={`catalog-rate-${code}`}
+                  type="number"
+                  min={code === "KRW" ? 0.001 : 0.01}
+                  step={code === "KRW" ? "0.001" : "0.01"}
+                  value={rateDraft[code]}
+                  disabled={ratesLoading || recalculatingRates}
+                  onChange={(event) =>
+                    setRateDraft((current) => ({ ...current, [code]: event.target.value }))
+                  }
+                />
+              </div>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              disabled={recalculatingRates}
+              onClick={() => setRatesOpen(false)}
+            >
+              Отмена
+            </Button>
+            <Button
+              onClick={() => void handleApplyRates()}
+              disabled={ratesLoading || recalculatingRates || !parseRateDraft(rateDraft)}
+            >
+              {recalculatingRates ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Обновить
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>

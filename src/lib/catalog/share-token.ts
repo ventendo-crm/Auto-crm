@@ -32,12 +32,24 @@ export function buildPublicCatalogVehicleUrl(token: string): string {
 export function buildCatalogVehicleClipboard(
   url: string,
   title?: string | null,
-  totalRub?: number | null,
+  totals?: Array<{ title: string; totalRub: number | null }> | number | null,
 ) {
   const head = title?.trim() || "Авто из каталога";
-  const total =
-    totalRub != null && Number.isFinite(totalRub) ? `\nИтого: ${formatCurrency(totalRub)}` : "";
-  return `${head}${total}\n\n${url}`;
+  if (typeof totals === "number" || totals == null) {
+    const total =
+      totals != null && Number.isFinite(totals) ? `\nИтого: ${formatCurrency(totals)}` : "";
+    return `${head}${total}\n\n${url}`;
+  }
+  const lines = totals
+    .map((item) => {
+      const price =
+        item.totalRub != null && Number.isFinite(item.totalRub)
+          ? formatCurrency(item.totalRub)
+          : "без расчёта";
+      return `${item.title}: ${price}`;
+    })
+    .join("\n");
+  return `${head}${lines ? `\n${lines}` : ""}\n\n${url}`;
 }
 
 export function publicCatalogVehicleMediaPath(token: string, mediaId: string): string {

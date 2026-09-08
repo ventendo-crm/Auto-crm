@@ -81,13 +81,22 @@ export async function addCatalogVehicleToDeal(
   const vehicle = await prisma.catalogVehicle.findFirst({
     where: { id: vehicleId, companyId: user.companyId },
     include: {
-      customsEstimate: true,
+      trims: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        include: { customsEstimate: true },
+      },
       media: {
         orderBy: { uploadedAt: "asc" },
       },
     },
   });
   if (!vehicle) throw new Error("NOT_FOUND");
+
+  const trim =
+    (data.trimId
+      ? vehicle.trims.find((item) => item.id === data.trimId)
+      : vehicle.trims.find((item) => item.customsEstimate) ?? vehicle.trims[0]) ?? null;
+  if (data.trimId && !trim) throw new Error("NOT_FOUND");
 
   const last = await prisma.searchProcessEntry.findFirst({
     where: { dealId: data.dealId },
@@ -99,7 +108,13 @@ export async function addCatalogVehicleToDeal(
     data: {
       dealId: data.dealId,
       catalogVehicleId: vehicle.id,
-      description: buildDescription(vehicle.titleRu, vehicle.descriptionRu, vehicle.sourceUrl),
+      description: buildDescription(
+        trim && trim.title
+          ? `${vehicle.titleRu} · ${trim.title}`
+          : vehicle.titleRu,
+        vehicle.descriptionRu,
+        vehicle.sourceUrl,
+      ),
       sortOrder: (last?.sortOrder ?? -1) + 1,
       publishedAt: data.publish ? new Date() : null,
     },
@@ -160,8 +175,8 @@ export async function addCatalogVehicleToDeal(
     });
   }
 
-  if (vehicle.customsEstimate) {
-    const estimate = vehicle.customsEstimate;
+  if (trim?.customsEstimate) {
+    const estimate = trim.customsEstimate;
     await upsertSearchProcessEntryEstimate(user, data.dealId, entry.id, {
       price: Number(estimate.price),
       currency: estimate.currency as "CNY" | "USD" | "KRW" | "RUB",

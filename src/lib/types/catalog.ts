@@ -34,6 +34,17 @@ export type CatalogRatesRecalcResult = {
   fetchedAt: string;
 };
 
+export type CatalogTrimItem = {
+  id: string;
+  title: string;
+  sortOrder: number;
+  estimate: {
+    totalWithCar: number;
+    input: unknown;
+    result: unknown;
+  } | null;
+};
+
 export type CatalogVehicleListItem = {
   id: string;
   source: "MANUAL" | "CHE168";
@@ -53,6 +64,7 @@ export type CatalogVehicleListItem = {
   photos: CatalogPhoto[];
   videoUrl: string | null;
   status: "ACTIVE" | "ARCHIVED";
+  trims: CatalogTrimItem[];
   estimate: {
     totalWithCar: number;
     input: unknown;
@@ -79,12 +91,21 @@ export type CatalogShareLink = {
   url: string;
 };
 
+export type PublicCatalogTrim = {
+  id: string;
+  title: string;
+  totalWithCar: number | null;
+  estimateInput: CustomsCalculatorInput | null;
+  estimateResult: CustomsCalculatorResult | null;
+};
+
 export type PublicCatalogVehicleData = {
   companyName: string;
   title: string;
   description: string;
   photos: string[];
   media: CatalogGalleryItem[];
+  trims: PublicCatalogTrim[];
   totalWithCar: number | null;
   estimateInput: CustomsCalculatorInput | null;
   estimateResult: CustomsCalculatorResult | null;

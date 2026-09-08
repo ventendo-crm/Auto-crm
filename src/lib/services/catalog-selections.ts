@@ -33,7 +33,10 @@ const selectionInclude = {
     include: {
       catalogVehicle: {
         include: {
-          customsEstimate: true,
+          trims: {
+            orderBy: { sortOrder: "asc" as const },
+            include: { customsEstimate: true },
+          },
         },
       },
     },
@@ -42,7 +45,7 @@ const selectionInclude = {
     orderBy: { createdAt: "desc" as const },
     include: { createdBy: { select: { name: true } } },
   },
-} as const;
+};
 
 function serializeSelectionItem(item: {
   id: string;
@@ -61,14 +64,20 @@ function serializeSelectionItem(item: {
     galleryUrls: Prisma.JsonValue;
     descriptionRu: string;
     videoUrl: string | null;
-    customsEstimate: {
-      totalWithCar: Prisma.Decimal;
-      result: Prisma.JsonValue;
-      input: Prisma.JsonValue;
-    } | null;
+    trims: Array<{
+      customsEstimate: {
+        totalWithCar: Prisma.Decimal;
+        result: Prisma.JsonValue;
+        input: Prisma.JsonValue;
+      } | null;
+    }>;
   };
 }) {
   const vehicle = item.catalogVehicle;
+  const cheapest = vehicle.trims
+    .map((trim) => trim.customsEstimate)
+    .filter((estimate): estimate is NonNullable<typeof estimate> => estimate != null)
+    .sort((a, b) => Number(a.totalWithCar) - Number(b.totalWithCar))[0];
   return {
     id: item.id,
     sortOrder: item.sortOrder,
@@ -86,11 +95,9 @@ function serializeSelectionItem(item: {
       galleryUrls: serializeGalleryUrls(vehicle.galleryUrls),
       descriptionRu: vehicle.descriptionRu,
       videoUrl: vehicle.videoUrl,
-      estimateTotal: vehicle.customsEstimate
-        ? Number(vehicle.customsEstimate.totalWithCar)
-        : null,
-      estimateResult: vehicle.customsEstimate?.result ?? null,
-      estimateInput: vehicle.customsEstimate?.input ?? null,
+      estimateTotal: cheapest ? Number(cheapest.totalWithCar) : null,
+      estimateResult: cheapest?.result ?? null,
+      estimateInput: cheapest?.input ?? null,
     },
   };
 }
@@ -155,7 +162,12 @@ export async function listCatalogSelections(user: AuthUser) {
         orderBy: { sortOrder: "asc" },
         include: {
           catalogVehicle: {
-            include: { customsEstimate: true },
+            include: {
+              trims: {
+                orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                include: { customsEstimate: true },
+              },
+            },
           },
         },
       },
@@ -421,7 +433,12 @@ export async function getPublicCatalogSelection(token: string) {
             orderBy: { sortOrder: "asc" },
             include: {
               catalogVehicle: {
-                include: { customsEstimate: true },
+                include: {
+                  trims: {
+                    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+                    include: { customsEstimate: true },
+                  },
+                },
               },
             },
           },

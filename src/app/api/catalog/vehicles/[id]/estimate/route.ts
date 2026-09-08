@@ -22,7 +22,12 @@ export const POST = withAuth(async (request, { user, params }) => {
     const json = await request.json();
     const fromCalculator = catalogEstimateFromCalculatorSchema.safeParse(json);
     const estimate = fromCalculator.success
-      ? await upsertCatalogVehicleEstimateFromInput(user, params.id, fromCalculator.data.input)
+      ? await upsertCatalogVehicleEstimateFromInput(
+          user,
+          params.id,
+          fromCalculator.data.input,
+          fromCalculator.data.trimId,
+        )
       : await upsertCatalogVehicleEstimate(user, params.id, catalogEstimateSchema.parse(json));
     return ok(serialize(estimate));
   } catch (err) {

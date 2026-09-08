@@ -711,7 +711,7 @@ model CatalogVehicle {
   createdBy       User                 @relation("CatalogVehicleCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   media           MediaFile[]
   selectionItems  CatalogSelectionItem[]
-  customsEstimate CatalogVehicleCustomsEstimate?
+  trims           CatalogVehicleTrim[]
   searchProcessEntries SearchProcessEntry[]
   shareTokens     CatalogVehicleShareToken[]
 
@@ -724,23 +724,37 @@ model CatalogVehicle {
   @@map("catalog_vehicles")
 }
 
-model CatalogVehicleCustomsEstimate {
-  id               String         @id @default(cuid())
-  catalogVehicleId String         @unique
-  createdById      String
-  price            Decimal        @db.Decimal(14, 2)
-  currency         String
-  powerHp          Int
-  volumeCc         Int
-  carYear          Int
-  input            Json
-  result           Json
-  totalWithCar     Decimal        @db.Decimal(14, 2)
-  note             String?
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
+model CatalogVehicleTrim {
+  id               String   @id @default(cuid())
+  catalogVehicleId String
+  title            String
+  sortOrder        Int      @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
   catalogVehicle   CatalogVehicle @relation(fields: [catalogVehicleId], references: [id], onDelete: Cascade)
-  createdBy        User           @relation("CatalogEstimateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  customsEstimate  CatalogVehicleCustomsEstimate?
+
+  @@index([catalogVehicleId, sortOrder])
+  @@map("catalog_vehicle_trims")
+}
+
+model CatalogVehicleCustomsEstimate {
+  id                   String             @id @default(cuid())
+  catalogVehicleTrimId String             @unique
+  createdById          String
+  price                Decimal            @db.Decimal(14, 2)
+  currency             String
+  powerHp              Int
+  volumeCc             Int
+  carYear              Int
+  input                Json
+  result               Json
+  totalWithCar         Decimal            @db.Decimal(14, 2)
+  note                 String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  trim                 CatalogVehicleTrim @relation(fields: [catalogVehicleTrimId], references: [id], onDelete: Cascade)
+  createdBy            User               @relation("CatalogEstimateCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@index([createdById])
   @@map("catalog_vehicle_customs_estimates")
@@ -805,6 +819,7 @@ model CatalogVehicleShareToken {
   catalogVehicleId String
   tokenHash        String         @unique
   publicToken      String?
+  visibleTrimIds   Json           @default("[]")
   expiresAt        DateTime?
   revokedAt        DateTime?
   viewCount        Int            @default(0)

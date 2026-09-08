@@ -84,6 +84,20 @@ export const createShareTokenSchema = z.object({
 export const addCatalogVehicleToDealSchema = z.object({
   dealId: z.string().trim().min(1),
   publish: z.boolean().optional(),
+  trimId: z.string().trim().min(1).optional(),
+});
+
+export const catalogShareVehicleSchema = z.object({
+  trimIds: z.array(z.string().trim().min(1)).min(1).max(20).optional(),
+});
+
+export const createCatalogTrimSchema = z.object({
+  title: z.string().trim().min(1, "Укажите название комплектации").max(80),
+  copyFromTrimId: z.string().trim().min(1).optional(),
+});
+
+export const updateCatalogTrimSchema = z.object({
+  title: z.string().trim().min(1, "Укажите название комплектации").max(80),
 });
 
 export const catalogEstimateSchema = z.object({
@@ -95,8 +109,19 @@ export const catalogEstimateSchema = z.object({
   carYear: z.coerce.number().int().min(1990).max(2100),
   exchangeRate: z.coerce.number().positive().optional(),
   note: z.string().trim().optional(),
+  trimId: z.string().trim().min(1).optional(),
 });
 
 export const catalogEstimateFromCalculatorSchema = z.object({
   input: customsEstimateInputSchema,
+  trimId: z.string().trim().min(1).optional(),
+});
+
+export const catalogRecalculateRatesSchema = z.object({
+  rates: z.object({
+    USD: z.number().positive(),
+    EUR: z.number().positive(),
+    CNY: z.number().positive(),
+    KRW: z.number().positive(),
+  }),
 });

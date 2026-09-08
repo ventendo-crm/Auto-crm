@@ -27,6 +27,7 @@ type EstimateInput = z.infer<typeof catalogEstimateSchema>;
 export interface CatalogVehicleEstimateItem {
   id: string;
   catalogVehicleId: string;
+  catalogVehicleTrimId: string;
   createdById: string;
   createdByName: string;
   createdAt: string;
@@ -58,7 +59,7 @@ function chinaExpensesForAge(age: CarAge): number {
 
 function serializeEstimate(record: {
   id: string;
-  catalogVehicleId: string;
+  catalogVehicleTrimId: string;
   createdById: string;
   createdAt: Date;
   updatedAt: Date;
@@ -72,10 +73,12 @@ function serializeEstimate(record: {
   result: Prisma.JsonValue;
   totalWithCar: Prisma.Decimal;
   createdBy: { name: string };
+  trim: { catalogVehicleId: string };
 }): CatalogVehicleEstimateItem {
   return {
     id: record.id,
-    catalogVehicleId: record.catalogVehicleId,
+    catalogVehicleId: record.trim.catalogVehicleId,
+    catalogVehicleTrimId: record.catalogVehicleTrimId,
     createdById: record.createdById,
     createdByName: record.createdBy.name,
     createdAt: record.createdAt.toISOString(),
@@ -90,6 +93,32 @@ function serializeEstimate(record: {
     result: record.result as unknown as CustomsCalculatorResult,
     totalWithCar: Number(record.totalWithCar),
   };
+}
+
+const estimateInclude = {
+  createdBy: { select: { name: true } },
+  trim: { select: { catalogVehicleId: true } },
+} as const;
+
+async function resolveTrimId(user: AuthUser, vehicleId: string, trimId?: string | null) {
+  const vehicle = await prisma.catalogVehicle.findFirst({
+    where: { id: vehicleId, companyId: user.companyId },
+    select: {
+      id: true,
+      trims: {
+        orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+        select: { id: true },
+      },
+    },
+  });
+  if (!vehicle) throw new Error("NOT_FOUND");
+  if (trimId) {
+    if (!vehicle.trims.some((item) => item.id === trimId)) throw new Error("NOT_FOUND");
+    return { vehicleId: vehicle.id, trimId };
+  }
+  const first = vehicle.trims[0];
+  if (!first) throw new Error("NOT_FOUND");
+  return { vehicleId: vehicle.id, trimId: first.id };
 }
 
 async function buildCalculatorInput(
@@ -147,12 +176,17 @@ async function buildCalculatorInput(
   };
 }
 
-export async function getCatalogVehicleEstimate(user: AuthUser, vehicleId: string) {
+export async function getCatalogVehicleEstimate(
+  user: AuthUser,
+  vehicleId: string,
+  trimId?: string | null,
+) {
   await assertCompanyCatalogAccess(user);
+  const resolved = await resolveTrimId(user, vehicleId, trimId);
 
-  const record = await prisma.catalogVehicleCustomsEstimate.findFirst({
-    where: { catalogVehicleId: vehicleId, catalogVehicle: { companyId: user.companyId } },
-    include: { createdBy: { select: { name: true } } },
+  const record = await prisma.catalogVehicleCustomsEstimate.findUnique({
+    where: { catalogVehicleTrimId: resolved.trimId },
+    include: estimateInclude,
   });
   return record ? serializeEstimate(record) : null;
 }
@@ -164,21 +198,16 @@ export async function upsertCatalogVehicleEstimate(
 ) {
   await assertCompanyCatalogAccess(user);
   const parsed = catalogEstimateSchema.parse(body);
-
-  const vehicle = await prisma.catalogVehicle.findFirst({
-    where: { id: vehicleId, companyId: user.companyId },
-    select: { id: true },
-  });
-  if (!vehicle) throw new Error("NOT_FOUND");
+  const resolved = await resolveTrimId(user, vehicleId, parsed.trimId);
 
   const input = await buildCalculatorInput(user.companyId, parsed);
   const result = calculateCustoms(input);
   if (!result) throw new Error("INVALID_CALCULATION");
 
   const saved = await prisma.catalogVehicleCustomsEstimate.upsert({
-    where: { catalogVehicleId: vehicleId },
+    where: { catalogVehicleTrimId: resolved.trimId },
     create: {
-      catalogVehicleId: vehicleId,
+      catalogVehicleTrimId: resolved.trimId,
       createdById: user.id,
       price: new Prisma.Decimal(parsed.price),
       currency: parsed.currency,
@@ -202,7 +231,7 @@ export async function upsertCatalogVehicleEstimate(
       result: result as unknown as Prisma.InputJsonValue,
       totalWithCar: new Prisma.Decimal(result.totalWithCar),
     },
-    include: { createdBy: { select: { name: true } } },
+    include: estimateInclude,
   });
 
   await createAuditLog({
@@ -212,6 +241,7 @@ export async function upsertCatalogVehicleEstimate(
     action: "UPSERT",
     newValue: {
       catalogVehicleId: vehicleId,
+      catalogVehicleTrimId: resolved.trimId,
       totalWithCar: Number(saved.totalWithCar),
     },
   });
@@ -232,15 +262,11 @@ export async function upsertCatalogVehicleEstimateFromInput(
   user: AuthUser,
   vehicleId: string,
   rawInput: unknown,
+  trimId?: string | null,
 ) {
   await assertCompanyCatalogAccess(user);
   const input = customsEstimateInputSchema.parse(rawInput) as CustomsCalculatorInput;
-
-  const vehicle = await prisma.catalogVehicle.findFirst({
-    where: { id: vehicleId, companyId: user.companyId },
-    select: { id: true },
-  });
-  if (!vehicle) throw new Error("NOT_FOUND");
+  const resolved = await resolveTrimId(user, vehicleId, trimId);
 
   const result = calculateCustoms(input);
   if (!result) throw new Error("INVALID_CALCULATION");
@@ -258,9 +284,9 @@ export async function upsertCatalogVehicleEstimateFromInput(
   });
 
   const saved = await prisma.catalogVehicleCustomsEstimate.upsert({
-    where: { catalogVehicleId: vehicleId },
+    where: { catalogVehicleTrimId: resolved.trimId },
     create: {
-      catalogVehicleId: vehicleId,
+      catalogVehicleTrimId: resolved.trimId,
       createdById: user.id,
       price: new Prisma.Decimal(input.price),
       currency: input.currency,
@@ -282,7 +308,7 @@ export async function upsertCatalogVehicleEstimateFromInput(
       result: result as unknown as Prisma.InputJsonValue,
       totalWithCar: new Prisma.Decimal(result.totalWithCar),
     },
-    include: { createdBy: { select: { name: true } } },
+    include: estimateInclude,
   });
 
   await createAuditLog({
@@ -292,6 +318,7 @@ export async function upsertCatalogVehicleEstimateFromInput(
     action: "UPSERT",
     newValue: {
       catalogVehicleId: vehicleId,
+      catalogVehicleTrimId: resolved.trimId,
       totalWithCar: Number(saved.totalWithCar),
     },
   });
@@ -301,6 +328,7 @@ export async function upsertCatalogVehicleEstimateFromInput(
 
 export async function autoEstimateCatalogVehicle(user: AuthUser, vehicleId: string) {
   await assertCompanyCatalogAccess(user);
+  const resolved = await resolveTrimId(user, vehicleId);
 
   const vehicle = await prisma.catalogVehicle.findFirst({
     where: { id: vehicleId, companyId: user.companyId },
@@ -310,7 +338,10 @@ export async function autoEstimateCatalogVehicle(user: AuthUser, vehicleId: stri
       powerHp: true,
       volumeCc: true,
       carYear: true,
-      customsEstimate: { select: { input: true } },
+      trims: {
+        where: { id: resolved.trimId },
+        select: { customsEstimate: { select: { input: true } } },
+      },
     },
   });
   if (!vehicle) throw new Error("NOT_FOUND");
@@ -318,7 +349,7 @@ export async function autoEstimateCatalogVehicle(user: AuthUser, vehicleId: stri
     throw new Error("INSUFFICIENT_DATA");
   }
 
-  const previousInput = vehicle.customsEstimate?.input as { originCountry?: string } | null;
+  const previousInput = vehicle.trims[0]?.customsEstimate?.input as { originCountry?: string } | null;
   const destinationCountry =
     typeof previousInput?.originCountry === "string" && previousInput.originCountry
       ? previousInput.originCountry
@@ -336,6 +367,7 @@ export async function autoEstimateCatalogVehicle(user: AuthUser, vehicleId: stri
     powerHp: vehicle.powerHp ?? 150,
     volumeCc: vehicle.volumeCc ?? 2000,
     carYear: vehicle.carYear,
+    trimId: resolved.trimId,
   });
 }
 
@@ -359,23 +391,33 @@ export function applyFreshRatesToCatalogEstimateInput(
   };
 }
 
-export async function recalculateActiveCatalogEstimates(
-  user: AuthUser,
-): Promise<CatalogRatesRecalcResult> {
+export async function getCatalogExchangeRates(user: AuthUser) {
   await assertCompanyCatalogAccess(user);
-
-  let fetched: { rates: ExchangeRates; fetchedAt: string };
   try {
-    fetched = await fetchGoogleFinanceRates({ force: true });
+    return await fetchGoogleFinanceRates({ force: true });
   } catch {
     throw new Error("RATES_UNAVAILABLE");
   }
+}
+
+export async function recalculateActiveCatalogEstimates(
+  user: AuthUser,
+  rates: ExchangeRates,
+): Promise<CatalogRatesRecalcResult> {
+  await assertCompanyCatalogAccess(user);
+
+  const normalized = roundExchangeRates(rates);
+  const fetchedAt = new Date().toISOString();
 
   const vehicles = await prisma.catalogVehicle.findMany({
     where: { companyId: user.companyId, status: CatalogVehicleStatus.ACTIVE },
     select: {
       id: true,
-      customsEstimate: { select: { id: true, input: true } },
+      trims: {
+        select: {
+          customsEstimate: { select: { id: true, input: true } },
+        },
+      },
     },
   });
 
@@ -384,34 +426,37 @@ export async function recalculateActiveCatalogEstimates(
   let failed = 0;
 
   for (const vehicle of vehicles) {
-    if (!vehicle.customsEstimate) {
+    const estimates = vehicle.trims
+      .map((trim) => trim.customsEstimate)
+      .filter((item): item is { id: string; input: Prisma.JsonValue } => item != null);
+
+    if (estimates.length === 0) {
       skipped += 1;
       continue;
     }
 
-    try {
-      const input = applyFreshRatesToCatalogEstimateInput(
-        vehicle.customsEstimate.input,
-        fetched.rates,
-      );
-      const result = calculateCustoms(input);
-      if (!result) {
-        failed += 1;
-        continue;
-      }
+    for (const estimate of estimates) {
+      try {
+        const input = applyFreshRatesToCatalogEstimateInput(estimate.input, normalized);
+        const result = calculateCustoms(input);
+        if (!result) {
+          failed += 1;
+          continue;
+        }
 
-      await prisma.catalogVehicleCustomsEstimate.update({
-        where: { id: vehicle.customsEstimate.id },
-        data: {
-          input: input as unknown as Prisma.InputJsonValue,
-          result: result as unknown as Prisma.InputJsonValue,
-          totalWithCar: new Prisma.Decimal(result.totalWithCar),
-        },
-      });
-      updated += 1;
-    } catch (err) {
-      failed += 1;
-      console.error(`Catalog rate recalc failed for vehicle ${vehicle.id}`, err);
+        await prisma.catalogVehicleCustomsEstimate.update({
+          where: { id: estimate.id },
+          data: {
+            input: input as unknown as Prisma.InputJsonValue,
+            result: result as unknown as Prisma.InputJsonValue,
+            totalWithCar: new Prisma.Decimal(result.totalWithCar),
+          },
+        });
+        updated += 1;
+      } catch (err) {
+        failed += 1;
+        console.error(`Catalog rate recalc failed for vehicle ${vehicle.id}`, err);
+      }
     }
   }
 
@@ -426,10 +471,10 @@ export async function recalculateActiveCatalogEstimates(
       skipped,
       failed,
       rates: {
-        USD: fetched.rates.USD,
-        EUR: fetched.rates.EUR,
-        CNY: fetched.rates.CNY,
-        KRW: fetched.rates.KRW,
+        USD: normalized.USD,
+        EUR: normalized.EUR,
+        CNY: normalized.CNY,
+        KRW: normalized.KRW,
       },
     },
   });
@@ -438,7 +483,7 @@ export async function recalculateActiveCatalogEstimates(
     updated,
     skipped,
     failed,
-    rates: fetched.rates,
-    fetchedAt: fetched.fetchedAt,
+    rates: normalized,
+    fetchedAt,
   };
 }
