@@ -1,7 +1,5 @@
 import { createHash, randomBytes } from "crypto";
 
-import { formatCurrency } from "@/lib/utils";
-
 export function createShareToken(): string {
   return randomBytes(24).toString("hex");
 }
@@ -29,27 +27,20 @@ export function buildPublicCatalogVehicleUrl(token: string): string {
   return publicAbsoluteUrl(buildPublicCatalogVehiclePath(token));
 }
 
+export function buildCatalogVehicleCaption(title?: string | null, trimTitles?: string[]) {
+  const name = title?.trim() || "";
+  const trims = (trimTitles ?? []).map((item) => item.trim()).filter(Boolean);
+  const head = name ? `Расчет автомобиля "${name}"` : "Расчет автомобиля";
+  const trimPart = trims.length > 0 ? ` в комплектации "${trims.join(", ")}"` : "";
+  return `${head}${trimPart}`;
+}
+
 export function buildCatalogVehicleClipboard(
   url: string,
   title?: string | null,
-  totals?: Array<{ title: string; totalRub: number | null }> | number | null,
+  trimTitles?: string[],
 ) {
-  const head = title?.trim() || "Авто из каталога";
-  if (typeof totals === "number" || totals == null) {
-    const total =
-      totals != null && Number.isFinite(totals) ? `\nИтого: ${formatCurrency(totals)}` : "";
-    return `${head}${total}\n\n${url}`;
-  }
-  const lines = totals
-    .map((item) => {
-      const price =
-        item.totalRub != null && Number.isFinite(item.totalRub)
-          ? formatCurrency(item.totalRub)
-          : "без расчёта";
-      return `${item.title}: ${price}`;
-    })
-    .join("\n");
-  return `${head}${lines ? `\n${lines}` : ""}\n\n${url}`;
+  return `${buildCatalogVehicleCaption(title, trimTitles)}\n\n${url}`;
 }
 
 export function publicCatalogVehicleMediaPath(token: string, mediaId: string): string {

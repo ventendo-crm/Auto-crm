@@ -82,6 +82,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   const [deals, setDeals] = useState<DealListItem[]>([]);
   const [selectedDealId, setSelectedDealId] = useState("");
   const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [shareCaption, setShareCaption] = useState("");
   const [selectedTrimId, setSelectedTrimId] = useState("");
   const [addTrimOpen, setAddTrimOpen] = useState(false);
   const [addTrimTitle, setAddTrimTitle] = useState("");
@@ -210,6 +211,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
         { trimIds },
       );
       setShareUrl(result.url);
+      setShareCaption(result.clipboard.split("\n")[0]?.trim() || vehicle?.titleRu || "");
       setShareOpen(false);
       await navigator.clipboard.writeText(result.clipboard);
       toast.success("Ссылка скопирована");
@@ -495,7 +497,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
               </Button>
               <Button variant="outline" size="sm" asChild>
                 <a
-                  href={buildTelegramShareUrl(shareUrl, vehicle.titleRu)}
+                  href={buildTelegramShareUrl(shareUrl, shareCaption || vehicle.titleRu)}
                   target="_blank"
                   rel="noreferrer"
                 >

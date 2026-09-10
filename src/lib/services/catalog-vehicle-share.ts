@@ -123,10 +123,6 @@ export async function shareCatalogVehicle(
 
   const selected = vehicle.trims.filter((trim) => visibleTrimIds.includes(trim.id));
   const url = buildPublicCatalogVehicleUrl(token);
-  const clipboardLines = selected.map((trim) => ({
-    title: trim.title,
-    totalRub: trim.customsEstimate ? Number(trim.customsEstimate.totalWithCar) : null,
-  }));
 
   return {
     token,
@@ -134,9 +130,7 @@ export async function shareCatalogVehicle(
     clipboard: buildCatalogVehicleClipboard(
       url,
       vehicle.titleRu,
-      selected.length === 1
-        ? clipboardLines[0]?.totalRub ?? null
-        : clipboardLines,
+      selected.map((trim) => trim.title),
     ),
   };
 }
