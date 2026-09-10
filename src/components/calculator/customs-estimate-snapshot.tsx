@@ -77,6 +77,17 @@ function ResultSection({ title, children }: { title?: string; children: ReactNod
   );
 }
 
+export const ESTIMATE_ACTUALITY_NOTE =
+  "Цена актуальная на момент расчёта. Зависит от курса валют.";
+
+export function EstimateActualityNote({ compact }: { compact?: boolean }) {
+  return (
+    <p className={cn("text-muted-foreground", compact ? "text-[11px] leading-snug" : "text-xs")}>
+      {ESTIMATE_ACTUALITY_NOTE}
+    </p>
+  );
+}
+
 export function CustomsEstimateSnapshot({
   input,
   result,
@@ -256,6 +267,8 @@ export function CustomsEstimateSnapshot({
           <ResultRow key={item.id} label={item.label} value={item.amountRub} />
         ))}
       </ResultSection>
+
+      <EstimateActualityNote />
     </div>
   );
 }

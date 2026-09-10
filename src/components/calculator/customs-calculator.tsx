@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { CalculatorExpenseEditor } from "@/components/calculator/calculator-expense-editor";
 import { CalculatorPresetsPanel } from "@/components/calculator/calculator-presets-panel";
 import { SaveEstimateToDealButton } from "@/components/calculator/save-estimate-to-deal-button";
+import { EstimateActualityNote } from "@/components/calculator/customs-estimate-snapshot";
 import { MOBILE_TAB_BAR_OFFSET_CLASS } from "@/components/layout/staff-nav";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2580,9 +2581,12 @@ export function CustomsCalculator({
                         </p>
                       </div>
                     )}
+                    <EstimateActualityNote compact />
                   </div>
                 </CollapsiblePanel>
               </div>
+
+              {!detailsOpen && <EstimateActualityNote />}
 
               {history.length > 0 && (
                 <div className="rounded-xl border">

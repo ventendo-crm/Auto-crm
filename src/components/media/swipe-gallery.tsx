@@ -69,28 +69,95 @@ export function SwipeGallery({
       type: "photo" as const,
       label: labels?.[index],
     }));
-  const scrollerRef = useRef<HTMLDivElement>(null);
+  const trackRef = useRef<HTMLDivElement>(null);
   const lightboxScrollerRef = useRef<HTMLDivElement>(null);
   const indexRef = useRef(0);
+  const goToRef = useRef<(next: number, behavior?: ScrollBehavior) => void>(() => {});
+  const ignoreClickRef = useRef(false);
+  const dragXRef = useRef(0);
   const [index, setIndex] = useState(0);
   const [lightbox, setLightbox] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const [panningX, setPanningX] = useState(false);
   const slideKey = slides.map((slide) => `${slide.type}:${slide.src}`).join("|");
 
   indexRef.current = index;
+  dragXRef.current = dragX;
 
   useEffect(() => {
     setIndex(0);
-    scrollerRef.current?.scrollTo({ left: 0 });
+    setDragX(0);
   }, [slideKey]);
 
-  const goTo = (next: number, behavior: ScrollBehavior = "smooth") => {
+  const goTo = (next: number, _behavior: ScrollBehavior = "smooth") => {
     const clamped = Math.min(slides.length - 1, Math.max(0, next));
     setIndex(clamped);
-    scrollScrollerTo(scrollerRef.current, clamped, behavior);
     if (lightbox) {
-      scrollScrollerTo(lightboxScrollerRef.current, clamped, behavior);
+      scrollScrollerTo(lightboxScrollerRef.current, clamped, "smooth");
     }
   };
+  goToRef.current = goTo;
+
+  useEffect(() => {
+    const track = trackRef.current;
+    const viewport = track?.parentElement;
+    if (!viewport) return;
+
+    let startX = 0;
+    let startY = 0;
+    let axis: "x" | "y" | null = null;
+    const canSwipe = slides.length > 1;
+
+    const onStart = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      ignoreClickRef.current = false;
+      startX = event.touches[0].clientX;
+      startY = event.touches[0].clientY;
+      axis = null;
+    };
+
+    const onMove = (event: TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      const dx = event.touches[0].clientX - startX;
+      const dy = event.touches[0].clientY - startY;
+      if (axis == null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        axis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+        if (axis === "x" && canSwipe) setPanningX(true);
+      }
+      if (axis === "x" && canSwipe) {
+        event.preventDefault();
+        const atStart = indexRef.current <= 0 && dx > 0;
+        const atEnd = indexRef.current >= slides.length - 1 && dx < 0;
+        setDragX(atStart || atEnd ? dx * 0.35 : dx);
+      }
+    };
+
+    const onEnd = () => {
+      if (axis) ignoreClickRef.current = true;
+      if (axis === "x" && canSwipe) {
+        const width = viewport.clientWidth || 1;
+        const threshold = Math.min(64, width * 0.18);
+        const offset = dragXRef.current;
+        if (offset < -threshold) goToRef.current(indexRef.current + 1);
+        else if (offset > threshold) goToRef.current(indexRef.current - 1);
+      }
+      setDragX(0);
+      axis = null;
+      setPanningX(false);
+    };
+
+    viewport.addEventListener("touchstart", onStart, { passive: true });
+    viewport.addEventListener("touchmove", onMove, { passive: false });
+    viewport.addEventListener("touchend", onEnd);
+    viewport.addEventListener("touchcancel", onEnd);
+    return () => {
+      viewport.removeEventListener("touchstart", onStart);
+      viewport.removeEventListener("touchmove", onMove);
+      viewport.removeEventListener("touchend", onEnd);
+      viewport.removeEventListener("touchcancel", onEnd);
+    };
+  }, [slideKey, slides.length]);
 
   useLayoutEffect(() => {
     if (!lightbox) return;
@@ -127,23 +194,39 @@ export function SwipeGallery({
   const current = slides[index];
   const currentLabel = current?.label ?? (current?.type === "video" ? "Видео" : "Фото");
 
+  function openSlide(slideIndex: number) {
+    if (ignoreClickRef.current) {
+      ignoreClickRef.current = false;
+      return;
+    }
+    setIndex(slideIndex);
+    setLightbox(true);
+  }
+
   return (
     <>
       <div className="space-y-2">
-        <div className="overflow-hidden rounded-lg">
+        <div className="w-full overflow-hidden rounded-lg touch-pan-y">
           <div
-            ref={scrollerRef}
-            onScroll={(event) => onScroll(event.currentTarget)}
-            className="flex snap-x snap-mandatory touch-pan-x overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            ref={trackRef}
+            className="flex w-full"
+            style={{
+              transform: `translate3d(calc(${-index * 100}% + ${dragX}px), 0, 0)`,
+              transition: panningX ? "none" : "transform 200ms ease-out",
+            }}
           >
             {slides.map((slide, slideIndex) => (
-              <button
+              <div
                 key={`${slide.src}-${slideIndex}`}
-                type="button"
-                className="relative min-w-full shrink-0 basis-full snap-center overflow-hidden"
-                onClick={() => {
-                  setIndex(slideIndex);
-                  setLightbox(true);
+                role="button"
+                tabIndex={0}
+                className="relative w-full min-w-full shrink-0 basis-full cursor-pointer overflow-hidden"
+                onClick={() => openSlide(slideIndex)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openSlide(slideIndex);
+                  }
                 }}
               >
                 {slide.type === "video" ? (
@@ -168,7 +251,7 @@ export function SwipeGallery({
                     draggable={false}
                   />
                 )}
-              </button>
+              </div>
             ))}
           </div>
         </div>
@@ -195,7 +278,7 @@ export function SwipeGallery({
         onOpenChange={(open) => {
           setLightbox(open);
           if (!open) {
-            scrollScrollerTo(scrollerRef.current, indexRef.current, "auto");
+            scrollScrollerTo(lightboxScrollerRef.current, indexRef.current, "auto");
           }
         }}
       >
