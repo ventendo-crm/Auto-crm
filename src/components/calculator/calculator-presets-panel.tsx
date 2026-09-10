@@ -109,15 +109,12 @@ function SortablePresetRow({
 }
 
 function loadPresetsOpen(): boolean {
-  if (typeof window === "undefined") return true;
+  if (typeof window === "undefined") return false;
   try {
-    const raw = window.localStorage.getItem(PRESETS_OPEN_STORAGE_KEY);
-    if (raw === "0") return false;
-    if (raw === "1") return true;
+    return window.localStorage.getItem(PRESETS_OPEN_STORAGE_KEY) === "1";
   } catch {
-    // ignore
+    return false;
   }
-  return true;
 }
 
 export function CalculatorPresetsPanel({
@@ -127,7 +124,7 @@ export function CalculatorPresetsPanel({
   onChange,
   onSaveCurrent,
 }: CalculatorPresetsPanelProps) {
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
