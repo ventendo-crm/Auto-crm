@@ -60,6 +60,12 @@ if [ -f ./prisma/ensure-catalog-vehicle-trims.sql ]; then
     || echo "[auto-crm] Catalog vehicle trims ensure failed — continuing"
 fi
 
+echo "[auto-crm] Ensuring catalog trim photos and descriptions..."
+if [ -f ./prisma/ensure-catalog-trim-media.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-catalog-trim-media.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Catalog trim media ensure failed — continuing"
+fi
+
 echo "[auto-crm] Applying database schema..."
 if command -v npx >/dev/null 2>&1; then
   # Non-interactive: do not hang/fail the whole container on drift prompts.

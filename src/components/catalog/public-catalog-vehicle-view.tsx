@@ -63,6 +63,13 @@ export function PublicCatalogVehicleView({ token }: { token: string }) {
   const displayTotal = selectedTrim?.totalWithCar ?? data.totalWithCar;
   const estimateInput = selectedTrim?.estimateInput ?? data.estimateInput;
   const estimateResult = selectedTrim?.estimateResult ?? data.estimateResult;
+  const gallery =
+    selectedTrim?.media?.length
+      ? selectedTrim.media
+      : selectedTrim
+        ? []
+        : (data.media ?? data.photos.map((url) => ({ url, type: "photo" as const })));
+  const description = selectedTrim?.description ?? (!selectedTrim ? data.description : "");
 
   return (
     <div className="min-h-[100dvh] bg-background">
@@ -77,57 +84,63 @@ export function PublicCatalogVehicleView({ token }: { token: string }) {
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-8 sm:px-6">
-        <SwipeGallery
-          items={(data.media ?? data.photos.map((url) => ({ url, type: "photo" as const }))).map(
-            (item, index) => ({
-              src: item.url,
-              type: item.type,
-              label:
-                item.type === "video" ? `${data.title} · видео` : `${data.title} · фото ${index + 1}`,
-            }),
-          )}
-        />
-
         {trims.length > 1 ? (
-          <Fragment>
-            <BlockDivider />
-            <section className="space-y-3">
-              <h2 className="text-lg font-semibold">Комплектации</h2>
-              <div className="flex flex-wrap gap-2">
-                {trims.map((trim) => (
-                  <button
-                    key={trim.id}
-                    type="button"
-                    aria-pressed={trim.id === selectedTrim?.id}
-                    onClick={() => setSelectedTrimId(trim.id)}
-                    className={cn(
-                      "rounded-lg border px-3 py-2 text-sm",
-                      trim.id === selectedTrim?.id
-                        ? "border-brand/40 bg-brand-muted/50 font-medium"
-                        : "hover:bg-muted",
-                    )}
-                  >
-                    <span className="block">{trim.title}</span>
-                    {trim.totalWithCar != null ? (
-                      <span className="block text-xs text-muted-foreground">
-                        {formatCurrency(trim.totalWithCar)}
-                      </span>
-                    ) : null}
-                  </button>
-                ))}
-              </div>
-            </section>
-          </Fragment>
+          <section className="space-y-3">
+            <h2 className="text-lg font-semibold">Комплектации</h2>
+            <div className="flex flex-wrap gap-2">
+              {trims.map((trim) => (
+                <button
+                  key={trim.id}
+                  type="button"
+                  aria-pressed={trim.id === selectedTrim?.id}
+                  onClick={() => setSelectedTrimId(trim.id)}
+                  className={cn(
+                    "rounded-lg border px-3 py-2 text-sm",
+                    trim.id === selectedTrim?.id
+                      ? "border-brand/40 bg-brand-muted/50 font-medium"
+                      : "hover:bg-muted",
+                  )}
+                >
+                  <span className="block">{trim.title}</span>
+                  {trim.totalWithCar != null ? (
+                    <span className="block text-xs text-muted-foreground">
+                      {formatCurrency(trim.totalWithCar)}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+            </div>
+          </section>
         ) : selectedTrim && selectedTrim.title && selectedTrim.title !== "Базовая" ? (
           <p className="text-sm text-muted-foreground">Комплектация: {selectedTrim.title}</p>
         ) : null}
 
-        {data.description.trim() ? (
+        {gallery.length === 0 ? (
+          <div className="flex aspect-[16/10] items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
+            Нет фото
+          </div>
+        ) : (
+          <SwipeGallery
+            key={selectedTrim?.id ?? "vehicle"}
+            items={gallery.map((item, index) => ({
+              src: item.url,
+              type: item.type,
+              label:
+                item.type === "video"
+                  ? `${data.title} · видео`
+                  : `${data.title} · фото ${index + 1}`,
+            }))}
+          />
+        )}
+
+        {description.trim() ? (
           <Fragment>
             <BlockDivider />
             <section className="space-y-2">
               <h2 className="text-lg font-semibold">Описание</h2>
-              <p className="whitespace-pre-wrap text-sm leading-relaxed">{data.description}</p>
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                {description}
+              </p>
             </section>
           </Fragment>
         ) : null}

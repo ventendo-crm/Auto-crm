@@ -1,10 +1,12 @@
 import { Prisma } from "@prisma/client";
-import { DEFAULT_CATALOG_TRIM_TITLE, MAX_CATALOG_VEHICLE_TRIMS } from "@/lib/constants";
+import { DEFAULT_CATALOG_TRIM_TITLE, MAX_CATALOG_VEHICLE_MEDIA, MAX_CATALOG_VEHICLE_TRIMS } from "@/lib/constants";
 import { AuthUser } from "@/lib/permissions";
 import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/services/audit";
 import { createCatalogTrimSchema, updateCatalogTrimSchema } from "@/lib/validators/catalog";
+import { guessMediaContentType } from "@/lib/validators/media";
+import { openStoredMediaFile, storeMediaFile } from "@/lib/storage/media-storage";
 import { z } from "zod";
 
 type CreateInput = z.infer<typeof createCatalogTrimSchema>;
@@ -35,6 +37,60 @@ export async function assertVehicleTrimAccess(
   return { vehicle, trim };
 }
 
+async function copyTrimMedia(params: {
+  userId: string;
+  vehicleId: string;
+  sourceTrimId: string;
+  targetTrimId: string;
+}) {
+  const sourceMedia = await prisma.mediaFile.findMany({
+    where: { catalogVehicleTrimId: params.sourceTrimId },
+    orderBy: { uploadedAt: "asc" },
+    take: MAX_CATALOG_VEHICLE_MEDIA,
+  });
+
+  for (const item of sourceMedia) {
+    try {
+      const stored = await openStoredMediaFile(item.fileUrl, item.fileName);
+      const chunks: Buffer[] = [];
+      if (!stored.stream) continue;
+      const reader = stored.stream.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) chunks.push(Buffer.from(value));
+      }
+      const buffer = Buffer.concat(chunks);
+      if (buffer.length < 1024) continue;
+
+      const mediaId = crypto.randomUUID();
+      const { fileKey, thumbnailKey } = await storeMediaFile({
+        dealId: params.vehicleId,
+        mediaId,
+        fileName: item.fileName,
+        buffer,
+        contentType: guessMediaContentType(item.fileName),
+        mediaType: item.type,
+      });
+
+      await prisma.mediaFile.create({
+        data: {
+          type: item.type,
+          fileName: item.fileName,
+          fileUrl: fileKey,
+          thumbnailUrl: thumbnailKey,
+          size: buffer.length,
+          catalogVehicleId: params.vehicleId,
+          catalogVehicleTrimId: params.targetTrimId,
+          uploadedById: params.userId,
+        },
+      });
+    } catch (error) {
+      console.warn("[catalog-trims] failed to copy media:", item.id, error);
+    }
+  }
+}
+
 export async function createCatalogVehicleTrim(
   user: AuthUser,
   vehicleId: string,
@@ -50,7 +106,7 @@ export async function createCatalogVehicleTrim(
   const source =
     parsed.copyFromTrimId != null
       ? vehicle.trims.find((item) => item.id === parsed.copyFromTrimId)
-      : vehicle.trims[vehicle.trims.length - 1];
+      : null;
   if (parsed.copyFromTrimId && !source) throw new Error("NOT_FOUND");
 
   const sourceEstimate = source
@@ -67,6 +123,8 @@ export async function createCatalogVehicleTrim(
         catalogVehicleId: vehicleId,
         title: parsed.title,
         sortOrder: maxSort + 1,
+        descriptionRu: source?.descriptionRu ?? "",
+        descriptionZh: source?.descriptionZh ?? "",
       },
     });
 
@@ -91,6 +149,15 @@ export async function createCatalogVehicleTrim(
     return created;
   });
 
+  if (source) {
+    await copyTrimMedia({
+      userId: user.id,
+      vehicleId,
+      sourceTrimId: source.id,
+      targetTrimId: trim.id,
+    });
+  }
+
   await createAuditLog({
     userId: user.id,
     companyId: user.companyId,
@@ -114,7 +181,11 @@ export async function updateCatalogVehicleTrim(
 
   const trim = await prisma.catalogVehicleTrim.update({
     where: { id: trimId },
-    data: { title: parsed.title },
+    data: {
+      ...(parsed.title !== undefined ? { title: parsed.title } : {}),
+      ...(parsed.descriptionRu !== undefined ? { descriptionRu: parsed.descriptionRu } : {}),
+      ...(parsed.descriptionZh !== undefined ? { descriptionZh: parsed.descriptionZh } : {}),
+    },
   });
 
   await createAuditLog({
@@ -123,7 +194,10 @@ export async function updateCatalogVehicleTrim(
     entity: "CatalogVehicleTrim",
     entityId: trim.id,
     action: "UPDATE",
-    newValue: { title: trim.title },
+    newValue: {
+      title: trim.title,
+      descriptionRu: trim.descriptionRu,
+    },
   });
 
   return trim;

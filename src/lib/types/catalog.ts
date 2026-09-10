@@ -38,6 +38,8 @@ export type CatalogTrimItem = {
   id: string;
   title: string;
   sortOrder: number;
+  descriptionRu: string;
+  photos: CatalogPhoto[];
   estimate: {
     totalWithCar: number;
     input?: unknown;
@@ -94,6 +96,9 @@ export type CatalogShareLink = {
 export type PublicCatalogTrim = {
   id: string;
   title: string;
+  description: string;
+  photos: string[];
+  media: CatalogGalleryItem[];
   totalWithCar: number | null;
   estimateInput: CustomsCalculatorInput | null;
   estimateResult: CustomsCalculatorResult | null;

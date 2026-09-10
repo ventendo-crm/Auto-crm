@@ -97,7 +97,9 @@ export const createCatalogTrimSchema = z.object({
 });
 
 export const updateCatalogTrimSchema = z.object({
-  title: z.string().trim().min(1, "Укажите название комплектации").max(80),
+  title: z.string().trim().min(1, "Укажите название комплектации").max(80).optional(),
+  descriptionRu: z.string().optional(),
+  descriptionZh: z.string().optional(),
 });
 
 export const catalogEstimateSchema = z.object({

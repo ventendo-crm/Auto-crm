@@ -13,9 +13,11 @@ export const POST = withAuth(async (request, { user, params }) => {
     if (files.length === 0) {
       return error("Добавьте фото или видео", 400);
     }
+    const trimIdRaw = form.get("trimId");
+    const trimId = typeof trimIdRaw === "string" && trimIdRaw.trim() ? trimIdRaw.trim() : null;
     let vehicle = null;
     for (const file of files) {
-      vehicle = await uploadCatalogVehiclePhoto(user, params.id, file);
+      vehicle = await uploadCatalogVehiclePhoto(user, params.id, file, trimId);
     }
     return ok(serialize(vehicle));
   } catch (err) {

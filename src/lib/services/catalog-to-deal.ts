@@ -112,7 +112,7 @@ export async function addCatalogVehicleToDeal(
         trim && trim.title
           ? `${vehicle.titleRu} · ${trim.title}`
           : vehicle.titleRu,
-        vehicle.descriptionRu,
+        trim?.descriptionRu || vehicle.descriptionRu,
         vehicle.sourceUrl,
       ),
       sortOrder: (last?.sortOrder ?? -1) + 1,
@@ -122,9 +122,12 @@ export async function addCatalogVehicleToDeal(
 
   const galleryUrls = serializeGalleryUrls(vehicle.galleryUrls);
   let imagesImported = 0;
+  const mediaToCopy = trim
+    ? vehicle.media.filter((item) => item.catalogVehicleTrimId === trim.id)
+    : vehicle.media;
 
-  if (vehicle.media.length > 0) {
-    for (const [index, item] of vehicle.media.slice(0, MAX_FILES_TO_IMPORT).entries()) {
+  if (mediaToCopy.length > 0) {
+    for (const [index, item] of mediaToCopy.slice(0, MAX_FILES_TO_IMPORT).entries()) {
       try {
         const stored = await openStoredMediaFile(item.fileUrl, item.fileName);
         const chunks: Buffer[] = [];

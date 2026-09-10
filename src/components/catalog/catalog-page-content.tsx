@@ -9,6 +9,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  RefreshCw,
   Search,
   Table2,
   Trash2,
@@ -292,8 +293,10 @@ export function CatalogPageContent() {
   const [view, setView] = useState<CatalogView>("cards");
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [ratesOpen, setRatesOpen] = useState(false);
+  const [ratesLoading, setRatesLoading] = useState(false);
   const [recalculatingRates, setRecalculatingRates] = useState(false);
   const [rateDraft, setRateDraft] = useState<RateDraft>(() => ratesToDraft(DEFAULT_EXCHANGE_RATES));
+  const [ratesFetchedAt, setRatesFetchedAt] = useState<string | null>(null);
 
   useEffect(() => {
     setView(loadCatalogView());
@@ -350,6 +353,22 @@ export function CatalogPageContent() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  async function loadExchangeRates() {
+    setRatesLoading(true);
+    try {
+      const data = await apiGet<{ rates: ExchangeRates; fetchedAt: string }>(
+        "/api/catalog/vehicles/estimates/recalculate",
+      );
+      setRateDraft(ratesToDraft(roundExchangeRates(data.rates)));
+      setRatesFetchedAt(data.fetchedAt);
+      toast.success("Курсы обновлены");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось загрузить курсы");
+    } finally {
+      setRatesLoading(false);
+    }
+  }
 
   async function handleApplyRates() {
     const rates = parseRateDraft(rateDraft);
@@ -655,9 +674,30 @@ export function CatalogPageContent() {
           <DialogHeader>
             <DialogTitle>Курс валют</DialogTitle>
             <DialogDescription>
-              Укажите курсы вручную. «Обновить» пересчитает все авто с уже сохранённым расчётом.
+              {ratesLoading
+                ? "Загрузка…"
+                : ratesFetchedAt
+                  ? `Обновлено ${new Date(ratesFetchedAt).toLocaleString("ru-RU")}`
+                  : "Подтяните курсы из интернета или введите вручную."}{" "}
+              «Обновить» пересчитает все авто с уже сохранённым расчётом.
             </DialogDescription>
           </DialogHeader>
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={ratesLoading || recalculatingRates}
+              onClick={() => void loadExchangeRates()}
+            >
+              {ratesLoading ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Обновить курсы
+            </Button>
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {RATE_CODES.map((code) => (
               <div key={code} className="space-y-1.5">
@@ -670,7 +710,7 @@ export function CatalogPageContent() {
                   min={code === "KRW" ? 0.001 : 0.01}
                   step={code === "KRW" ? "0.001" : "0.01"}
                   value={rateDraft[code]}
-                  disabled={recalculatingRates}
+                  disabled={ratesLoading || recalculatingRates}
                   onChange={(event) =>
                     setRateDraft((current) => ({ ...current, [code]: event.target.value }))
                   }
@@ -688,7 +728,7 @@ export function CatalogPageContent() {
             </Button>
             <Button
               onClick={() => void handleApplyRates()}
-              disabled={recalculatingRates || !parseRateDraft(rateDraft)}
+              disabled={ratesLoading || recalculatingRates || !parseRateDraft(rateDraft)}
             >
               {recalculatingRates ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Обновить

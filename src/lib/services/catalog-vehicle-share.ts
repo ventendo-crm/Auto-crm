@@ -23,19 +23,39 @@ import type {
 } from "@/lib/customs-calculator";
 import { catalogShareVehicleSchema } from "@/lib/validators/catalog";
 
-function serializePublicTrim(trim: {
-  id: string;
-  title: string;
-  customsEstimate: {
-    totalWithCar: Prisma.Decimal;
-    input: Prisma.JsonValue;
-    result: Prisma.JsonValue;
-  } | null;
-}): PublicCatalogTrim {
+function serializePublicTrim(
+  token: string,
+  trim: {
+    id: string;
+    title: string;
+    descriptionRu: string;
+    descriptionZh: string;
+    media: Array<{ id: string; type: MediaType }>;
+    customsEstimate: {
+      totalWithCar: Prisma.Decimal;
+      input: Prisma.JsonValue;
+      result: Prisma.JsonValue;
+    } | null;
+  },
+  fallback: { description: string; photos: string[]; media: PublicCatalogVehicleData["media"] },
+  inheritVehicle: { media: boolean; description: boolean },
+): PublicCatalogTrim {
   const estimate = trim.customsEstimate;
+  const mediaItems = trim.media.map((item) => ({
+    url: publicCatalogVehicleMediaPath(token, item.id),
+    type: item.type === MediaType.VIDEO ? ("video" as const) : ("photo" as const),
+  }));
+  const media = mediaItems.length > 0 ? mediaItems : inheritVehicle.media ? fallback.media : [];
+  const photos = media.filter((item) => item.type === "photo").map((item) => item.url);
   return {
     id: trim.id,
     title: trim.title,
+    description:
+      trim.descriptionRu ||
+      trim.descriptionZh ||
+      (inheritVehicle.description ? fallback.description : ""),
+    photos,
+    media,
     totalWithCar: estimate ? Number(estimate.totalWithCar) : null,
     estimateInput: estimate ? (estimate.input as unknown as CustomsCalculatorInput) : null,
     estimateResult: estimate ? (estimate.result as unknown as CustomsCalculatorResult) : null,
@@ -135,7 +155,13 @@ export async function getPublicCatalogVehicle(token: string): Promise<PublicCata
           },
           trims: {
             orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-            include: { customsEstimate: true },
+            include: {
+              customsEstimate: true,
+              media: {
+                orderBy: { uploadedAt: "asc" },
+                select: { id: true, type: true },
+              },
+            },
           },
         },
       },
@@ -173,7 +199,18 @@ export async function getPublicCatalogVehicle(token: string): Promise<PublicCata
     storedIds.length === 0
       ? vehicle.trims
       : vehicle.trims.filter((trim) => storedIds.includes(trim.id));
-  const trims = (visible.length > 0 ? visible : vehicle.trims).map(serializePublicTrim);
+  const fallback = {
+    description: vehicle.descriptionRu || vehicle.descriptionZh || "",
+    photos,
+    media,
+  };
+  const inheritVehicle = {
+    media: vehicle.trims.every((trim) => trim.media.length === 0),
+    description: vehicle.trims.every((trim) => !trim.descriptionRu && !trim.descriptionZh),
+  };
+  const trims = (visible.length > 0 ? visible : vehicle.trims).map((trim) =>
+    serializePublicTrim(token, trim, fallback, inheritVehicle),
+  );
   const cheapest = minCatalogTrimTotal(
     trims.map((trim) => ({ estimate: trim.totalWithCar != null ? { totalWithCar: trim.totalWithCar } : null })),
   );
@@ -182,9 +219,9 @@ export async function getPublicCatalogVehicle(token: string): Promise<PublicCata
   return {
     companyName: vehicle.company.name,
     title: vehicle.titleRu || vehicle.titleZh || "Авто из каталога",
-    description: vehicle.descriptionRu || vehicle.descriptionZh || "",
-    photos,
-    media,
+    description: trims[0]?.description || vehicle.descriptionRu || vehicle.descriptionZh || "",
+    photos: trims[0]?.photos.length ? trims[0].photos : photos,
+    media: trims[0]?.media.length ? trims[0].media : media,
     trims,
     totalWithCar: cheapest?.min ?? firstWithCalc?.totalWithCar ?? null,
     estimateInput: firstWithCalc?.estimateInput ?? null,
@@ -207,6 +244,14 @@ export async function getPublicCatalogVehicleMedia(
             where: { id: mediaId },
             select: { id: true, fileUrl: true, fileName: true },
           },
+          trims: {
+            select: {
+              media: {
+                where: { id: mediaId },
+                select: { id: true, fileUrl: true, fileName: true },
+              },
+            },
+          },
         },
       },
     },
@@ -216,7 +261,9 @@ export async function getPublicCatalogVehicleMedia(
   if (record.expiresAt && record.expiresAt.getTime() <= Date.now()) throw new Error("EXPIRED");
   if (record.catalogVehicle.status !== CatalogVehicleStatus.ACTIVE) throw new Error("NOT_FOUND");
 
-  const media = record.catalogVehicle.media[0];
+  const media =
+    record.catalogVehicle.media[0] ??
+    record.catalogVehicle.trims.flatMap((trim) => trim.media)[0];
   if (!media) throw new Error("NOT_FOUND");
   return { fileUrl: media.fileUrl, fileName: media.fileName };
 }

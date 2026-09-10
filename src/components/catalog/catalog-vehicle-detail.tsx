@@ -105,14 +105,18 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       ]);
       setVehicle(data);
       setSections(sectionsData.items);
-      setForm({
-        titleRu: data.titleRu,
-        descriptionRu: data.descriptionRu,
-        sectionId: data.sectionId ?? "",
+      setSelectedTrimId((current) => {
+        const nextId = data.trims.some((trim) => trim.id === current)
+          ? current
+          : (data.trims[0]?.id ?? "");
+        setForm({
+          titleRu: data.titleRu,
+          descriptionRu:
+            data.trims.find((trim) => trim.id === nextId)?.descriptionRu ?? data.descriptionRu,
+          sectionId: data.sectionId ?? "",
+        });
+        return nextId;
       });
-      setSelectedTrimId((current) =>
-        data.trims.some((trim) => trim.id === current) ? current : (data.trims[0]?.id ?? ""),
-      );
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось загрузить авто");
     } finally {
@@ -124,32 +128,19 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     void loadVehicle();
   }, [loadVehicle]);
 
-  const mediaItems: Array<{
-    id?: string;
-    fileUrl: string;
-    type: "PHOTO" | "VIDEO";
-  }> = vehicle?.photos.length
-    ? vehicle.photos.map((item) => ({
-        id: item.id,
-        fileUrl: item.fileUrl,
-        type: item.type ?? "PHOTO",
-      }))
-    : vehicle?.galleryUrls.length
-      ? vehicle.galleryUrls.map((fileUrl) => ({ fileUrl, type: "PHOTO" as const }))
-      : vehicle?.coverImageUrl
-        ? [{ fileUrl: vehicle.coverImageUrl, type: "PHOTO" as const }]
-        : [];
-  const currentMedia = mediaItems[activeImage] ?? null;
-  const currentMediaId = currentMedia?.id;
-
   async function handleSave() {
+    if (!selectedTrimId) return;
     setSaving(true);
     try {
-      const saved = await apiSend<CatalogVehicleDetail>(`/api/catalog/vehicles/${vehicleId}`, "PATCH", {
+      await apiSend<CatalogVehicleDetail>(`/api/catalog/vehicles/${vehicleId}`, "PATCH", {
         titleRu: form.titleRu,
-        descriptionRu: form.descriptionRu,
         sectionId: form.sectionId || null,
       });
+      const saved = await apiSend<CatalogVehicleDetail>(
+        `/api/catalog/vehicles/${vehicleId}/trims/${selectedTrimId}`,
+        "PATCH",
+        { descriptionRu: form.descriptionRu },
+      );
       setVehicle(saved);
       toast.success("Сохранено");
     } catch (error) {
@@ -245,6 +236,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
     try {
       const formData = new FormData();
       Array.from(files).forEach((file) => formData.append("files", file));
+      if (selectedTrimId) formData.append("trimId", selectedTrimId);
       const response = await fetch(`/api/catalog/vehicles/${vehicleId}/photos`, {
         method: "POST",
         credentials: "include",
@@ -274,7 +266,8 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       );
       setVehicle(saved);
       setActiveImage((current) => {
-        const nextLength = saved.photos.length;
+        const nextLength =
+          saved.trims.find((trim) => trim.id === selectedTrimId)?.photos.length ?? saved.photos.length;
         if (nextLength === 0) return 0;
         return Math.min(current, nextLength - 1);
       });
@@ -321,7 +314,13 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       });
       setVehicle(saved);
       const created = saved.trims.find((trim) => !vehicle?.trims.some((item) => item.id === trim.id));
-      setSelectedTrimId(created?.id ?? saved.trims[saved.trims.length - 1]?.id ?? "");
+      const nextId = created?.id ?? saved.trims[saved.trims.length - 1]?.id ?? "";
+      setSelectedTrimId(nextId);
+      setActiveImage(0);
+      setForm((current) => ({
+        ...current,
+        descriptionRu: saved.trims.find((trim) => trim.id === nextId)?.descriptionRu ?? "",
+      }));
       setAddTrimOpen(false);
       setAddTrimTitle("");
       toast.success("Комплектация добавлена");
@@ -352,7 +351,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       toast.error("Нельзя удалить последнюю комплектацию");
       return;
     }
-    if (!confirm("Удалить эту комплектацию и её расчёт?")) return;
+    if (!confirm("Удалить эту комплектацию, её фото, описание и расчёт?")) return;
     try {
       const saved = await apiSend<CatalogVehicleDetail>(
         `/api/catalog/vehicles/${vehicleId}/trims/${selectedTrimId}`,
@@ -360,6 +359,11 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
       );
       setVehicle(saved);
       setSelectedTrimId(saved.trims[0]?.id ?? "");
+      setActiveImage(0);
+      setForm((current) => ({
+        ...current,
+        descriptionRu: saved.trims[0]?.descriptionRu ?? "",
+      }));
       toast.success("Комплектация удалена");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось удалить");
@@ -393,6 +397,50 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
   const selectedEstimate = selectedTrim?.estimate ?? null;
   const initialInput = (selectedEstimate?.input as CustomsCalculatorInput | undefined) ?? null;
   const listPrice = minCatalogTrimTotal(trims);
+  const anyTrimHasPhotos = trims.some((trim) => trim.photos.length > 0);
+  const mediaItems: Array<{
+    id?: string;
+    fileUrl: string;
+    type: "PHOTO" | "VIDEO";
+  }> = selectedTrim?.photos?.length
+    ? selectedTrim.photos.map((item) => ({
+        id: item.id,
+        fileUrl: item.fileUrl,
+        type: item.type ?? "PHOTO",
+      }))
+    : anyTrimHasPhotos
+      ? []
+      : vehicle.galleryUrls.length
+        ? vehicle.galleryUrls.map((fileUrl) => ({ fileUrl, type: "PHOTO" as const }))
+        : vehicle.coverImageUrl
+          ? [{ fileUrl: vehicle.coverImageUrl, type: "PHOTO" as const }]
+          : [];
+  const currentMedia = mediaItems[activeImage] ?? null;
+  const currentMediaId = currentMedia?.id;
+  const trimPhotoCount = selectedTrim?.photos.length ?? 0;
+
+  function selectTrim(trimId: string) {
+    if (trimId === selectedTrim?.id) return;
+    if (selectedTrim) {
+      setVehicle((current) =>
+        current
+          ? {
+              ...current,
+              trims: current.trims.map((trim) =>
+                trim.id === selectedTrim.id ? { ...trim, descriptionRu: form.descriptionRu } : trim,
+              ),
+            }
+          : current,
+      );
+    }
+    const next = trims.find((trim) => trim.id === trimId);
+    setSelectedTrimId(trimId);
+    setActiveImage(0);
+    setForm((current) => ({
+      ...current,
+      descriptionRu: next?.descriptionRu ?? "",
+    }));
+  }
 
   return (
     <>
@@ -459,6 +507,78 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
         )}
 
         <div className="mx-auto max-w-7xl space-y-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Комплектации</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex flex-wrap gap-2">
+                {trims.map((trim) => (
+                  <Button
+                    key={trim.id}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-pressed={trim.id === selectedTrim?.id}
+                    onClick={() => selectTrim(trim.id)}
+                    className={cn(
+                      "h-8",
+                      trim.id === selectedTrim?.id &&
+                        "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+                    )}
+                  >
+                    {trim.title}
+                    {trim.estimate?.totalWithCar != null
+                      ? ` · ${formatCurrency(trim.estimate.totalWithCar)}`
+                      : ""}
+                  </Button>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setAddTrimTitle("");
+                    setAddTrimCopy(true);
+                    setAddTrimOpen(true);
+                  }}
+                >
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  Добавить комплектацию
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={!selectedTrim}
+                  onClick={() => {
+                    setRenameTrimTitle(selectedTrim?.title ?? "");
+                    setRenameTrimOpen(true);
+                  }}
+                >
+                  <Pencil className="mr-1.5 h-4 w-4" />
+                  Переименовать
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={trims.length <= 1}
+                  onClick={() => void handleDeleteTrim()}
+                >
+                  <Trash2 className="mr-1.5 h-4 w-4" />
+                  Удалить
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                У каждой комплектации свои фото, описание и цена. Переключение меняет галерею и текст
+                справа. Калькулятор ниже — для выбранной версии.
+              </p>
+            </CardContent>
+          </Card>
+
           <div className="grid gap-6 lg:grid-cols-2">
             <Card className="overflow-hidden">
               <div className="relative aspect-[16/10] bg-muted">
@@ -568,7 +688,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    disabled={uploading || vehicle.photos.length >= MAX_CATALOG_VEHICLE_MEDIA}
+                    disabled={uploading || trimPhotoCount >= MAX_CATALOG_VEHICLE_MEDIA}
                     onClick={() => photoInputRef.current?.click()}
                   >
                     {uploading ? (
@@ -579,8 +699,8 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                     Добавить фото или видео
                   </Button>
                   <p className="self-center text-xs text-muted-foreground">
-                    До {MAX_CATALOG_VEHICLE_MEDIA} файлов, видео до 100 МБ. Лишнее уберите крестиком
-                    или кнопкой «Удалить».
+                    До {MAX_CATALOG_VEHICLE_MEDIA} файлов на комплектацию, видео до 100 МБ. Лишнее
+                    уберите крестиком или кнопкой «Удалить».
                   </p>
                 </div>
               </CardContent>
@@ -617,8 +737,16 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                     ))}
                   </select>
                 </div>
+                {selectedEstimate?.totalWithCar != null ? (
+                  <p className="text-lg font-semibold">
+                    {selectedTrim ? `${selectedTrim.title} · ` : ""}
+                    {formatCurrency(selectedEstimate.totalWithCar)}
+                  </p>
+                ) : null}
                 <div className="space-y-2">
-                  <Label htmlFor="desc-ru">Описание</Label>
+                  <Label htmlFor="desc-ru">
+                    Описание{selectedTrim ? ` · ${selectedTrim.title}` : ""}
+                  </Label>
                   <Textarea
                     id="desc-ru"
                     rows={8}
@@ -637,78 +765,6 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
           </div>
 
           <div className="space-y-4">
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-base">Комплектации</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex flex-wrap gap-2">
-                  {trims.map((trim) => (
-                    <Button
-                      key={trim.id}
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      aria-pressed={trim.id === selectedTrim?.id}
-                      onClick={() => setSelectedTrimId(trim.id)}
-                      className={cn(
-                        "h-8",
-                        trim.id === selectedTrim?.id &&
-                          "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
-                      )}
-                    >
-                      {trim.title}
-                      {trim.estimate?.totalWithCar != null
-                        ? ` · ${formatCurrency(trim.estimate.totalWithCar)}`
-                        : ""}
-                    </Button>
-                  ))}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setAddTrimTitle("");
-                      setAddTrimCopy(true);
-                      setAddTrimOpen(true);
-                    }}
-                  >
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    Добавить комплектацию
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={!selectedTrim}
-                    onClick={() => {
-                      setRenameTrimTitle(selectedTrim?.title ?? "");
-                      setRenameTrimOpen(true);
-                    }}
-                  >
-                    <Pencil className="mr-1.5 h-4 w-4" />
-                    Переименовать
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={trims.length <= 1}
-                    onClick={() => void handleDeleteTrim()}
-                  >
-                    <Trash2 className="mr-1.5 h-4 w-4" />
-                    Удалить
-                  </Button>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Калькулятор ниже относится к выбранной комплектации. При отправке клиенту можно
-                  показать не все версии.
-                </p>
-              </CardContent>
-            </Card>
-
             <CustomsCalculator
               key={`${vehicleId}-${selectedTrim?.id ?? "none"}`}
               embedded
@@ -793,7 +849,7 @@ export function CatalogVehicleDetailView({ vehicleId }: { vehicleId: string }) {
                 addTrimCopy && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
               )}
             >
-              Скопировать расчёт с текущей
+              Скопировать расчёт, описание и фото
             </Button>
           </div>
           <div className="flex justify-end gap-2">

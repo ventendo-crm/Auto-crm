@@ -40,6 +40,10 @@ const vehicleInclude = {
       customsEstimate: {
         include: { createdBy: { select: { name: true } } },
       },
+      media: {
+        orderBy: { uploadedAt: "asc" as const },
+        select: { id: true, type: true },
+      },
     },
   },
 };
@@ -73,12 +77,25 @@ const listVehicleSelect = {
       title: true,
       sortOrder: true,
       customsEstimate: { select: { totalWithCar: true } },
+      media: {
+        orderBy: { uploadedAt: "asc" as const },
+        take: 4,
+        select: { id: true, type: true },
+      },
     },
   },
 } satisfies Prisma.CatalogVehicleSelect;
 
 function mediaFileUrl(id: string, variant: "full" | "thumb" = "full") {
   return variant === "thumb" ? `/api/media/${id}/file?variant=thumb` : `/api/media/${id}/file`;
+}
+
+function serializeMediaPhotos(media: Array<{ id: string; type: MediaType }>, thumb = false) {
+  return media.map((item) => ({
+    id: item.id,
+    fileUrl: mediaFileUrl(item.id, thumb ? "thumb" : "full"),
+    type: item.type,
+  }));
 }
 
 async function assertCatalogAccess(user: AuthUser) {
@@ -123,6 +140,9 @@ function serializeVehicle(record: {
     id: string;
     title: string;
     sortOrder: number;
+    descriptionRu: string;
+    descriptionZh: string;
+    media: Array<{ id: string; type: MediaType }>;
     customsEstimate: {
       id: string;
       totalWithCar: Prisma.Decimal;
@@ -137,11 +157,8 @@ function serializeVehicle(record: {
     } | null;
   }>;
 }) {
-  const photos = record.media.map((item) => ({
-    id: item.id,
-    fileUrl: `/api/media/${item.id}/file`,
-    type: item.type,
-  }));
+  const trimPhotos = record.trims.flatMap((trim) => serializeMediaPhotos(trim.media));
+  const photos = trimPhotos.length > 0 ? trimPhotos : serializeMediaPhotos(record.media);
   const galleryUrls = serializeGalleryUrls(record.galleryUrls);
   const firstPhoto = photos.find((item) => item.type === MediaType.PHOTO);
   const coverImageUrl =
@@ -155,8 +172,8 @@ function serializeVehicle(record: {
     externalId: record.externalId,
     titleZh: record.titleZh,
     titleRu: record.titleRu,
-    descriptionZh: record.descriptionZh,
-    descriptionRu: record.descriptionRu,
+    descriptionZh: record.trims[0]?.descriptionZh || record.descriptionZh,
+    descriptionRu: record.trims[0]?.descriptionRu || record.descriptionRu,
     brand: record.brand,
     model: record.model,
     carYear: record.carYear,
@@ -187,6 +204,8 @@ function serializeVehicle(record: {
       id: trim.id,
       title: trim.title,
       sortOrder: trim.sortOrder,
+      descriptionRu: trim.descriptionRu,
+      photos: serializeMediaPhotos(trim.media),
       estimate: trim.customsEstimate
         ? {
             id: trim.customsEstimate.id,
@@ -254,10 +273,13 @@ function serializeListVehicle(record: {
     title: string;
     sortOrder: number;
     customsEstimate: { totalWithCar: Prisma.Decimal } | null;
+    media: Array<{ id: string; type: MediaType }>;
   }>;
 }) {
-  const photo = record.media.find((item) => item.type === MediaType.PHOTO);
-  const video = record.media.find((item) => item.type === MediaType.VIDEO);
+  const coverMedia =
+    record.trims.find((trim) => trim.media.length > 0)?.media ?? record.media;
+  const photo = coverMedia.find((item) => item.type === MediaType.PHOTO);
+  const video = coverMedia.find((item) => item.type === MediaType.VIDEO);
   const photos: Array<{ id: string; fileUrl: string; type: MediaType }> = [];
   if (photo) {
     photos.push({
@@ -277,6 +299,8 @@ function serializeListVehicle(record: {
     id: trim.id,
     title: trim.title,
     sortOrder: trim.sortOrder,
+    descriptionRu: "",
+    photos: serializeMediaPhotos(trim.media, true),
     estimate: trim.customsEstimate
       ? { totalWithCar: Number(trim.customsEstimate.totalWithCar) }
       : null,
@@ -428,7 +452,12 @@ export async function createCatalogVehicle(user: AuthUser, body: CreateInput) {
       galleryUrls: data.galleryUrls ?? [],
       videoUrl: data.videoUrl || null,
       trims: {
-        create: { title: DEFAULT_CATALOG_TRIM_TITLE, sortOrder: 0 },
+        create: {
+          title: DEFAULT_CATALOG_TRIM_TITLE,
+          sortOrder: 0,
+          descriptionRu: data.descriptionRu ?? "",
+          descriptionZh: data.descriptionZh ?? "",
+        },
       },
     },
     include: vehicleInclude,
@@ -554,7 +583,12 @@ async function upsertFromChe168Parsed(
       externalId: parsed.externalId,
       ...payload,
       trims: {
-        create: { title: DEFAULT_CATALOG_TRIM_TITLE, sortOrder: 0 },
+        create: {
+          title: DEFAULT_CATALOG_TRIM_TITLE,
+          sortOrder: 0,
+          descriptionRu: payload.descriptionRu,
+          descriptionZh: payload.descriptionZh,
+        },
       },
     },
     include: vehicleInclude,

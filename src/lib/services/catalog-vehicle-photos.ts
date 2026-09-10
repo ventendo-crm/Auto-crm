@@ -4,6 +4,7 @@ import { AuthUser } from "@/lib/permissions";
 import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import { prisma } from "@/lib/prisma";
 import { getCatalogVehicle } from "@/lib/services/catalog-vehicles";
+import { assertVehicleTrimAccess } from "@/lib/services/catalog-trims";
 import { createAuditLog } from "@/lib/services/audit";
 import {
   detectMediaTypeFromBuffer,
@@ -14,16 +15,18 @@ import {
 } from "@/lib/validators/media";
 import { removeMediaFile, storeMediaFile } from "@/lib/storage/media-storage";
 
-export async function uploadCatalogVehiclePhoto(user: AuthUser, vehicleId: string, file: File) {
-  await assertCompanyCatalogAccess(user);
+export async function uploadCatalogVehiclePhoto(
+  user: AuthUser,
+  vehicleId: string,
+  file: File,
+  trimId?: string | null,
+) {
+  const { trim } = await assertVehicleTrimAccess(user, vehicleId, trimId);
 
-  const vehicle = await prisma.catalogVehicle.findFirst({
-    where: { id: vehicleId, companyId: user.companyId },
-    include: { _count: { select: { media: true } } },
+  const mediaCount = await prisma.mediaFile.count({
+    where: { catalogVehicleTrimId: trim.id },
   });
-  if (!vehicle) throw new Error("NOT_FOUND");
-
-  if (vehicle._count.media >= MAX_CATALOG_VEHICLE_MEDIA) {
+  if (mediaCount >= MAX_CATALOG_VEHICLE_MEDIA) {
     throw new Error(`Максимум ${MAX_CATALOG_VEHICLE_MEDIA} файлов (фото и видео)`);
   }
 
@@ -58,6 +61,7 @@ export async function uploadCatalogVehiclePhoto(user: AuthUser, vehicleId: strin
       thumbnailUrl: thumbnailKey,
       size: file.size,
       catalogVehicleId: vehicleId,
+      catalogVehicleTrimId: trim.id,
       uploadedById: user.id,
     },
   });
@@ -67,7 +71,12 @@ export async function uploadCatalogVehiclePhoto(user: AuthUser, vehicleId: strin
     entity: "MediaFile",
     entityId: record.id,
     action: "CREATE",
-    newValue: { catalogVehicleId: vehicleId, fileName: file.name, type: mediaType },
+    newValue: {
+      catalogVehicleId: vehicleId,
+      catalogVehicleTrimId: trim.id,
+      fileName: file.name,
+      type: mediaType,
+    },
   });
 
   return getCatalogVehicle(user, vehicleId);
@@ -79,8 +88,15 @@ export async function deleteCatalogVehiclePhoto(user: AuthUser, vehicleId: strin
   const media = await prisma.mediaFile.findFirst({
     where: {
       id: mediaId,
-      catalogVehicleId: vehicleId,
-      catalogVehicle: { companyId: user.companyId },
+      OR: [
+        { catalogVehicleId: vehicleId, catalogVehicle: { companyId: user.companyId } },
+        {
+          catalogVehicleTrim: {
+            catalogVehicleId: vehicleId,
+            catalogVehicle: { companyId: user.companyId },
+          },
+        },
+      ],
     },
   });
   if (!media) throw new Error("NOT_FOUND");

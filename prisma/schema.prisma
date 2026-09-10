@@ -217,6 +217,7 @@ model MediaFile {
   importProcessEntryId String?
   carCarrierTrackingPointId String?
   catalogVehicleId     String?
+  catalogVehicleTrimId String?
   uploadedById         String
   uploadedAt             DateTime            @default(now())
   deal                 Deal?               @relation(fields: [dealId], references: [id], onDelete: Cascade)
@@ -225,6 +226,7 @@ model MediaFile {
   importProcessEntry   ImportProcessEntry? @relation(fields: [importProcessEntryId], references: [id], onDelete: Cascade)
   carCarrierTrackingPoint CarCarrierTrackingPoint? @relation(fields: [carCarrierTrackingPointId], references: [id], onDelete: Cascade)
   catalogVehicle       CatalogVehicle?     @relation(fields: [catalogVehicleId], references: [id], onDelete: Cascade)
+  catalogVehicleTrim   CatalogVehicleTrim? @relation(fields: [catalogVehicleTrimId], references: [id], onDelete: Cascade)
   uploadedBy           User                @relation("MediaUploadedBy", fields: [uploadedById], references: [id])
 
   @@index([dealId])
@@ -233,6 +235,7 @@ model MediaFile {
   @@index([importProcessEntryId])
   @@index([carCarrierTrackingPointId])
   @@index([catalogVehicleId])
+  @@index([catalogVehicleTrimId])
   @@index([uploadedById])
   @@map("media_files")
 }
@@ -728,11 +731,14 @@ model CatalogVehicleTrim {
   id               String   @id @default(cuid())
   catalogVehicleId String
   title            String
+  descriptionRu    String   @default("") @db.Text
+  descriptionZh    String   @default("") @db.Text
   sortOrder        Int      @default(0)
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   catalogVehicle   CatalogVehicle @relation(fields: [catalogVehicleId], references: [id], onDelete: Cascade)
   customsEstimate  CatalogVehicleCustomsEstimate?
+  media            MediaFile[]
 
   @@index([catalogVehicleId, sortOrder])
   @@map("catalog_vehicle_trims")

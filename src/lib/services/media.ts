@@ -317,6 +317,33 @@ export async function deleteMedia(user: AuthUser, mediaId: string) {
   });
 }
 
+async function assertCatalogMediaAccess(
+  user: AuthUser,
+  media: { catalogVehicleId: string | null; catalogVehicleTrimId?: string | null },
+) {
+  await assertCompanyCatalogAccess(user);
+  if (media.catalogVehicleId) {
+    const vehicle = await prisma.catalogVehicle.findFirst({
+      where: { id: media.catalogVehicleId, companyId: user.companyId },
+      select: { id: true },
+    });
+    if (!vehicle) throw new Error("Forbidden");
+    return;
+  }
+  if (media.catalogVehicleTrimId) {
+    const trim = await prisma.catalogVehicleTrim.findFirst({
+      where: {
+        id: media.catalogVehicleTrimId,
+        catalogVehicle: { companyId: user.companyId },
+      },
+      select: { id: true },
+    });
+    if (!trim) throw new Error("Forbidden");
+    return;
+  }
+  throw new Error("Forbidden");
+}
+
 export async function getMediaById(user: AuthUser, mediaId: string) {
   const media = await prisma.mediaFile.findUnique({
     where: { id: mediaId },
@@ -329,13 +356,8 @@ export async function getMediaById(user: AuthUser, mediaId: string) {
 
   if (media.dealId) {
     await assertDealAccess(user, media.dealId);
-  } else if (media.catalogVehicleId) {
-    await assertCompanyCatalogAccess(user);
-    const vehicle = await prisma.catalogVehicle.findFirst({
-      where: { id: media.catalogVehicleId, companyId: user.companyId },
-      select: { id: true },
-    });
-    if (!vehicle) throw new Error("Forbidden");
+  } else if (media.catalogVehicleId || media.catalogVehicleTrimId) {
+    await assertCatalogMediaAccess(user, media);
   } else if (user.role !== "ADMIN") {
     throw new Error("Forbidden");
   }
@@ -358,6 +380,7 @@ export async function streamMediaFile(
       thumbnailUrl: true,
       dealId: true,
       catalogVehicleId: true,
+      catalogVehicleTrimId: true,
     },
   });
 
@@ -367,13 +390,8 @@ export async function streamMediaFile(
 
   if (media.dealId) {
     await assertDealAccess(user, media.dealId);
-  } else if (media.catalogVehicleId) {
-    await assertCompanyCatalogAccess(user);
-    const vehicle = await prisma.catalogVehicle.findFirst({
-      where: { id: media.catalogVehicleId, companyId: user.companyId },
-      select: { id: true },
-    });
-    if (!vehicle) throw new Error("Forbidden");
+  } else if (media.catalogVehicleId || media.catalogVehicleTrimId) {
+    await assertCatalogMediaAccess(user, media);
   } else if (user.role !== "ADMIN") {
     throw new Error("Forbidden");
   }
