@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
+  ArrowDownAZ,
+  ArrowDownWideNarrow,
   FolderPlus,
   LayoutGrid,
   Loader2,
@@ -47,8 +49,10 @@ import { minCatalogTrimTotal } from "@/lib/catalog/trims";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const CATALOG_VIEW_STORAGE = "crm-catalog-view";
+const CATALOG_SORT_STORAGE = "crm-catalog-sort";
 const CATALOG_SECTIONS_OPEN_STORAGE = "crm-catalog-sections-open";
 type CatalogView = "cards" | "table";
+type CatalogSort = "title" | "price";
 
 function loadCatalogView(): CatalogView {
   try {
@@ -61,6 +65,22 @@ function loadCatalogView(): CatalogView {
 function saveCatalogView(view: CatalogView) {
   try {
     localStorage.setItem(CATALOG_VIEW_STORAGE, view);
+  } catch {
+    // ignore
+  }
+}
+
+function loadCatalogSort(): CatalogSort {
+  try {
+    return localStorage.getItem(CATALOG_SORT_STORAGE) === "price" ? "price" : "title";
+  } catch {
+    return "title";
+  }
+}
+
+function saveCatalogSort(sort: CatalogSort) {
+  try {
+    localStorage.setItem(CATALOG_SORT_STORAGE, sort);
   } catch {
     // ignore
   }
@@ -187,6 +207,28 @@ function catalogPriceLabel(vehicle: CatalogVehicleListItem) {
   return priced.count > 1 ? `от ${label}` : label;
 }
 
+function catalogVehicleTitle(vehicle: CatalogVehicleListItem) {
+  return (vehicle.titleRu || vehicle.titleZh || "").trim();
+}
+
+function compareCatalogVehicles(
+  a: CatalogVehicleListItem,
+  b: CatalogVehicleListItem,
+  sort: CatalogSort,
+) {
+  if (sort === "price") {
+    const priceA = minCatalogTrimTotal(a.trims ?? [])?.min ?? null;
+    const priceB = minCatalogTrimTotal(b.trims ?? [])?.min ?? null;
+    if (priceA == null && priceB != null) return 1;
+    if (priceA != null && priceB == null) return -1;
+    if (priceA != null && priceB != null && priceA !== priceB) return priceA - priceB;
+  }
+  return catalogVehicleTitle(a).localeCompare(catalogVehicleTitle(b), "ru", {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
 function VehicleCard({ vehicle }: { vehicle: CatalogVehicleListItem }) {
   const cover = vehicleCover(vehicle);
   const trimCount = vehicle.trims?.length ?? 0;
@@ -291,6 +333,7 @@ export function CatalogPageContent() {
   });
   const [sectionTitle, setSectionTitle] = useState("");
   const [view, setView] = useState<CatalogView>("cards");
+  const [sort, setSort] = useState<CatalogSort>("title");
   const [sectionsOpen, setSectionsOpen] = useState(false);
   const [ratesOpen, setRatesOpen] = useState(false);
   const [ratesLoading, setRatesLoading] = useState(false);
@@ -300,12 +343,18 @@ export function CatalogPageContent() {
 
   useEffect(() => {
     setView(loadCatalogView());
+    setSort(loadCatalogSort());
     setSectionsOpen(loadCatalogSectionsOpen());
   }, []);
 
   function setCatalogView(next: CatalogView) {
     setView(next);
     saveCatalogView(next);
+  }
+
+  function setCatalogSort(next: CatalogSort) {
+    setSort(next);
+    saveCatalogSort(next);
   }
 
   function setCatalogSectionsOpen(next: boolean) {
@@ -353,6 +402,11 @@ export function CatalogPageContent() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const sortedVehicles = useMemo(
+    () => [...vehicles].sort((a, b) => compareCatalogVehicles(a, b, sort)),
+    [vehicles, sort],
+  );
 
   async function loadExchangeRates() {
     setRatesLoading(true);
@@ -605,6 +659,38 @@ export function CatalogPageContent() {
                 type="button"
                 variant="outline"
                 size="sm"
+                aria-pressed={sort === "title"}
+                aria-label="По названию"
+                onClick={() => setCatalogSort("title")}
+                className={cn(
+                  "h-8 w-full gap-1.5 sm:w-auto",
+                  sort === "title" && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+                )}
+              >
+                <ArrowDownAZ className="h-3.5 w-3.5" />
+                По названию
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-pressed={sort === "price"}
+                aria-label="По цене"
+                onClick={() => setCatalogSort("price")}
+                className={cn(
+                  "h-8 w-full gap-1.5 sm:w-auto",
+                  sort === "price" && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+                )}
+              >
+                <ArrowDownWideNarrow className="h-3.5 w-3.5" />
+                По цене
+              </Button>
+            </div>
+            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
                 className="w-full sm:w-auto"
                 onClick={() => setRatesOpen(true)}
               >
@@ -652,10 +738,10 @@ export function CatalogPageContent() {
               </CardContent>
             </Card>
           ) : view === "table" ? (
-            <VehicleTable vehicles={vehicles} />
+            <VehicleTable vehicles={sortedVehicles} />
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {vehicles.map((vehicle) => (
+              {sortedVehicles.map((vehicle) => (
                 <VehicleCard key={vehicle.id} vehicle={vehicle} />
               ))}
             </div>
