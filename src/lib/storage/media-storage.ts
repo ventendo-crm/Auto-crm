@@ -1,17 +1,19 @@
 import { MediaType } from "@prisma/client";
 import { createReadStream } from "fs";
-import { mkdir, stat, unlink, writeFile } from "fs/promises";
+import { mkdir, readFile, stat, unlink, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
 import {
   buildObjectKey,
   buildThumbnailKey,
   deleteObject,
+  getObjectBuffer,
   getObjectStream,
   headObject,
   uploadObject,
 } from "@/lib/storage/minio";
 import { ByteRange, parseByteRange } from "@/lib/storage/http-range";
+import { createJpegThumbnail } from "@/lib/storage/media-thumbnail";
 import { guessMediaContentType } from "@/lib/validators/media";
 
 function storageMode(): "local" | "minio" | "auto" {
@@ -145,10 +147,11 @@ async function storeToMinio(params: {
   let thumbnailKey: string | null = null;
   if (params.mediaType === MediaType.PHOTO) {
     thumbnailKey = buildThumbnailKey(params.dealId, params.mediaId);
+    const thumbBody = await createJpegThumbnail(params.buffer).catch(() => params.buffer);
     await uploadObject({
       key: thumbnailKey,
-      body: params.buffer,
-      contentType: params.contentType,
+      body: thumbBody,
+      contentType: "image/jpeg",
     });
   }
 
@@ -160,6 +163,7 @@ async function storeToLocal(params: {
   mediaId: string;
   fileName: string;
   buffer: Buffer;
+  mediaType: MediaType;
 }): Promise<{ fileKey: string; thumbnailKey: string | null }> {
   const uploadsDir = localUploadsDir();
   await mkdir(uploadsDir, { recursive: true });
@@ -168,7 +172,66 @@ async function storeToLocal(params: {
   await writeFile(path.join(uploadsDir, storedName), params.buffer);
 
   const fileUrl = `/api/uploads/${storedName}`;
-  return { fileKey: fileUrl, thumbnailKey: fileUrl };
+  if (params.mediaType !== MediaType.PHOTO) {
+    return { fileKey: fileUrl, thumbnailKey: null };
+  }
+
+  const thumbName = `thumb-${params.mediaId}.jpg`;
+  const thumbBody = await createJpegThumbnail(params.buffer).catch(() => null);
+  if (!thumbBody) {
+    return { fileKey: fileUrl, thumbnailKey: fileUrl };
+  }
+  await writeFile(path.join(uploadsDir, thumbName), thumbBody);
+  return { fileKey: fileUrl, thumbnailKey: `/api/uploads/${thumbName}` };
+}
+
+export async function readStoredMediaBuffer(storedKey: string): Promise<Buffer> {
+  if (isLocalMediaUrl(storedKey)) {
+    return readFile(path.join(localUploadsDir(), path.basename(storedKey)));
+  }
+  return getObjectBuffer(storedKey);
+}
+
+export async function writeStoredMediaFile(params: {
+  storedKey: string;
+  body: Buffer;
+  contentType: string;
+}): Promise<void> {
+  if (isLocalMediaUrl(params.storedKey)) {
+    const uploadsDir = localUploadsDir();
+    await mkdir(uploadsDir, { recursive: true });
+    await writeFile(path.join(uploadsDir, path.basename(params.storedKey)), params.body);
+    return;
+  }
+  await uploadObject({
+    key: params.storedKey,
+    body: params.body,
+    contentType: params.contentType,
+  });
+}
+
+export async function headStoredMediaSize(storedKey: string): Promise<number | null> {
+  try {
+    if (isLocalMediaUrl(storedKey)) {
+      const fileStat = await stat(path.join(localUploadsDir(), path.basename(storedKey)));
+      return fileStat.size;
+    }
+    const objectHead = await headObject(storedKey);
+    return objectHead.contentLength;
+  } catch {
+    return null;
+  }
+}
+
+export function thumbnailStorageKey(fileUrl: string, mediaId: string): string {
+  if (isLocalMediaUrl(fileUrl)) {
+    return `/api/uploads/thumb-${mediaId}.jpg`;
+  }
+  const parts = fileUrl.split("/");
+  if (parts[0] === "deals" && parts.length >= 3) {
+    return buildThumbnailKey(parts[1], parts[2]);
+  }
+  return `thumbs/${mediaId}.jpg`;
 }
 
 export async function removeMediaFile(fileUrl: string, thumbnailUrl?: string | null): Promise<void> {

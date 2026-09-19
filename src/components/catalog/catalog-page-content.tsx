@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowDownAZ,
   ArrowDownWideNarrow,
+  ArrowUpWideNarrow,
   FolderPlus,
   LayoutGrid,
   Loader2,
@@ -52,7 +53,7 @@ const CATALOG_VIEW_STORAGE = "crm-catalog-view";
 const CATALOG_SORT_STORAGE = "crm-catalog-sort";
 const CATALOG_SECTIONS_OPEN_STORAGE = "crm-catalog-sections-open";
 type CatalogView = "cards" | "table";
-type CatalogSort = "title" | "price";
+type CatalogSort = "title" | "price-asc" | "price-desc";
 
 function loadCatalogView(): CatalogView {
   try {
@@ -72,7 +73,10 @@ function saveCatalogView(view: CatalogView) {
 
 function loadCatalogSort(): CatalogSort {
   try {
-    return localStorage.getItem(CATALOG_SORT_STORAGE) === "price" ? "price" : "title";
+    const raw = localStorage.getItem(CATALOG_SORT_STORAGE);
+    if (raw === "price-desc") return "price-desc";
+    if (raw === "price-asc" || raw === "price") return "price-asc";
+    return "title";
   } catch {
     return "title";
   }
@@ -216,12 +220,14 @@ function compareCatalogVehicles(
   b: CatalogVehicleListItem,
   sort: CatalogSort,
 ) {
-  if (sort === "price") {
+  if (sort === "price-asc" || sort === "price-desc") {
     const priceA = minCatalogTrimTotal(a.trims ?? [])?.min ?? null;
     const priceB = minCatalogTrimTotal(b.trims ?? [])?.min ?? null;
     if (priceA == null && priceB != null) return 1;
     if (priceA != null && priceB == null) return -1;
-    if (priceA != null && priceB != null && priceA !== priceB) return priceA - priceB;
+    if (priceA != null && priceB != null && priceA !== priceB) {
+      return sort === "price-desc" ? priceB - priceA : priceA - priceB;
+    }
   }
   return catalogVehicleTitle(a).localeCompare(catalogVehicleTitle(b), "ru", {
     numeric: true,
@@ -654,7 +660,7 @@ export function CatalogPageContent() {
                 <span className="hidden sm:inline">Таблицей</span>
               </Button>
             </div>
-            <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">
+            <div className="grid w-full grid-cols-3 gap-2 sm:flex sm:w-auto sm:shrink-0">
               <Button
                 type="button"
                 variant="outline"
@@ -663,27 +669,42 @@ export function CatalogPageContent() {
                 aria-label="По названию"
                 onClick={() => setCatalogSort("title")}
                 className={cn(
-                  "h-8 w-full gap-1.5 sm:w-auto",
+                  "h-8 w-full gap-1.5 px-2 sm:w-auto",
                   sort === "title" && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
                 )}
               >
                 <ArrowDownAZ className="h-3.5 w-3.5" />
-                По названию
+                <span className="truncate">По названию</span>
               </Button>
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                aria-pressed={sort === "price"}
-                aria-label="По цене"
-                onClick={() => setCatalogSort("price")}
+                aria-pressed={sort === "price-asc"}
+                aria-label="Сначала дешевле"
+                onClick={() => setCatalogSort("price-asc")}
                 className={cn(
-                  "h-8 w-full gap-1.5 sm:w-auto",
-                  sort === "price" && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+                  "h-8 w-full gap-1.5 px-2 sm:w-auto",
+                  sort === "price-asc" && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
                 )}
               >
                 <ArrowDownWideNarrow className="h-3.5 w-3.5" />
-                По цене
+                <span className="truncate">Дешевле</span>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-pressed={sort === "price-desc"}
+                aria-label="Сначала дороже"
+                onClick={() => setCatalogSort("price-desc")}
+                className={cn(
+                  "h-8 w-full gap-1.5 px-2 sm:w-auto",
+                  sort === "price-desc" && "border-brand/40 bg-brand-muted/50 text-foreground shadow-sm",
+                )}
+              >
+                <ArrowUpWideNarrow className="h-3.5 w-3.5" />
+                <span className="truncate">Дороже</span>
               </Button>
             </div>
             <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:shrink-0">

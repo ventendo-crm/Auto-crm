@@ -114,6 +114,25 @@ export async function headObject(key: string): Promise<{
   };
 }
 
+export async function getObjectBuffer(key: string): Promise<Buffer> {
+  const s3 = getS3Client();
+  const { bucket } = getConfig();
+
+  const result = await s3.send(
+    new GetObjectCommand({
+      Bucket: bucket,
+      Key: key,
+    }),
+  );
+
+  if (!result.Body) {
+    throw new Error("Empty object body");
+  }
+
+  const bytes = await result.Body.transformToByteArray();
+  return Buffer.from(bytes);
+}
+
 export async function getObjectStream(
   key: string,
   range?: { start: number; end: number },

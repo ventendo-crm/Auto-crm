@@ -12,9 +12,17 @@ import { getManagerPeerIdsForUser } from "@/lib/services/deal-access";
 import { assertCompanyCatalogAccess } from "@/lib/services/company-workspace";
 import {
   openStoredMediaFile,
+  readStoredMediaBuffer,
   removeMediaFile,
   storeMediaFile,
+  thumbnailStorageKey,
+  headStoredMediaSize,
+  writeStoredMediaFile,
 } from "@/lib/storage/media-storage";
+import {
+  createJpegThumbnail,
+  shouldRebuildThumbnail,
+} from "@/lib/storage/media-thumbnail";
 import {
   detectMediaTypeFromBuffer,
   detectMediaTypeFromFile,
@@ -365,6 +373,66 @@ export async function getMediaById(user: AuthUser, mediaId: string) {
   return enrichMedia(media);
 }
 
+const thumbnailJobs = new Map<string, Promise<string>>();
+
+async function ensureMediaThumbnail(media: {
+  id: string;
+  type: MediaType;
+  fileUrl: string;
+  thumbnailUrl: string | null;
+}): Promise<string> {
+  if (media.type !== MediaType.PHOTO) {
+    return media.thumbnailUrl && media.thumbnailUrl !== media.fileUrl
+      ? media.thumbnailUrl
+      : media.fileUrl;
+  }
+
+  const pending = thumbnailJobs.get(media.id);
+  if (pending) return pending;
+
+  const job = (async () => {
+    const existingKey =
+      media.thumbnailUrl && media.thumbnailUrl !== media.fileUrl ? media.thumbnailUrl : null;
+    const existingSize = existingKey ? await headStoredMediaSize(existingKey) : null;
+
+    if (
+      !shouldRebuildThumbnail({
+        type: media.type,
+        fileUrl: media.fileUrl,
+        thumbnailUrl: media.thumbnailUrl,
+        thumbnailSize: existingSize,
+      })
+    ) {
+      return existingKey ?? media.fileUrl;
+    }
+
+    const original = await readStoredMediaBuffer(media.fileUrl);
+    const thumbBody = await createJpegThumbnail(original);
+    const thumbKey = existingKey ?? thumbnailStorageKey(media.fileUrl, media.id);
+    await writeStoredMediaFile({
+      storedKey: thumbKey,
+      body: thumbBody,
+      contentType: "image/jpeg",
+    });
+
+    if (thumbKey !== media.thumbnailUrl) {
+      await prisma.mediaFile.update({
+        where: { id: media.id },
+        data: { thumbnailUrl: thumbKey },
+      });
+    }
+
+    return thumbKey;
+  })();
+
+  thumbnailJobs.set(media.id, job);
+  try {
+    return await job;
+  } finally {
+    thumbnailJobs.delete(media.id);
+  }
+}
+
 export async function streamMediaFile(
   user: AuthUser,
   mediaId: string,
@@ -375,6 +443,7 @@ export async function streamMediaFile(
     where: { id: mediaId },
     select: {
       id: true,
+      type: true,
       fileName: true,
       fileUrl: true,
       thumbnailUrl: true,
@@ -396,8 +465,19 @@ export async function streamMediaFile(
     throw new Error("Forbidden");
   }
 
-  const storedKey =
-    variant === "thumb" && media.thumbnailUrl ? media.thumbnailUrl : media.fileUrl;
+  if (variant !== "thumb") {
+    return openStoredMediaFile(media.fileUrl, media.fileName, rangeHeader);
+  }
 
-  return openStoredMediaFile(storedKey, media.fileName, rangeHeader);
+  try {
+    const thumbKey = await ensureMediaThumbnail(media);
+    return openStoredMediaFile(thumbKey, "preview.jpg", null);
+  } catch (error) {
+    console.warn("[media] thumbnail fallback to original", media.id, error);
+    const fallback =
+      media.thumbnailUrl && media.thumbnailUrl !== media.fileUrl
+        ? media.thumbnailUrl
+        : media.fileUrl;
+    return openStoredMediaFile(fallback, media.fileName, null);
+  }
 }

@@ -18,7 +18,7 @@ function mediaHeaders(params: {
   const headers = new Headers({
     "Content-Type": params.contentType,
     "Content-Disposition": uploadContentDisposition(params.fileName, false),
-    "Cache-Control": "public, max-age=86400",
+    "Cache-Control": "public, max-age=31536000, immutable",
     "Accept-Ranges": "bytes",
   });
 

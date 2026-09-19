@@ -15,14 +15,20 @@ function mediaFileHeaders(params: {
   fileName: string;
   download: boolean;
   size: number;
+  etag: string;
+  immutable?: boolean;
   rangeStart?: number;
   rangeEnd?: number;
   unsatisfiable?: boolean;
 }): Headers {
+  const cacheControl = params.immutable
+    ? "private, max-age=31536000, immutable"
+    : "private, max-age=86400";
   const headers = new Headers({
     "Content-Type": params.contentType,
     "Content-Disposition": contentDisposition(params.fileName, params.download),
-    "Cache-Control": "private, max-age=3600",
+    "Cache-Control": cacheControl,
+    ETag: params.etag,
     "Accept-Ranges": "bytes",
   });
 
@@ -55,6 +61,8 @@ export const GET = withAuth(async (request, { user, params }) => {
     variant,
     request.headers.get("range"),
   );
+  const etag = `"${params.id}-${variant}-${file.size}"`;
+  const immutable = variant === "thumb" && file.status === 200 && !download;
 
   if (file.status === 416) {
     return new NextResponse(null, {
@@ -64,7 +72,23 @@ export const GET = withAuth(async (request, { user, params }) => {
         fileName: file.fileName,
         download,
         size: file.size,
+        etag,
         unsatisfiable: true,
+      }),
+    });
+  }
+
+  const ifNoneMatch = request.headers.get("if-none-match");
+  if (file.status === 200 && ifNoneMatch === etag) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: mediaFileHeaders({
+        contentType: file.contentType,
+        fileName: file.fileName,
+        download,
+        size: file.size,
+        etag,
+        immutable,
       }),
     });
   }
@@ -76,6 +100,8 @@ export const GET = withAuth(async (request, { user, params }) => {
       fileName: file.fileName,
       download,
       size: file.size,
+      etag,
+      immutable,
       rangeStart: file.range?.start,
       rangeEnd: file.range?.end,
     }),
