@@ -11,6 +11,7 @@ import { OFFER_VEHICLE_TITLE_MAX } from "@/lib/calculator/offer-share";
 import {
   canApplyCalculatorSuggestion,
   engineKindLabel,
+  UTIL_SEARCH_TEMPLATE,
   type QuickSearchSuggestion,
 } from "@/lib/tavily/calculator-suggestion";
 
@@ -123,22 +124,26 @@ export function CalculatorQuickSearch({
           ИИ-поиск
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Для сложных авто — гибриды, PHEV, 30-минутная мощность. Каталог не используется: правила
-          утильсбора у таких машин разные. Например: «Zeekr 9X, посчитай утильсбор».
+          Достаточно марки и модели. Запрос всегда идёт по шаблону утильсбора при импорте в РФ:
+          официальные спецификации, объём и мощность ДВС, для электро — 30-минутная мощность.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-          ИИ подсказывает характеристики. Для гибрида в расчёт идёт мощность и объём ДВС, не
-          электромотор. Перед КП сверьте цифры.
+          Для гибрида в расчёт идут мощность и объём ДВС, не электромотор и не суммарная мощность.
+          Перед КП сверьте цифры по источникам.
         </div>
+        <p className="text-xs text-muted-foreground">
+          Шаблон: <span className="font-medium text-foreground">{UTIL_SEARCH_TEMPLATE}</span>
+        </p>
         <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-row gap-2">
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Марка, модель и что посчитать…"
+            placeholder="Марка и модель, например Trumpchi S7"
             disabled={loading}
             className="min-w-0 flex-1"
+            aria-label="Марка и модель для расчёта утильсбора"
           />
           <Button type="submit" variant="brand" disabled={loading} className="shrink-0">
             {loading ? (

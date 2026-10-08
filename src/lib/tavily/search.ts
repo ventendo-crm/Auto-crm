@@ -24,7 +24,16 @@ export type TavilyQuickSearchResult = {
   suggestion: QuickSearchSuggestion | null;
 };
 
-const TAVILY_TIMEOUT_MS = 20_000;
+const TAVILY_TIMEOUT_MS = 25_000;
+
+const TAVILY_EXCLUDE_DOMAINS = [
+  "pinterest.com",
+  "facebook.com",
+  "instagram.com",
+  "tiktok.com",
+  "vk.com",
+  "ok.ru",
+];
 
 function firstSentence(text: string): string {
   const cleaned = text.replace(/\s+/g, " ").trim();
@@ -82,7 +91,7 @@ function describeNetworkError(error: unknown): string {
   if (!(error instanceof Error)) return "Не удалось подключиться к Tavily.";
 
   if (error.name === "AbortError") {
-    return "Превышено время ожидания ответа Tavily (20 с).";
+    return "Превышено время ожидания ответа Tavily (25 с).";
   }
 
   const cause = error.cause;
@@ -143,10 +152,11 @@ async function callTavilySearch(
   };
   const payload: Record<string, unknown> = {
     query: russianQuery,
-    search_depth: "basic",
+    search_depth: "advanced",
     include_answer: true,
-    max_results: 3,
+    max_results: 5,
     topic: "general",
+    exclude_domains: TAVILY_EXCLUDE_DOMAINS,
   };
 
   if (mode === "bearer") {
@@ -201,7 +211,7 @@ function throwFromTavilyHttp(status: number, body: string, apiKey: string): neve
   );
 }
 
-function parseTavilySuccess(body: string): TavilyQuickSearchResult {
+function parseTavilySuccess(body: string, userQuery: string): TavilyQuickSearchResult {
   const data = JSON.parse(body) as {
     answer?: string;
     results?: Array<{ title?: string; url?: string; content?: string }>;
@@ -212,8 +222,8 @@ function parseTavilySuccess(body: string): TavilyQuickSearchResult {
     (typeof data.results?.[0]?.content === "string" && data.results[0].content.trim()) ||
     "";
 
-  const variants = (data.results ?? [])
-    .slice(0, 3)
+  const sourceDocs = (data.results ?? [])
+    .slice(0, 5)
     .map((item) => {
       const raw =
         (typeof item.content === "string" && item.content.trim()) ||
@@ -221,18 +231,29 @@ function parseTavilySuccess(body: string): TavilyQuickSearchResult {
         "";
       if (!raw) return null;
       return {
+        full: raw,
         answer: firstSentence(raw),
         sourceUrl: typeof item.url === "string" ? item.url : null,
         sourceTitle: typeof item.title === "string" ? item.title : null,
-      } satisfies TavilyQuickSearchItem;
+      };
     })
-    .filter((item): item is TavilyQuickSearchItem => item !== null);
+    .filter((item): item is NonNullable<typeof item> => item !== null);
+
+  const variants = sourceDocs.map((item) => ({
+    answer: item.answer,
+    sourceUrl: item.sourceUrl,
+    sourceTitle: item.sourceTitle,
+  }));
 
   if (!summaryRaw && variants.length === 0) {
     throw new TavilySearchError("Не удалось найти ответ по этому запросу", "TAVILY_EMPTY");
   }
 
-  const suggestion = parseCalculatorSuggestion(summaryRaw, variants);
+  const suggestion = parseCalculatorSuggestion(
+    summaryRaw,
+    sourceDocs.map((item) => ({ answer: item.full, sourceTitle: item.sourceTitle })),
+    userQuery,
+  );
   const summary =
     humanSummaryFromAnswer(summaryRaw) ||
     suggestion?.note ||
@@ -277,7 +298,7 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
         const response = await callTavilySearch(apiKey, query, mode, dispatcher, controller.signal);
         if (response.ok) {
           try {
-            return parseTavilySuccess(response.body);
+            return parseTavilySuccess(response.body, query);
           } catch (error) {
             if (error instanceof TavilySearchError) throw error;
             throw new TavilySearchError("Tavily вернул некорректный ответ", "TAVILY_REQUEST_FAILED");

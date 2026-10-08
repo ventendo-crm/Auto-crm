@@ -22,21 +22,38 @@ export type QuickSearchSuggestion = {
   note: string | null;
 };
 
+/** Фиксированная задача: менеджер вводит только марку и модель. */
+export const UTIL_SEARCH_TEMPLATE =
+  "Рассчитай утильсбор для импорта автомобиля в Россию";
+
 export function buildCalculatorSearchQuery(userQuery: string): string {
-  return `${userQuery.trim()}
+  const model = userQuery.trim();
+  return `${UTIL_SEARCH_TEMPLATE}: ${model}
 
-Нужны характеристики для расчёта растаможки и утильсбора легкового авто в РФ.
-Для гибрида, PHEV и range extender бери мощность и объём ДВС — не электромотор и не суммарную мощность.
-Для электромобиля бери 30-минутную мощность в лошадиных силах.
+Задача: найти исходные данные для расчёта утилизационного сбора при ввозе легкового авто в РФ. Сам сбор не считай — только характеристики этой модели.
 
-Ответ на русском. В конце выведи JSON без markdown:
-{"title":"марка модель","originCountry":"china","engineKind":"hybrid","engine":"petrol","powerHp":150,"volumeCc":2000,"price":null,"currency":null,"age":"new","note":"для гибрида в расчёт взята мощность ДВС"}
+Бери данные в таком порядке:
+1. Официальные спецификации производителя (brochure, tech specs, паспорт модели, сайт бренда).
+2. Карточки модели: Autohome, CarNewsChina, Drom, страницы GAC / BYD / Zeekr / Hyundai / Kia.
+3. Обзоры, где явно указаны объём ДВС и мощность ДВС либо 30-минутная мощность электро.
+
+Не бери:
+- калькуляторы растаможки и статьи с примером «2.0 л / 150 л.с.»;
+- суммарную / системную мощность гибрида;
+- мощность электромотора вместо ДВС.
+
+Что извлечь:
+- гибрид / PHEV / range extender — объём ДВС (л или см³) и мощность ДВС в л.с.;
+- электромобиль — 30-минутная мощность в л.с.;
+- страна происхождения, если указана явно.
+
+JSON в конце, неизвестное — null, без markdown:
+{"title":null,"originCountry":null,"engineKind":null,"engine":null,"powerHp":null,"volumeCc":null,"price":null,"currency":null,"age":null,"note":null}
 originCountry: china | korea | kyrgyzstan | null
 engineKind: ice | hybrid | phev | electric | null
 engine: petrol | diesel | electric | null — для гибрида petrol или diesel
 age: new | under3 | null
-currency: CNY | USD | KRW | RUB | null
-Если данных нет — null.`;
+currency: CNY | USD | KRW | RUB | null`;
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -155,12 +172,74 @@ function kwToHp(kw: number): number {
 
 function firstMatchNumber(text: string, patterns: RegExp[]): number | null {
   for (const pattern of patterns) {
-    const match = text.match(pattern);
-    const raw = match?.[1] ?? match?.[2];
-    const value = asPositiveNumber(raw);
-    if (value) return value;
+    const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+    const global = new RegExp(pattern.source, flags);
+    for (const match of text.matchAll(global)) {
+      const raw = match[1] ?? match[2];
+      const value = asPositiveNumber(raw);
+      if (value) return value;
+    }
   }
   return null;
+}
+
+function stripJsonBlocks(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/\{[^{}]{0,800}\}/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isPlaceholderTitle(title: string | null): boolean {
+  if (!title) return true;
+  const normalized = title.toLowerCase().replace(/\s+/g, " ").trim();
+  return (
+    normalized === "марка модель" ||
+    normalized === "марка" ||
+    normalized === "model" ||
+    normalized.includes("марка модель")
+  );
+}
+
+function jsonLooksLikeTemplate(json: Record<string, unknown>): boolean {
+  const title = asString(json.title);
+  if (title && isPlaceholderTitle(title)) return true;
+  const note = asString(json.note) ?? "";
+  if (note.includes("для гибрида в расчёт взята мощность ДВС")) return true;
+  return false;
+}
+
+function jsonLooksLikeDefaultNumbers(json: Record<string, unknown>): boolean {
+  return asPositiveNumber(json.powerHp ?? json.power_hp) === 150 &&
+    asPositiveNumber(json.volumeCc ?? json.volume_cc) === 2000;
+}
+
+function textConfirmsVolume(text: string, volumeCc: number): boolean {
+  const liters = (volumeCc / 1000).toFixed(1).replace(".", "[.,]");
+  const re = new RegExp(
+    `${volumeCc}\\s*(?:см|cc|куб)|${liters}\\s*(?:л(?![.\\s]*с)|L\\b|T\\b)`,
+    "i",
+  );
+  return re.test(text);
+}
+
+function textConfirmsPower(text: string, powerHp: number): boolean {
+  const re = new RegExp(`${powerHp}\\s*(?:л\\.\\s*с|л\\.?\\s*с\\.?|hp|h\\.?p\\.?)`, "i");
+  return re.test(text);
+}
+
+export function titleFromUserQuery(query: string): string | null {
+  const cleaned = query
+    .replace(
+      /\b(утильсбор|утилизационн\w*|растаможк\w*|посчитай|посчитать|расчёт|расчет|калькулятор|мощность|объём|объем|характеристик\w*|импорт\w*|автомобил\w*|росси[яиею]|рф)\b/gi,
+      " ",
+    )
+    .replace(/[?!,.:;]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (cleaned.length < 3) return null;
+  return cleaned.slice(0, 120);
 }
 
 function detectEngineKindFromText(text: string): QuickSearchEngineKind | null {
@@ -229,6 +308,8 @@ function parsePowerHpFromText(text: string, kind: QuickSearchEngineKind | null):
       /(?:ДВС|ICE|бензин(?:овый)?)[^\n]{0,50}?(\d{2,3}(?:[.,]\d+)?)\s*кВт/i,
     ]);
     if (iceKw) return kwToHp(iceKw);
+    // Для гибрида не берём первую попавшуюся мощность — часто это сумма системы.
+    return null;
   }
 
   const stripped = text.replace(
@@ -242,19 +323,37 @@ function parsePowerHpFromText(text: string, kind: QuickSearchEngineKind | null):
   return null;
 }
 
+function litersToCc(liters: number | null): number | null {
+  if (!liters || liters < 0.6 || liters > 8) return null;
+  return Math.round(liters * 1000);
+}
+
 function parseVolumeCcFromText(text: string): number | null {
+  const labeledLiters = firstMatchNumber(text, [
+    /(?:двигател\w*|engine|displacement|объ[её]м\w*|turbo(?:charged)?)[^\n]{0,40}?(\d(?:[.,]\d{1,2})?)\s*(?:л(?![.\s]*с)|L\b|T\b)/i,
+    /(\d(?:[.,]\d{1,2})?)\s*(?:л(?![.\s]*с)|L\b|T\b)[^\n]{0,24}?(?:двигател|turbo|бензин|ДВС)/i,
+  ]);
+  const fromLabeled = litersToCc(labeledLiters);
+  if (fromLabeled) return fromLabeled;
+
   const cc = firstMatchNumber(text, [
     /(\d{3,4})\s*(?:см[³3]|cc|куб\.?\s*см)/i,
     /объ[её]м[^\n]{0,24}?(\d{3,4})/i,
   ]);
   if (cc && cc >= 600 && cc <= 8000) return Math.round(cc);
 
+  const turboLiters = firstMatchNumber(text, [
+    /(\d(?:[.,]\d{1,2})?)\s*-?\s*T\b/,
+    /(\d(?:[.,]\d{1,2})?)\s*-?\s*литр(?:овый|а|ов)?/i,
+  ]);
+  const fromTurbo = litersToCc(turboLiters);
+  if (fromTurbo) return fromTurbo;
+
   const liters = firstMatchNumber(text, [
     /(\d{1,2}(?:[.,]\d{1,2})?)\s*л(?![.\s]*с)/i,
     /(\d{1,2}(?:[.,]\d{1,2})?)\s*L\b/,
   ]);
-  if (liters && liters >= 0.6 && liters <= 8) return Math.round(liters * 1000);
-  return null;
+  return litersToCc(liters);
 }
 
 function parseOriginFromText(text: string): OriginCountry | null {
@@ -263,7 +362,17 @@ function parseOriginFromText(text: string): OriginCountry | null {
   if (lower.includes("коре") || lower.includes("korea") || lower.includes("hyundai") || lower.includes("kia ")) {
     return "korea";
   }
-  if (lower.includes("китай") || lower.includes("china") || lower.includes("zeekr") || lower.includes("byd")) {
+  if (
+    lower.includes("китай") ||
+    lower.includes("china") ||
+    lower.includes("zeekr") ||
+    lower.includes("byd") ||
+    lower.includes("trumpchi") ||
+    lower.includes("gac") ||
+    lower.includes("changan") ||
+    lower.includes("geely") ||
+    lower.includes("chery")
+  ) {
     return "china";
   }
   return parseOrigin(text);
@@ -320,34 +429,69 @@ function withHybridNote(suggestion: QuickSearchSuggestion): QuickSearchSuggestio
 export function parseCalculatorSuggestion(
   answer: string,
   sources: Array<{ answer: string; sourceTitle: string | null }>,
+  userQuery = "",
 ): QuickSearchSuggestion | null {
-  const blob = [answer, ...sources.map((item) => item.answer)].filter(Boolean).join("\n");
-  const json = extractJsonObject(blob);
-  const fromText = parseFromUnstructured(blob);
+  const sourceBlob = sources
+    .map((item) => [item.sourceTitle, item.answer].filter(Boolean).join("\n"))
+    .join("\n");
+  const json = extractJsonObject(answer) ?? extractJsonObject(sourceBlob);
+  const prose = [stripJsonBlocks(answer), sourceBlob, userQuery].filter(Boolean).join("\n");
+  const fromText = parseFromUnstructured(prose);
 
-  const engineKind = parseEngineKind(json?.engineKind ?? json?.engine_kind) ?? fromText.engineKind ?? null;
-  const engine = parseEngine(json?.engine, engineKind) ?? fromText.engine ?? null;
-  const powerHp = asPositiveNumber(json?.powerHp ?? json?.power_hp) ?? fromText.powerHp ?? null;
-  const volumeCc =
+  const jsonTrusted = Boolean(json) && !jsonLooksLikeTemplate(json!);
+  const jsonNumbersOk =
+    jsonTrusted &&
+    (!jsonLooksLikeDefaultNumbers(json!) ||
+      (textConfirmsPower(prose, 150) && textConfirmsVolume(prose, 2000)));
+
+  const engineKind =
+    fromText.engineKind ??
+    (jsonTrusted ? parseEngineKind(json?.engineKind ?? json?.engine_kind) : null) ??
+    null;
+  const engine = parseEngine(jsonTrusted ? json?.engine : null, engineKind) ?? fromText.engine ?? null;
+
+  let powerHp = jsonNumbersOk ? asPositiveNumber(json?.powerHp ?? json?.power_hp) : null;
+  powerHp = powerHp ?? fromText.powerHp ?? null;
+
+  let volumeCc =
     engine === "electric"
       ? null
-      : asPositiveNumber(json?.volumeCc ?? json?.volume_cc) ?? fromText.volumeCc ?? null;
-  const title = asString(json?.title) ?? fromText.title ?? null;
-  const note = asString(json?.note) ?? null;
+      : jsonNumbersOk
+        ? asPositiveNumber(json?.volumeCc ?? json?.volume_cc)
+        : null;
+  volumeCc = volumeCc ?? fromText.volumeCc ?? null;
+  if (
+    engine !== "electric" &&
+    fromText.volumeCc &&
+    volumeCc &&
+    Math.abs(fromText.volumeCc - volumeCc) >= 200
+  ) {
+    volumeCc = fromText.volumeCc;
+  }
+
+  const jsonTitle = jsonTrusted ? asString(json?.title) : null;
+  const title =
+    (jsonTitle && !isPlaceholderTitle(jsonTitle) ? jsonTitle : null) ??
+    fromText.title ??
+    titleFromUserQuery(userQuery);
+  const note = jsonTrusted ? asString(json?.note) : null;
 
   if (!engine && !powerHp && !volumeCc && !title) return null;
 
   return withHybridNote({
     title,
-    originCountry: parseOrigin(json?.originCountry ?? json?.origin_country) ?? fromText.originCountry ?? null,
+    originCountry:
+      fromText.originCountry ??
+      (jsonTrusted ? parseOrigin(json?.originCountry ?? json?.origin_country) : null) ??
+      null,
     engineKind,
     engine,
     powerHp: powerHp ? Math.round(powerHp) : null,
     volumeCc: volumeCc ? Math.round(volumeCc) : null,
-    price: asPositiveNumber(json?.price) ?? null,
-    currency: parseCurrency(json?.currency),
-    age: parseAge(json?.age) ?? fromText.age ?? null,
-    importer: parseImporter(json?.importer),
+    price: jsonTrusted ? asPositiveNumber(json?.price) : null,
+    currency: jsonTrusted ? parseCurrency(json?.currency) : null,
+    age: fromText.age ?? (jsonTrusted ? parseAge(json?.age) : null) ?? null,
+    importer: jsonTrusted ? parseImporter(json?.importer) : null,
     note,
   });
 }
