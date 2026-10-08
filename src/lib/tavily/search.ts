@@ -1,3 +1,10 @@
+import type { Dispatcher } from "undici";
+import {
+  getOutboundProxyUrl,
+  listOutboundDispatchers,
+  outboundFetch,
+  type OutboundVia,
+} from "@/lib/http/outbound-fetch";
 import {
   buildCalculatorSearchQuery,
   humanSummaryFromAnswer,
@@ -93,11 +100,7 @@ function describeNetworkError(error: unknown): string {
     combined.includes("certificate") ||
     combined.includes("TLS")
   ) {
-    const hasProxy = Boolean(
-      process.env.HTTPS_PROXY?.trim() ||
-        process.env.HTTP_PROXY?.trim() ||
-        process.env.TELEGRAM_PROXY_URL?.trim(),
-    );
+    const hasProxy = Boolean(getOutboundProxyUrl());
     return hasProxy
       ? "Сервер не может подключиться к Tavily через прокси. Проверьте HTTPS_PROXY / TELEGRAM_PROXY_URL."
       : "Сервер не может подключиться к api.tavily.com. На VPS в РФ обычно нужен HTTP-прокси (как для Telegram).";
@@ -121,15 +124,22 @@ export class TavilySearchError extends Error {
   }
 }
 
+function looksLikeHtmlBlock(status: number, body: string): boolean {
+  if (status !== 401 && status !== 403) return false;
+  return body.includes("<html") || body.includes("<HTML") || body.includes("403 Forbidden");
+}
+
 async function callTavilySearch(
   apiKey: string,
   query: string,
   mode: "bearer" | "body",
+  dispatcher: Dispatcher,
   signal: AbortSignal,
-): Promise<Response> {
+): Promise<{ status: number; ok: boolean; body: string }> {
   const russianQuery = buildCalculatorSearchQuery(query);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
+    Accept: "application/json",
   };
   const payload: Record<string, unknown> = {
     query: russianQuery,
@@ -145,104 +155,54 @@ async function callTavilySearch(
     payload.api_key = apiKey;
   }
 
-  return fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers,
-    body: JSON.stringify(payload),
-    signal,
-  });
+  const response = await outboundFetch(
+    "https://api.tavily.com/search",
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(payload),
+      signal,
+    },
+    dispatcher,
+  );
+  const body = await response.text();
+  return { status: response.status, ok: response.ok, body };
 }
 
-export async function searchWithTavily(query: string): Promise<TavilyQuickSearchResult> {
-  const apiKey = sanitizeTavilyApiKey(process.env.TAVILY_API_KEY);
-  if (!apiKey) {
-    throw new TavilySearchError(
-      "Быстрый поиск не настроен: добавьте TAVILY_API_KEY в deploy/.env и пересоздайте контейнер app",
-      "TAVILY_NOT_CONFIGURED",
-    );
-  }
+function throwFromTavilyHttp(status: number, body: string, apiKey: string): never {
+  const detail = parseTavilyErrorBody(body);
+  console.error("Tavily search failed", status, body, describeApiKey(apiKey));
 
-  if (!apiKey.startsWith("tvly-") && !apiKey.startsWith("tvly-dev-")) {
+  if (status === 401 || status === 403) {
     throw new TavilySearchError(
-      `Похоже, в TAVILY_API_KEY не ключ Tavily (${describeApiKey(apiKey)}). Ожидается значение вида tvly-… из https://app.tavily.com`,
+      [
+        "Ключ Tavily отклонён.",
+        detail ? `Ответ API: ${detail}.` : null,
+        `Проверьте ключ в контейнере (${describeApiKey(apiKey)}).`,
+        "В deploy/.env должна быть строка без кавычек: TAVILY_API_KEY=tvly-…",
+        "После правки: docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --force-recreate app",
+      ]
+        .filter(Boolean)
+        .join(" "),
       "TAVILY_UNAUTHORIZED",
     );
   }
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), TAVILY_TIMEOUT_MS);
-
-  let response: Response;
-  try {
-    response = await callTavilySearch(apiKey, query, "bearer", controller.signal);
-
-    // На части аккаунтов/прокси срабатывает только api_key в теле запроса
-    if (response.status === 401 || response.status === 403) {
-      const bearerBody = await response.text().catch(() => "");
-      console.error("Tavily bearer auth failed, retrying with api_key body", response.status, bearerBody);
-      response = await callTavilySearch(apiKey, query, "body", controller.signal);
-    }
-  } catch (error) {
-    throw new TavilySearchError(describeNetworkError(error), "TAVILY_NETWORK");
-  } finally {
-    clearTimeout(timeout);
-  }
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    const detail = parseTavilyErrorBody(body);
-    console.error("Tavily search failed", response.status, body, describeApiKey(apiKey));
-
-    const looksLikeHtmlBlock =
-      body.includes("<html") ||
-      body.includes("<HTML") ||
-      body.includes("403 Forbidden");
-
-    if (looksLikeHtmlBlock && (response.status === 401 || response.status === 403)) {
-      const hasProxy = Boolean(
-        process.env.HTTPS_PROXY?.trim() ||
-          process.env.HTTP_PROXY?.trim() ||
-          process.env.TELEGRAM_PROXY_URL?.trim(),
-      );
-      throw new TavilySearchError(
-        hasProxy
-          ? "Tavily недоступен через текущий прокси (HTTP 403). Проверьте TELEGRAM_PROXY_URL / HTTPS_PROXY."
-          : "Tavily недоступен с этого сервера (HTTP 403, блок по региону/IP). Добавьте в deploy/.env HTTP-прокси: TELEGRAM_PROXY_URL=http://user:pass@host:port и пересоздайте app.",
-        "TAVILY_NETWORK",
-      );
-    }
-
-    if (response.status === 401 || response.status === 403) {
-      throw new TavilySearchError(
-        [
-          "Ключ Tavily отклонён.",
-          detail ? `Ответ API: ${detail}.` : null,
-          `Проверьте ключ в контейнере (${describeApiKey(apiKey)}).`,
-          "В deploy/.env должна быть строка без кавычек: TAVILY_API_KEY=tvly-…",
-          "После правки: docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --force-recreate app",
-        ]
-          .filter(Boolean)
-          .join(" "),
-        "TAVILY_UNAUTHORIZED",
-      );
-    }
-
-    if (response.status === 429) {
-      throw new TavilySearchError(
-        detail ?? "Превышен лимит запросов Tavily. Попробуйте позже.",
-        "TAVILY_REQUEST_FAILED",
-      );
-    }
-
+  if (status === 429) {
     throw new TavilySearchError(
-      detail
-        ? `Tavily вернул ошибку (${response.status}): ${detail}`
-        : `Сервис поиска временно недоступен (${response.status})`,
+      detail ?? "Превышен лимит запросов Tavily. Попробуйте позже.",
       "TAVILY_REQUEST_FAILED",
     );
   }
 
-  const data = (await response.json()) as {
+  throw new TavilySearchError(
+    detail ? `Tavily вернул ошибку (${status}): ${detail}` : `Сервис поиска временно недоступен (${status})`,
+    "TAVILY_REQUEST_FAILED",
+  );
+}
+
+function parseTavilySuccess(body: string): TavilyQuickSearchResult {
+  const data = JSON.parse(body) as {
     answer?: string;
     results?: Array<{ title?: string; url?: string; content?: string }>;
   };
@@ -279,9 +239,77 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
     variants[0]?.answer ||
     "";
 
-  return {
-    summary,
-    variants,
-    suggestion,
-  };
+  return { summary, variants, suggestion };
+}
+
+function htmlBlockMessage(via: OutboundVia): string {
+  if (via === "proxy" || getOutboundProxyUrl()) {
+    return "Tavily недоступен через текущий прокси (HTTP 403). Нужен обычный HTTP-прокси за рубежом в TELEGRAM_PROXY_URL, не только для api.telegram.org.";
+  }
+  return "Tavily недоступен с этого сервера (HTTP 403, блок по региону/IP). Добавьте в deploy/.env HTTP-прокси: TELEGRAM_PROXY_URL=http://user:pass@host:port и пересоздайте app.";
+}
+
+export async function searchWithTavily(query: string): Promise<TavilyQuickSearchResult> {
+  const apiKey = sanitizeTavilyApiKey(process.env.TAVILY_API_KEY);
+  if (!apiKey) {
+    throw new TavilySearchError(
+      "Быстрый поиск не настроен: добавьте TAVILY_API_KEY в deploy/.env и пересоздайте контейнер app",
+      "TAVILY_NOT_CONFIGURED",
+    );
+  }
+
+  if (!apiKey.startsWith("tvly-") && !apiKey.startsWith("tvly-dev-")) {
+    throw new TavilySearchError(
+      `Похоже, в TAVILY_API_KEY не ключ Tavily (${describeApiKey(apiKey)}). Ожидается значение вида tvly-… из https://app.tavily.com`,
+      "TAVILY_UNAUTHORIZED",
+    );
+  }
+
+  const dispatchers = listOutboundDispatchers();
+  let lastHtmlVia: OutboundVia | null = null;
+  let lastNetworkError: unknown = null;
+
+  for (const { via, dispatcher } of dispatchers) {
+    for (const mode of ["bearer", "body"] as const) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), TAVILY_TIMEOUT_MS);
+      try {
+        const response = await callTavilySearch(apiKey, query, mode, dispatcher, controller.signal);
+        if (response.ok) {
+          try {
+            return parseTavilySuccess(response.body);
+          } catch (error) {
+            if (error instanceof TavilySearchError) throw error;
+            throw new TavilySearchError("Tavily вернул некорректный ответ", "TAVILY_REQUEST_FAILED");
+          }
+        }
+
+        if (looksLikeHtmlBlock(response.status, response.body)) {
+          console.error("Tavily HTML 403", via, mode, response.body.slice(0, 300));
+          lastHtmlVia = via;
+          break;
+        }
+
+        if ((response.status === 401 || response.status === 403) && mode === "bearer") {
+          console.error("Tavily bearer auth failed, retrying with api_key body", via, response.status);
+          continue;
+        }
+
+        throwFromTavilyHttp(response.status, response.body, apiKey);
+      } catch (error) {
+        if (error instanceof TavilySearchError) throw error;
+        lastNetworkError = error;
+        console.error("Tavily network error", via, mode, error);
+        break;
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+  }
+
+  if (lastNetworkError) {
+    throw new TavilySearchError(describeNetworkError(lastNetworkError), "TAVILY_NETWORK");
+  }
+
+  throw new TavilySearchError(htmlBlockMessage(lastHtmlVia ?? "direct"), "TAVILY_NETWORK");
 }
