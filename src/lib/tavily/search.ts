@@ -33,6 +33,10 @@ const TAVILY_EXCLUDE_DOMAINS = [
   "tiktok.com",
   "vk.com",
   "ok.ru",
+  "alta.ru",
+  "tks.ru",
+  "consultant.ru",
+  "garant.ru",
 ];
 
 function firstSentence(text: string): string {

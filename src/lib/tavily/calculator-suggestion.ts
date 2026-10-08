@@ -28,24 +28,16 @@ export const UTIL_SEARCH_TEMPLATE =
 
 export function buildCalculatorSearchQuery(userQuery: string): string {
   const model = userQuery.trim();
-  return `${UTIL_SEARCH_TEMPLATE}: ${model}
+  return `${model} engine specs displacement liters turbo hybrid PHEV ICE brochure official manufacturer
 
-Задача: найти исходные данные для расчёта утилизационного сбора при ввозе легкового авто в РФ. Сам сбор не считай — только характеристики этой модели.
+${UTIL_SEARCH_TEMPLATE}: ${model}
 
-Бери данные в таком порядке:
-1. Официальные спецификации производителя (brochure, tech specs, паспорт модели, сайт бренда).
-2. Карточки модели: Autohome, CarNewsChina, Drom, страницы GAC / BYD / Zeekr / Hyundai / Kia.
-3. Обзоры, где явно указаны объём ДВС и мощность ДВС либо 30-минутная мощность электро.
+Ищи спецификации модели «${model}», не таблицы ставок утильсбора.
+Нужен фактический рабочий объём ДВС этой машины (литраж x.xT из спецификации), а не скобки закона «до 1 л», «от 1 до 2 л», «свыше 3 л».
 
-Не бери:
-- калькуляторы растаможки и статьи с примером «2.0 л / 150 л.с.»;
-- суммарную / системную мощность гибрида;
-- мощность электромотора вместо ДВС.
-
-Что извлечь:
-- гибрид / PHEV / range extender — объём ДВС (л или см³) и мощность ДВС в л.с.;
-- электромобиль — 30-минутная мощность в л.с.;
-- страна происхождения, если указана явно.
+Гибрид / PHEV: объём и мощность именно ДВС, не электромотор и не суммарную мощность.
+Электромобиль: 30-минутная мощность в л.с.
+Сам сбор не считай.
 
 JSON в конце, неизвестное — null, без markdown:
 {"title":null,"originCountry":null,"engineKind":null,"engine":null,"powerHp":null,"volumeCc":null,"price":null,"currency":null,"age":null,"note":null}
@@ -328,32 +320,61 @@ function litersToCc(liters: number | null): number | null {
   return Math.round(liters * 1000);
 }
 
+function contextAround(text: string, index: number, radius = 48): string {
+  return text.slice(Math.max(0, index - radius), Math.min(text.length, index + radius + 24));
+}
+
+function isFeeBracketContext(ctx: string): boolean {
+  return /(?:до|свыше|более|менее|не\s+более|от)\s+\d(?:[.,]\d+)?\s*(?:до\s+\d(?:[.,]\d+)?\s*)?(?:л|L)\b/i.test(
+    ctx,
+  );
+}
+
+type VolumeHit = { cc: number; score: number; hadDecimal: boolean };
+
+function addVolumeHits(text: string, pattern: RegExp, score: number, asLiters: boolean): VolumeHit[] {
+  const hits: VolumeHit[] = [];
+  const flags = pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`;
+  const global = new RegExp(pattern.source, flags);
+  for (const match of text.matchAll(global)) {
+    if (match.index == null) continue;
+    const ctx = contextAround(text, match.index);
+    if (isFeeBracketContext(ctx)) continue;
+    const token = match[1] ?? match[2] ?? "";
+    const raw = asPositiveNumber(token);
+    const cc = asLiters ? litersToCc(raw) : raw && raw >= 600 && raw <= 8000 ? Math.round(raw) : null;
+    if (!cc) continue;
+    hits.push({ cc, score, hadDecimal: /[.,]/.test(token) });
+  }
+  return hits;
+}
+
 function parseVolumeCcFromText(text: string): number | null {
-  const labeledLiters = firstMatchNumber(text, [
-    /(?:двигател\w*|engine|displacement|объ[её]м\w*|turbo(?:charged)?)[^\n]{0,40}?(\d(?:[.,]\d{1,2})?)\s*(?:л(?![.\s]*с)|L\b|T\b)/i,
-    /(\d(?:[.,]\d{1,2})?)\s*(?:л(?![.\s]*с)|L\b|T\b)[^\n]{0,24}?(?:двигател|turbo|бензин|ДВС)/i,
-  ]);
-  const fromLabeled = litersToCc(labeledLiters);
-  if (fromLabeled) return fromLabeled;
+  const hits: VolumeHit[] = [
+    ...addVolumeHits(text, /(\d(?:[.,]\d{1,2})?)\s*-?\s*T\b/i, 100, true),
+    ...addVolumeHits(text, /(\d(?:[.,]\d{1,2})?)\s*-?\s*литр(?:овый|а|ов)?/i, 90, true),
+    ...addVolumeHits(
+      text,
+      /(?:двигател\w*|engine|displacement|объ[её]м\w*|turbo(?:charged)?)[^\n]{0,40}?(\d(?:[.,]\d{1,2})?)\s*(?:л(?![.\s]*с)|L\b|T\b)/i,
+      80,
+      true,
+    ),
+    ...addVolumeHits(text, /(\d{3,4})\s*(?:см[³3]|cc|куб\.?\s*см)/i, 70, false),
+    ...addVolumeHits(text, /(\d(?:[.,]\d{1,2})?)\s*л(?![.\s]*с)/i, 20, true),
+    ...addVolumeHits(text, /(\d(?:[.,]\d{1,2})?)\s*L\b/, 20, true),
+  ];
 
-  const cc = firstMatchNumber(text, [
-    /(\d{3,4})\s*(?:см[³3]|cc|куб\.?\s*см)/i,
-    /объ[её]м[^\n]{0,24}?(\d{3,4})/i,
-  ]);
-  if (cc && cc >= 600 && cc <= 8000) return Math.round(cc);
+  const ranked = hits
+    .filter((hit) => {
+      const liters = hit.cc / 1000;
+      const wholeBracket =
+        !hit.hadDecimal && (liters === 1 || liters === 2 || liters === 3 || liters === 4);
+      if (wholeBracket && hit.score < 70) return false;
+      return true;
+    })
+    .sort((a, b) => b.score - a.score || b.cc - a.cc);
 
-  const turboLiters = firstMatchNumber(text, [
-    /(\d(?:[.,]\d{1,2})?)\s*-?\s*T\b/,
-    /(\d(?:[.,]\d{1,2})?)\s*-?\s*литр(?:овый|а|ов)?/i,
-  ]);
-  const fromTurbo = litersToCc(turboLiters);
-  if (fromTurbo) return fromTurbo;
-
-  const liters = firstMatchNumber(text, [
-    /(\d{1,2}(?:[.,]\d{1,2})?)\s*л(?![.\s]*с)/i,
-    /(\d{1,2}(?:[.,]\d{1,2})?)\s*L\b/,
-  ]);
-  return litersToCc(liters);
+  return ranked[0]?.cc ?? null;
 }
 
 function parseOriginFromText(text: string): OriginCountry | null {
@@ -453,20 +474,12 @@ export function parseCalculatorSuggestion(
   let powerHp = jsonNumbersOk ? asPositiveNumber(json?.powerHp ?? json?.power_hp) : null;
   powerHp = powerHp ?? fromText.powerHp ?? null;
 
-  let volumeCc =
-    engine === "electric"
-      ? null
-      : jsonNumbersOk
-        ? asPositiveNumber(json?.volumeCc ?? json?.volume_cc)
-        : null;
-  volumeCc = volumeCc ?? fromText.volumeCc ?? null;
-  if (
-    engine !== "electric" &&
-    fromText.volumeCc &&
-    volumeCc &&
-    Math.abs(fromText.volumeCc - volumeCc) >= 200
-  ) {
-    volumeCc = fromText.volumeCc;
+  let volumeCc = engine === "electric" ? null : fromText.volumeCc ?? null;
+  const jsonVolume = jsonNumbersOk ? asPositiveNumber(json?.volumeCc ?? json?.volume_cc) : null;
+  const jsonVolumeLooksLikeFeeBracket =
+    jsonVolume === 1000 || jsonVolume === 2000 || jsonVolume === 3000 || jsonVolume === 4000;
+  if (engine !== "electric" && !volumeCc && jsonVolume && !jsonVolumeLooksLikeFeeBracket) {
+    volumeCc = jsonVolume;
   }
 
   const jsonTitle = jsonTrusted ? asString(json?.title) : null;
