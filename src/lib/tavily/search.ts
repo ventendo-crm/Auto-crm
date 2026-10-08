@@ -1,3 +1,10 @@
+import {
+  buildCalculatorSearchQuery,
+  humanSummaryFromAnswer,
+  parseCalculatorSuggestion,
+  type QuickSearchSuggestion,
+} from "@/lib/tavily/calculator-suggestion";
+
 export type TavilyQuickSearchItem = {
   answer: string;
   sourceUrl: string | null;
@@ -7,6 +14,7 @@ export type TavilyQuickSearchItem = {
 export type TavilyQuickSearchResult = {
   summary: string;
   variants: TavilyQuickSearchItem[];
+  suggestion: QuickSearchSuggestion | null;
 };
 
 const TAVILY_TIMEOUT_MS = 20_000;
@@ -119,7 +127,7 @@ async function callTavilySearch(
   mode: "bearer" | "body",
   signal: AbortSignal,
 ): Promise<Response> {
-  const russianQuery = `${query}\n\nОтвет дай только на русском языке. Если источники на английском, переведи итог кратко на русский.`;
+  const russianQuery = buildCalculatorSearchQuery(query);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
@@ -264,8 +272,16 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
     throw new TavilySearchError("Не удалось найти ответ по этому запросу", "TAVILY_EMPTY");
   }
 
+  const suggestion = parseCalculatorSuggestion(summaryRaw, variants);
+  const summary =
+    humanSummaryFromAnswer(summaryRaw) ||
+    suggestion?.note ||
+    variants[0]?.answer ||
+    "";
+
   return {
-    summary: summaryRaw ? firstSentence(summaryRaw) : variants[0]?.answer ?? "",
+    summary,
     variants,
+    suggestion,
   };
 }

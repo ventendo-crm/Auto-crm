@@ -708,6 +708,7 @@ export const api = {
           sourceUrl: string | null;
           sourceTitle: string | null;
         }>;
+        suggestion: import("@/lib/tavily/calculator-suggestion").QuickSearchSuggestion | null;
       }>("/api/quick-search", {
         method: "POST",
         body: JSON.stringify({ query }),

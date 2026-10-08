@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Calculator, Share2 } from "lucide-react";
 import { CalculatorOfferWorkspace } from "@/components/calculator/calculator-offer-workspace";
@@ -12,11 +12,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { canAccessCalculator, getClientRoleName } from "@/lib/permissions";
+import type { QuickSearchSuggestion } from "@/lib/tavily/calculator-suggestion";
 
 function CalculatorContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tab = searchParams.get("tab") === "offer" ? "offer" : "calc";
+  const [searchSuggestion, setSearchSuggestion] = useState<QuickSearchSuggestion | null>(null);
 
   const setTab = (value: string) => {
     const next = new URLSearchParams(searchParams.toString());
@@ -40,8 +42,14 @@ function CalculatorContent() {
       </TabsList>
 
       <TabsContent value="calc" className="mt-4 space-y-6">
-        <CustomsCalculator />
-        <CalculatorQuickSearch />
+        <CalculatorQuickSearch
+          onApplyToCalculator={setSearchSuggestion}
+          onOpenOfferTab={() => setTab("offer")}
+        />
+        <CustomsCalculator
+          searchSuggestion={searchSuggestion}
+          onSearchSuggestionApplied={() => setSearchSuggestion(null)}
+        />
       </TabsContent>
 
       <TabsContent value="offer" className="mt-4">

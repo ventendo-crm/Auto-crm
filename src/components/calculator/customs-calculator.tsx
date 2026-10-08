@@ -86,6 +86,7 @@ import {
 } from "@/lib/customs-calculator";
 import type { CalculatorPresetInput } from "@/lib/validators/calculator-settings";
 import { canManageCompanyCalculator, getClientRoleName } from "@/lib/permissions";
+import type { QuickSearchSuggestion } from "@/lib/tavily/calculator-suggestion";
 import { cn, formatCurrency } from "@/lib/utils";
 
 const STORAGE_KEY = "autocrm-customs-calculator";
@@ -631,6 +632,8 @@ interface CustomsCalculatorProps {
   persistLocal?: boolean;
   initialInput?: CustomsCalculatorInput | null;
   onCalculated?: (input: CustomsCalculatorInput, result: CustomsCalculatorResult) => void;
+  searchSuggestion?: QuickSearchSuggestion | null;
+  onSearchSuggestionApplied?: () => void;
 }
 
 export function CustomsCalculator({
@@ -639,6 +642,8 @@ export function CustomsCalculator({
   persistLocal = true,
   initialInput = null,
   onCalculated,
+  searchSuggestion = null,
+  onSearchSuggestionApplied,
 }: CustomsCalculatorProps = {}) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
@@ -1455,6 +1460,46 @@ export function CustomsCalculator({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, dealIdFromQuery, estimateIdFromQuery, router]);
 
+  useEffect(() => {
+    if (!hydrated || !searchSuggestion) return;
+
+    const nextOrigin = searchSuggestion.originCountry ?? originCountry;
+    if (searchSuggestion.originCountry) {
+      handleOriginChange(searchSuggestion.originCountry);
+    }
+    if (searchSuggestion.importer) setImporter(searchSuggestion.importer);
+    if (searchSuggestion.age) {
+      setAge(searchSuggestion.age);
+      if (isChinaLikeOrigin(nextOrigin)) {
+        setChinaExpensesCny(chinaExpensesForAge(searchSuggestion.age));
+      }
+    }
+    // Стоимость для таможни из каталога не подставляем — менеджер сверяет сам.
+    setCustomsPrice("");
+    if (searchSuggestion.engine) setEngine(searchSuggestion.engine);
+    if (searchSuggestion.powerHp != null) setPowerHp(String(searchSuggestion.powerHp));
+    if (searchSuggestion.engine === "electric") {
+      setVolumeCc("0");
+    } else if (searchSuggestion.volumeCc != null) {
+      setVolumeCc(String(searchSuggestion.volumeCc));
+    }
+    if (searchSuggestion.price != null) setPrice(String(searchSuggestion.price));
+    if (
+      searchSuggestion.currency &&
+      searchSuggestion.originCountry !== "korea" &&
+      nextOrigin !== "korea"
+    ) {
+      setCurrency(searchSuggestion.currency);
+    }
+
+    setAutoOpen(true);
+    setDetailsOpen(true);
+    setSubmitted(searchSuggestion.price != null);
+    onSearchSuggestionApplied?.();
+    // one-shot apply from ИИ-поиск
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, searchSuggestion]);
+
   const updateRate = (key: keyof ExchangeRates, value: string) => {
     const next = Number(value.replace(",", "."));
     if (!Number.isFinite(next) || next <= 0) return;
@@ -1532,6 +1577,7 @@ export function CustomsCalculator({
 
   return (
     <div
+      id="customs-calculator"
       className="grid gap-6 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]"
     >
       <Card className="border-0 shadow-card">
