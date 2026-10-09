@@ -40,6 +40,31 @@ export function buildSpecRetrievalQuery(userQuery: string): string {
   return `${model} specifications powertrain battery motor engine 参数 动力电池 纯电 排量 半小时功率`;
 }
 
+/** Второй запрос только за тем, чего не хватает для выбранной комплектации. */
+export function buildMissingFieldsQuery(model: string, missing: string[]): string {
+  const focus: string[] = [];
+  const blob = missing.join(" ").toLowerCase();
+  if (blob.includes("30-минут") || blob.includes("электромотор")) {
+    focus.push("30-minute power 半小时功率 30分钟功率 UNECE R85");
+  }
+  if (blob.includes("объём") || blob.includes("объем")) {
+    focus.push("displacement 排量 engine volume liters");
+  }
+  if (blob.includes("мощность двс") || blob.includes("мощность двигателя")) {
+    focus.push("ICE engine power horsepower 发动机功率");
+  }
+  if (blob.includes("вид гибрида") || blob.includes("последовательн") || blob.includes("параллельн")) {
+    focus.push("series parallel range extender PHEV 增程式 串联 并联");
+  }
+  if (blob.includes("тип двигателя")) {
+    focus.push("BEV PHEV hybrid petrol diesel 纯电 混动");
+  }
+  if (focus.length === 0) {
+    focus.push("specifications 参数 半小时功率 排量");
+  }
+  return `${model.trim()} ${focus.join(" ")}`;
+}
+
 /** @deprecated используйте buildSpecRetrievalQuery */
 export function buildCalculatorSearchQuery(userQuery: string): string {
   return buildSpecRetrievalQuery(userQuery);
@@ -543,10 +568,58 @@ function parseAgeFromText(text: string): CarAge | null {
   return null;
 }
 
+/** Строки таблицы «параметр — значение» важнее абзацев. */
+function extractFromSpecTable(text: string): {
+  volumeCc: number | null;
+  icePowerHp: number | null;
+  electricPowerHp: number | null;
+} {
+  let volumeCc: number | null = null;
+  let icePowerHp: number | null = null;
+  let electricPowerHp: number | null = null;
+
+  for (const rawLine of text.split(/\n+/)) {
+    const line = rawLine.replace(/\s+/g, " ").trim();
+    if (line.length < 4 || line.length > 220) continue;
+    const lower = line.toLowerCase();
+
+    if (
+      !volumeCc &&
+      /排量|displacement|рабочий объ[её]м|объ[её]м двигател|engine capacity|engine volume/i.test(line)
+    ) {
+      const liters = firstMatchNumber(line, [
+        /(\d(?:[.,]\d{1,2})?)\s*(?:л(?![.\s]*с)|L\b|T\b)/i,
+      ]);
+      const cc = firstMatchNumber(line, [/(\d{3,4})\s*(?:см|cc|ml|毫升)/i]);
+      volumeCc = litersToCc(liters) ?? (cc && cc >= 600 && cc <= 8000 ? Math.round(cc) : null);
+    }
+
+    if (
+      !electricPowerHp &&
+      /30[-\s]?мин|30[-\s]?min|получасов|半小时功率|30\s*分钟功率|unece\s*r?85/i.test(line)
+    ) {
+      electricPowerHp = parseThirtyMinutePowerHp(line);
+    }
+
+    if (
+      !icePowerHp &&
+      /发动机功率|мощность двс|ice power|engine power|rated power|макс(?:имальн)?\.?\s*мощность/i.test(
+        lower,
+      ) &&
+      !/30[-\s]?мин|30[-\s]?min|半小时|电驱|motor power|системн|суммарн|combined/i.test(lower)
+    ) {
+      icePowerHp = parseIcePowerHp(line, true);
+    }
+  }
+
+  return { volumeCc, icePowerHp, electricPowerHp };
+}
+
 export function extractSpecsFromDocument(text: string): Partial<QuickSearchSuggestion> {
-  const electricPowerHp = parseThirtyMinutePowerHp(text);
+  const fromTable = extractFromSpecTable(text);
+  const electricPowerHp = fromTable.electricPowerHp ?? parseThirtyMinutePowerHp(text);
   let engineKind = detectEngineKindFromText(text);
-  const volumeCcRaw = parseVolumeCcFromText(text);
+  const volumeCcRaw = fromTable.volumeCc ?? parseVolumeCcFromText(text);
   if (!engineKind && electricPowerHp && !volumeCcRaw) {
     engineKind = "electric";
   }
@@ -555,7 +628,9 @@ export function extractSpecsFromDocument(text: string): Partial<QuickSearchSugge
   }
   const layout =
     engineKind === "hybrid" || engineKind === "phev" ? detectHybridLayout(text) : null;
-  const icePowerHp = parseIcePowerHp(text, engineKind === "ice" || engineKind == null);
+  const icePowerHp =
+    fromTable.icePowerHp ??
+    parseIcePowerHp(text, engineKind === "ice" || engineKind == null);
   const resolved = resolveUtilPower({
     engineKind,
     layout,
@@ -576,6 +651,79 @@ export function extractSpecsFromDocument(text: string): Partial<QuickSearchSugge
     age: parseAgeFromText(text),
     note: resolved.note,
   };
+}
+
+export function mergeSuggestionWithDocs(
+  base: QuickSearchSuggestion,
+  docs: SpecDocumentLike[],
+  userQuery: string,
+): QuickSearchSuggestion {
+  const patch = assemblePartialFromDocs(docs, userQuery);
+  const engineKind = base.engineKind ?? patch.engineKind ?? null;
+  const isElectric = engineKind === "electric";
+  const hybridLayout = isElectric ? null : base.hybridLayout ?? patch.hybridLayout ?? null;
+  const icePowerHp = isElectric ? null : base.icePowerHp ?? patch.icePowerHp ?? null;
+  const electricPowerHp = base.electricPowerHp ?? patch.electricPowerHp ?? null;
+  const volumeCc = isElectric ? null : base.volumeCc ?? patch.volumeCc ?? null;
+  const resolved = resolveUtilPower({
+    engineKind,
+    layout: hybridLayout,
+    icePowerHp,
+    electricPowerHp,
+  });
+  const engine =
+    engineKind === "electric"
+      ? "electric"
+      : volumeCc || engineKind === "hybrid" || engineKind === "phev" || engineKind === "ice"
+        ? "petrol"
+        : base.engine ?? patch.engine ?? null;
+
+  return withHybridNote({
+    title: base.title ?? patch.title ?? titleFromUserQuery(userQuery),
+    originCountry: base.originCountry ?? patch.originCountry ?? null,
+    engineKind,
+    hybridLayout,
+    engine,
+    powerHp: resolved.powerHp,
+    icePowerHp,
+    electricPowerHp,
+    volumeCc,
+    price: base.price ?? patch.price ?? null,
+    currency: base.currency ?? patch.currency ?? null,
+    age: base.age ?? patch.age ?? null,
+    importer: base.importer ?? patch.importer ?? null,
+    note: resolved.note,
+  });
+}
+
+type SpecDocumentLike = { text: string; title: string | null; url?: string | null };
+
+function assemblePartialFromDocs(
+  docs: SpecDocumentLike[],
+  userQuery: string,
+): Partial<QuickSearchSuggestion> {
+  const merged = docs
+    .map((doc) => extractSpecsFromDocument([doc.title, doc.text].filter(Boolean).join("\n")))
+    .reduce<Partial<QuickSearchSuggestion>>((acc, specs) => {
+      return {
+        title: acc.title ?? specs.title ?? null,
+        originCountry: acc.originCountry ?? specs.originCountry ?? null,
+        engineKind: acc.engineKind ?? specs.engineKind ?? null,
+        hybridLayout: acc.hybridLayout ?? specs.hybridLayout ?? null,
+        engine: acc.engine ?? specs.engine ?? null,
+        icePowerHp: acc.icePowerHp ?? specs.icePowerHp ?? null,
+        electricPowerHp: acc.electricPowerHp ?? specs.electricPowerHp ?? null,
+        volumeCc: acc.volumeCc ?? specs.volumeCc ?? null,
+        age: acc.age ?? specs.age ?? null,
+        price: acc.price ?? specs.price ?? null,
+        currency: acc.currency ?? specs.currency ?? null,
+        importer: acc.importer ?? specs.importer ?? null,
+        note: acc.note ?? specs.note ?? null,
+        powerHp: acc.powerHp ?? specs.powerHp ?? null,
+      };
+    }, {});
+  if (!merged.title) merged.title = titleFromUserQuery(userQuery);
+  return merged;
 }
 
 function parseFromUnstructured(text: string): Partial<QuickSearchSuggestion> {

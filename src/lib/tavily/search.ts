@@ -5,10 +5,17 @@ import {
   outboundFetch,
   type OutboundVia,
 } from "@/lib/http/outbound-fetch";
-import { assembleSpecSuggestion, specSummary } from "@/lib/spec-search/assemble";
+import {
+  assembleSpecSuggestion,
+  listTrimCandidates,
+  specSummary,
+  type SpecTrimCandidate,
+} from "@/lib/spec-search/assemble";
 import { searchWikipediaSpecs, type SpecDocument } from "@/lib/spec-search/wikipedia";
 import {
+  buildMissingFieldsQuery,
   buildSpecRetrievalQuery,
+  mergeSuggestionWithDocs,
   type QuickSearchSuggestion,
 } from "@/lib/tavily/calculator-suggestion";
 
@@ -22,6 +29,7 @@ export type TavilyQuickSearchResult = {
   summary: string;
   variants: TavilyQuickSearchItem[];
   suggestion: QuickSearchSuggestion | null;
+  trims: SpecTrimCandidate[];
 };
 
 const TAVILY_TIMEOUT_MS = 25_000;
@@ -144,12 +152,11 @@ function looksLikeHtmlBlock(status: number, body: string): boolean {
 
 async function callTavilySearch(
   apiKey: string,
-  query: string,
+  retrievalQuery: string,
   mode: "bearer" | "body",
   dispatcher: Dispatcher,
   signal: AbortSignal,
 ): Promise<{ status: number; ok: boolean; body: string }> {
-  const retrievalQuery = buildSpecRetrievalQuery(query);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -248,7 +255,8 @@ function toSearchResult(docs: SpecDocument[], userQuery: string): TavilyQuickSea
     throw new TavilySearchError("Не удалось найти спецификации по этому запросу", "TAVILY_EMPTY");
   }
 
-  const suggestion = assembleSpecSuggestion(docs, userQuery);
+  const trims = listTrimCandidates(docs, userQuery);
+  const suggestion = trims[0]?.suggestion ?? assembleSpecSuggestion(docs, userQuery);
   const variants = docs.slice(0, 5).map((item) => ({
     answer: firstSentence(item.text),
     sourceUrl: item.url,
@@ -256,37 +264,22 @@ function toSearchResult(docs: SpecDocument[], userQuery: string): TavilyQuickSea
   }));
 
   return {
-    summary: specSummary(suggestion, variants[0]?.answer ?? ""),
+    summary:
+      trims.length > 1
+        ? `Найдено комплектаций: ${trims.length}. Выберите нужную — от этого зависят объём и мощность.`
+        : specSummary(suggestion, variants[0]?.answer ?? ""),
     variants,
     suggestion,
+    trims,
   };
 }
 
-function htmlBlockMessage(via: OutboundVia): string {
-  if (via === "proxy" || getOutboundProxyUrl()) {
-    return "Tavily недоступен через текущий прокси (HTTP 403). Нужен обычный HTTP-прокси за рубежом в TELEGRAM_PROXY_URL, не только для api.telegram.org.";
-  }
-  return "Tavily недоступен с этого сервера (HTTP 403, блок по региону/IP). Добавьте в deploy/.env HTTP-прокси: TELEGRAM_PROXY_URL=http://user:pass@host:port и пересоздайте app.";
-}
-
-export async function searchWithTavily(query: string): Promise<TavilyQuickSearchResult> {
-  const apiKey = sanitizeTavilyApiKey(process.env.TAVILY_API_KEY);
-  if (!apiKey) {
-    throw new TavilySearchError(
-      "Быстрый поиск не настроен: добавьте TAVILY_API_KEY в deploy/.env и пересоздайте контейнер app",
-      "TAVILY_NOT_CONFIGURED",
-    );
-  }
-
-  if (!apiKey.startsWith("tvly-") && !apiKey.startsWith("tvly-dev-")) {
-    throw new TavilySearchError(
-      `Похоже, в TAVILY_API_KEY не ключ Tavily (${describeApiKey(apiKey)}). Ожидается значение вида tvly-… из https://app.tavily.com`,
-      "TAVILY_UNAUTHORIZED",
-    );
-  }
-
-  const wikiPromise = searchWikipediaSpecs(query).catch(() => [] as SpecDocument[]);
-
+async function fetchSpecDocuments(
+  apiKey: string,
+  retrievalQuery: string,
+  modelQuery: string,
+): Promise<SpecDocument[]> {
+  const wikiPromise = searchWikipediaSpecs(modelQuery).catch(() => [] as SpecDocument[]);
   const dispatchers = listOutboundDispatchers();
   let lastHtmlVia: OutboundVia | null = null;
   let lastNetworkError: unknown = null;
@@ -296,16 +289,17 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), TAVILY_TIMEOUT_MS);
       try {
-        const response = await callTavilySearch(apiKey, query, mode, dispatcher, controller.signal);
+        const response = await callTavilySearch(
+          apiKey,
+          retrievalQuery,
+          mode,
+          dispatcher,
+          controller.signal,
+        );
         if (response.ok) {
-          try {
-            const tavilyDocs = parseTavilyDocuments(response.body);
-            const wikiDocs = await wikiPromise;
-            return toSearchResult([...tavilyDocs, ...wikiDocs], query);
-          } catch (error) {
-            if (error instanceof TavilySearchError) throw error;
-            throw new TavilySearchError("Tavily вернул некорректный ответ", "TAVILY_REQUEST_FAILED");
-          }
+          const tavilyDocs = parseTavilyDocuments(response.body);
+          const wikiDocs = await wikiPromise;
+          return [...tavilyDocs, ...wikiDocs];
         }
 
         if (looksLikeHtmlBlock(response.status, response.body)) {
@@ -332,13 +326,80 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
   }
 
   const wikiDocs = await wikiPromise;
-  if (wikiDocs.length > 0) {
-    return toSearchResult(wikiDocs, query);
-  }
+  if (wikiDocs.length > 0) return wikiDocs;
 
   if (lastNetworkError) {
     throw new TavilySearchError(describeNetworkError(lastNetworkError), "TAVILY_NETWORK");
   }
 
   throw new TavilySearchError(htmlBlockMessage(lastHtmlVia ?? "direct"), "TAVILY_NETWORK");
+}
+
+function htmlBlockMessage(via: OutboundVia): string {
+  if (via === "proxy" || getOutboundProxyUrl()) {
+    return "Tavily недоступен через текущий прокси (HTTP 403). Нужен обычный HTTP-прокси за рубежом в TELEGRAM_PROXY_URL, не только для api.telegram.org.";
+  }
+  return "Tavily недоступен с этого сервера (HTTP 403, блок по региону/IP). Добавьте в deploy/.env HTTP-прокси: TELEGRAM_PROXY_URL=http://user:pass@host:port и пересоздайте app.";
+}
+
+function assertTavilyApiKey(): string {
+  const apiKey = sanitizeTavilyApiKey(process.env.TAVILY_API_KEY);
+  if (!apiKey) {
+    throw new TavilySearchError(
+      "Быстрый поиск не настроен: добавьте TAVILY_API_KEY в deploy/.env и пересоздайте контейнер app",
+      "TAVILY_NOT_CONFIGURED",
+    );
+  }
+
+  if (!apiKey.startsWith("tvly-") && !apiKey.startsWith("tvly-dev-")) {
+    throw new TavilySearchError(
+      `Похоже, в TAVILY_API_KEY не ключ Tavily (${describeApiKey(apiKey)}). Ожидается значение вида tvly-… из https://app.tavily.com`,
+      "TAVILY_UNAUTHORIZED",
+    );
+  }
+  return apiKey;
+}
+
+export async function searchWithTavily(query: string): Promise<TavilyQuickSearchResult> {
+  const apiKey = assertTavilyApiKey();
+  const docs = await fetchSpecDocuments(apiKey, buildSpecRetrievalQuery(query), query);
+  return toSearchResult(docs, query);
+}
+
+export async function refillMissingSpecs(
+  query: string,
+  base: QuickSearchSuggestion,
+  missing: string[],
+): Promise<TavilyQuickSearchResult> {
+  const apiKey = assertTavilyApiKey();
+  const docs = await fetchSpecDocuments(
+    apiKey,
+    buildMissingFieldsQuery(query, missing),
+    query,
+  );
+  if (docs.length === 0) {
+    throw new TavilySearchError("Не удалось доискать недостающие характеристики", "TAVILY_EMPTY");
+  }
+
+  const suggestion = mergeSuggestionWithDocs(base, docs, query);
+  const variants = docs.slice(0, 5).map((item) => ({
+    answer: firstSentence(item.text),
+    sourceUrl: item.url,
+    sourceTitle: item.title,
+  }));
+
+  return {
+    summary: specSummary(suggestion, variants[0]?.answer ?? ""),
+    variants,
+    suggestion,
+    trims: [
+      {
+        id: "selected",
+        label: specSummary(suggestion, "Выбранная комплектация"),
+        suggestion,
+        sourceUrl: variants[0]?.sourceUrl ?? null,
+        sourceTitle: variants[0]?.sourceTitle ?? null,
+      },
+    ],
+  };
 }

@@ -2,18 +2,25 @@ import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
 import { assertCompanyCalculatorAccess } from "@/lib/services/company-workspace";
 import { serialize } from "@/lib/serialize";
-import { searchWithTavily, TavilySearchError } from "@/lib/tavily/search";
-import { quickSearchSchema } from "@/lib/validators/quick-search";
+import {
+  refillMissingSpecs,
+  searchWithTavily,
+  TavilySearchError,
+} from "@/lib/tavily/search";
+import { quickSearchBodySchema } from "@/lib/validators/quick-search";
 
 export const runtime = "nodejs";
 
 export const POST = withAuth(async (request, { user }) => {
   await assertCompanyCalculatorAccess(user);
 
-  const body = quickSearchSchema.parse(await request.json());
+  const body = quickSearchBodySchema.parse(await request.json());
 
   try {
-    const result = await searchWithTavily(body.query);
+    const result =
+      body.mode === "refill"
+        ? await refillMissingSpecs(body.query, body.base, body.missing)
+        : await searchWithTavily(body.query);
     return ok(serialize(result));
   } catch (err) {
     if (err instanceof TavilySearchError) {

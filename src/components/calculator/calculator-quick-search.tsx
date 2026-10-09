@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDownToLine, Loader2, Search, Share2 } from "lucide-react";
+import { ArrowDownToLine, Loader2, RefreshCw, Search, Share2 } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,20 @@ import {
 } from "@/lib/tavily/calculator-suggestion";
 
 const OFFER_TITLE_STORAGE = "crm-offer-vehicle-title";
+
+type TrimOption = {
+  id: string;
+  label: string;
+  suggestion: QuickSearchSuggestion;
+  sourceUrl: string | null;
+  sourceTitle: string | null;
+};
+
+type SourceVariant = {
+  answer: string;
+  sourceUrl: string | null;
+  sourceTitle: string | null;
+};
 
 function engineCalcLabel(suggestion: QuickSearchSuggestion): string | null {
   if (suggestion.engine === "electric") return "электро";
@@ -60,13 +74,39 @@ export function CalculatorQuickSearch({
 }) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
+  const [refilling, setRefilling] = useState(false);
   const [summary, setSummary] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<QuickSearchSuggestion | null>(null);
+  const [trims, setTrims] = useState<TrimOption[]>([]);
+  const [selectedTrimId, setSelectedTrimId] = useState<string | null>(null);
   const [applied, setApplied] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
-  const [variants, setVariants] = useState<
-    Array<{ answer: string; sourceUrl: string | null; sourceTitle: string | null }>
-  >([]);
+  const [variants, setVariants] = useState<SourceVariant[]>([]);
+
+  const applyResult = (
+    result: {
+      summary: string;
+      variants: SourceVariant[];
+      suggestion: QuickSearchSuggestion | null;
+      trims?: TrimOption[];
+    },
+    preferredTrimId: string | null = null,
+  ) => {
+    const nextTrims = result.trims ?? [];
+    setSummary(result.summary);
+    setVariants(result.variants);
+    setTrims(nextTrims);
+    const nextSuggestion =
+      nextTrims.find((item) => item.id === preferredTrimId)?.suggestion ??
+      nextTrims[0]?.suggestion ??
+      result.suggestion;
+    const nextTrimId =
+      nextTrims.find((item) => item.id === preferredTrimId)?.id ?? nextTrims[0]?.id ?? null;
+    setSelectedTrimId(nextTrimId);
+    setSuggestion(nextSuggestion);
+    setSourcesOpen(false);
+    setApplied(false);
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -79,15 +119,13 @@ export function CalculatorQuickSearch({
     setLoading(true);
     try {
       const result = await api.quickSearch.search(trimmed);
-      setSummary(result.summary);
-      setVariants(result.variants);
-      setSuggestion(result.suggestion);
-      setSourcesOpen(false);
-      setApplied(false);
+      applyResult(result, null);
     } catch (error) {
       setSummary(null);
       setVariants([]);
       setSuggestion(null);
+      setTrims([]);
+      setSelectedTrimId(null);
       setApplied(false);
       toast.error(error instanceof Error ? error.message : "Не удалось выполнить поиск");
     } finally {
@@ -95,7 +133,84 @@ export function CalculatorQuickSearch({
     }
   };
 
+  const handleSelectTrim = (trim: TrimOption) => {
+    setSelectedTrimId(trim.id);
+    setSuggestion(trim.suggestion);
+    setApplied(false);
+    setSummary(
+      trims.length > 1
+        ? `Выбрана комплектация: ${trim.label}`
+        : summary,
+    );
+  };
+
   const missing = missingCalculatorData(suggestion);
+
+  const handleRefill = async () => {
+    const trimmed = query.trim();
+    if (!suggestion || missing.length === 0 || trimmed.length < 3) return;
+
+    setRefilling(true);
+    try {
+      const result = await api.quickSearch.refill(trimmed, suggestion, missing);
+      const next = result.suggestion ?? suggestion;
+      setSummary(result.summary);
+      setVariants((prev) => {
+        const seen = new Set(prev.map((item) => item.sourceUrl ?? item.answer));
+        const extra = result.variants.filter(
+          (item) => !seen.has(item.sourceUrl ?? item.answer),
+        );
+        return [...extra, ...prev].slice(0, 8);
+      });
+      setSuggestion(next);
+      if (selectedTrimId) {
+        setTrims((prev) =>
+          prev.map((item) =>
+            item.id === selectedTrimId
+              ? {
+                  ...item,
+                  suggestion: next,
+                  label:
+                    [
+                      next.engineKind === "electric"
+                        ? "электро"
+                        : next.engineKind === "phev"
+                          ? "подключаемый гибрид"
+                          : next.engineKind === "hybrid"
+                            ? "гибрид"
+                            : next.engineKind === "ice"
+                              ? "ДВС"
+                              : null,
+                      next.hybridLayout === "parallel"
+                        ? "параллельный"
+                        : next.hybridLayout === "series"
+                          ? "последовательный"
+                          : null,
+                      next.volumeCc
+                        ? `${(next.volumeCc / 1000).toFixed(1).replace(".0", "")} л`
+                        : null,
+                      next.powerHp ? `${next.powerHp} л.с.` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ") || item.label,
+                }
+              : item,
+          ),
+        );
+      }
+      setApplied(false);
+      const stillMissing = missingCalculatorData(next);
+      toast.success(
+        stillMissing.length === 0
+          ? "Недостающие характеристики найдены"
+          : `Часть полей обновлена. Ещё не хватает: ${stillMissing.join(", ")}`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось доискать характеристики");
+    } finally {
+      setRefilling(false);
+    }
+  };
 
   const handleApply = () => {
     if (!suggestion || missing.length > 0) {
@@ -127,6 +242,7 @@ export function CalculatorQuickSearch({
 
   const kind = engineKindLabel(suggestion?.engineKind ?? null);
   const calcEngine = suggestion ? engineCalcLabel(suggestion) : null;
+  const busy = loading || refilling;
 
   return (
     <Card className="border-0 shadow-card">
@@ -136,8 +252,9 @@ export function CalculatorQuickSearch({
           ИИ-поиск
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Достаточно марки и модели. Бензин и дизель — объём и мощность ДВС. Электро — 30-минутная
-          мощность. Гибрид: последовательный или параллельный. Таблицы утильсбора не используются.
+          Достаточно марки и модели. Если нашлось несколько комплектаций — выберите нужную. Бензин и
+          дизель — объём и мощность ДВС. Электро — 30-минутная мощность. Гибрид: последовательный или
+          параллельный.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -154,11 +271,11 @@ export function CalculatorQuickSearch({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Марка и модель, например Trumpchi S7"
-            disabled={loading}
+            disabled={busy}
             className="min-w-0 flex-1"
             aria-label="Марка и модель для расчёта утильсбора"
           />
-          <Button type="submit" variant="brand" disabled={loading} className="shrink-0">
+          <Button type="submit" variant="brand" disabled={busy} className="shrink-0">
             {loading ? (
               <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
             ) : (
@@ -168,7 +285,7 @@ export function CalculatorQuickSearch({
           </Button>
         </form>
 
-        {(summary || suggestion || variants.length > 0) && (
+        {(summary || suggestion || variants.length > 0 || trims.length > 0) && (
           <div className="space-y-3">
             {summary && (
               <div className="rounded-xl border bg-muted/20 px-4 py-3">
@@ -176,6 +293,40 @@ export function CalculatorQuickSearch({
                   Краткий вывод
                 </p>
                 <p className="mt-1 text-sm leading-relaxed">{summary}</p>
+              </div>
+            )}
+
+            {trims.length > 1 && (
+              <div className="space-y-2 rounded-xl border px-4 py-3">
+                <p className="text-sm font-medium">Комплектации</p>
+                <p className="text-xs text-muted-foreground">
+                  Выберите вариант — от него зависят объём и мощность для утильсбора.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {trims.map((trim) => {
+                    const selected = trim.id === selectedTrimId;
+                    return (
+                      <button
+                        key={trim.id}
+                        type="button"
+                        disabled={busy}
+                        onClick={() => handleSelectTrim(trim)}
+                        className={`rounded-xl border px-4 py-3 text-left transition ${
+                          selected
+                            ? "border-brand bg-brand/5 ring-1 ring-brand"
+                            : "hover:bg-muted/40"
+                        }`}
+                      >
+                        <p className="text-sm font-medium text-foreground">{trim.label}</p>
+                        {trim.sourceTitle || trim.sourceUrl ? (
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {trim.sourceTitle || trim.sourceUrl}
+                          </p>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -246,17 +397,33 @@ export function CalculatorQuickSearch({
                 {suggestion.note && (
                   <p className="text-xs leading-relaxed text-muted-foreground">{suggestion.note}</p>
                 )}
-                <div className="flex flex-col gap-2 sm:flex-row">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <Button
                     type="button"
                     variant="brand"
                     className="w-full sm:w-auto"
-                    disabled={missing.length > 0}
+                    disabled={missing.length > 0 || busy}
                     onClick={handleApply}
                   >
                     <ArrowDownToLine className="mr-1.5 h-4 w-4" />
                     Перенести в калькулятор
                   </Button>
+                  {missing.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      disabled={busy}
+                      onClick={() => void handleRefill()}
+                    >
+                      {refilling ? (
+                        <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="mr-1.5 h-4 w-4" />
+                      )}
+                      Доискать недостающее
+                    </Button>
+                  )}
                   {applied && onOpenOfferTab && (
                     <Button
                       type="button"
@@ -277,6 +444,9 @@ export function CalculatorQuickSearch({
                         <li key={item}>{item}</li>
                       ))}
                     </ul>
+                    <p className="mt-2 text-xs">
+                      Нажмите «Доискать недостающее» — повторный поиск только по этим полям.
+                    </p>
                   </div>
                 )}
               </div>

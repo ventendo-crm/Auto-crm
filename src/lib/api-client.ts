@@ -709,9 +709,40 @@ export const api = {
           sourceTitle: string | null;
         }>;
         suggestion: import("@/lib/tavily/calculator-suggestion").QuickSearchSuggestion | null;
+        trims: Array<{
+          id: string;
+          label: string;
+          suggestion: import("@/lib/tavily/calculator-suggestion").QuickSearchSuggestion;
+          sourceUrl: string | null;
+          sourceTitle: string | null;
+        }>;
       }>("/api/quick-search", {
         method: "POST",
         body: JSON.stringify({ query }),
+      }),
+    refill: (
+      query: string,
+      base: import("@/lib/tavily/calculator-suggestion").QuickSearchSuggestion,
+      missing: string[],
+    ) =>
+      request<{
+        summary: string;
+        variants: Array<{
+          answer: string;
+          sourceUrl: string | null;
+          sourceTitle: string | null;
+        }>;
+        suggestion: import("@/lib/tavily/calculator-suggestion").QuickSearchSuggestion | null;
+        trims: Array<{
+          id: string;
+          label: string;
+          suggestion: import("@/lib/tavily/calculator-suggestion").QuickSearchSuggestion;
+          sourceUrl: string | null;
+          sourceTitle: string | null;
+        }>;
+      }>("/api/quick-search", {
+        method: "POST",
+        body: JSON.stringify({ mode: "refill", query, base, missing }),
       }),
   },
 
