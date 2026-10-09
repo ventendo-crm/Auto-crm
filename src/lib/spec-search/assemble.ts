@@ -1,7 +1,9 @@
 import {
   extractSpecsFromDocument,
+  resolveUtilPower,
   titleFromUserQuery,
   withHybridNote,
+  type HybridLayout,
   type QuickSearchEngineKind,
   type QuickSearchSuggestion,
 } from "@/lib/tavily/calculator-suggestion";
@@ -72,12 +74,22 @@ export function assembleSpecSuggestion(
         ]
       : [],
   );
-  const powerVotes = extracted.flatMap((item) =>
-    item.specs.powerHp ? [{ value: item.specs.powerHp, weight: item.weight }] : [],
+  const icePowerVotes = extracted.flatMap((item) =>
+    item.specs.icePowerHp ? [{ value: item.specs.icePowerHp, weight: item.weight }] : [],
+  );
+  const electricPowerVotes = extracted.flatMap((item) =>
+    item.specs.electricPowerHp
+      ? [{ value: item.specs.electricPowerHp, weight: item.weight }]
+      : [],
   );
   const kindVotes = extracted.flatMap((item) =>
     item.specs.engineKind
       ? [{ value: item.specs.engineKind, weight: item.weight }]
+      : [],
+  );
+  const layoutVotes = extracted.flatMap((item) =>
+    item.specs.hybridLayout
+      ? [{ value: item.specs.hybridLayout, weight: item.weight }]
       : [],
   );
   const originVotes = extracted.flatMap((item) =>
@@ -87,8 +99,16 @@ export function assembleSpecSuggestion(
   );
 
   const engineKind = (pickVoted(kindVotes) as QuickSearchEngineKind | null) ?? null;
+  const hybridLayout = (pickVoted(layoutVotes) as HybridLayout | null) ?? null;
   const volumeCc = pickVoted(volumeVotes);
-  const powerHp = pickVoted(powerVotes);
+  const icePowerHp = pickVoted(icePowerVotes);
+  const electricPowerHp = pickVoted(electricPowerVotes);
+  const resolved = resolveUtilPower({
+    engineKind,
+    layout: hybridLayout,
+    icePowerHp,
+    electricPowerHp,
+  });
   const originCountry = pickVoted(originVotes);
   const title =
     extracted.find((item) => item.specs.title)?.specs.title ?? titleFromUserQuery(userQuery);
@@ -100,20 +120,23 @@ export function assembleSpecSuggestion(
         : null;
   const age = extracted.find((item) => item.specs.age)?.specs.age ?? null;
 
-  if (!engine && !powerHp && !volumeCc && !title) return null;
+  if (!engine && !resolved.powerHp && !volumeCc && !title) return null;
 
   return withHybridNote({
     title,
     originCountry: originCountry ?? null,
     engineKind,
+    hybridLayout,
     engine,
-    powerHp,
+    powerHp: resolved.powerHp,
+    icePowerHp,
+    electricPowerHp,
     volumeCc: engine === "electric" ? null : volumeCc,
     price: null,
     currency: null,
     age,
     importer: null,
-    note: null,
+    note: resolved.note,
   });
 }
 
@@ -127,11 +150,17 @@ export function specSummary(suggestion: QuickSearchSuggestion | null, fallback: 
     const liters = (suggestion.volumeCc / 1000).toFixed(1).replace(".0", "");
     parts.push(`ДВС ${liters} л`);
   }
-  if (suggestion.powerHp) {
+  if (suggestion.hybridLayout === "parallel" && suggestion.icePowerHp && suggestion.electricPowerHp) {
+    parts.push(
+      `параллельный: ${suggestion.icePowerHp} + ${suggestion.electricPowerHp} = ${suggestion.powerHp} л.с.`,
+    );
+  } else if (suggestion.hybridLayout === "series" && suggestion.powerHp) {
+    parts.push(`последовательный: ${suggestion.powerHp} л.с. (30-мин.)`);
+  } else if (suggestion.powerHp) {
     parts.push(
       suggestion.engine === "electric"
         ? `${suggestion.powerHp} л.с. (30-мин.)`
-        : `${suggestion.powerHp} л.с. ДВС`,
+        : `${suggestion.powerHp} л.с.`,
     );
   }
   return parts.join(" · ") || fallback;

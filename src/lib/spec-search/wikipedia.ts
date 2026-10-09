@@ -75,6 +75,7 @@ export async function searchWikipediaSpecs(model: string): Promise<SpecDocument[
     readWikipedia("en", query),
     readWikipedia("zh", query),
     readWikipedia("ru", query),
+    readWikipedia("en", `${query} electric`),
   ]);
 
   return pages

@@ -8,12 +8,20 @@ import type {
 
 export type QuickSearchEngineKind = "ice" | "hybrid" | "phev" | "electric";
 
+/** Последовательный — колёса крутит электромотор. Параллельный — и ДВС, и электромотор. */
+export type HybridLayout = "series" | "parallel";
+
 export type QuickSearchSuggestion = {
   title: string | null;
   originCountry: OriginCountry | null;
   engineKind: QuickSearchEngineKind | null;
+  hybridLayout: HybridLayout | null;
   engine: EngineType | null;
+  /** Мощность, которая уходит в калькулятор. */
   powerHp: number | null;
+  icePowerHp: number | null;
+  /** 30-минутная мощность электромотора. */
+  electricPowerHp: number | null;
   volumeCc: number | null;
   price: number | null;
   currency: CurrencyCode | null;
@@ -26,10 +34,10 @@ export type QuickSearchSuggestion = {
 export const UTIL_SEARCH_TEMPLATE =
   "Рассчитай утильсбор для импорта автомобиля в Россию";
 
-/** Короткий запрос в поиск: только модель и спецификации, без таблиц утильсбора. */
+/** Короткий запрос в поиск: спецификации ДВС и 30-минутная мощность электро, без таблиц утильсбора. */
 export function buildSpecRetrievalQuery(userQuery: string): string {
   const model = userQuery.trim();
-  return `${model} PHEV HEV hybrid engine displacement turbo specs brochure 排量 功率 发动机 混动 характеристики объём ДВС`;
+  return `${model} petrol diesel hybrid PHEV series parallel range extender EREV 30-minute power horsepower displacement 增程式 串联 并联 半小时功率 排量 功率 发动机 混动 纯电 объём ДВС мощность`;
 }
 
 /** @deprecated используйте buildSpecRetrievalQuery */
@@ -229,13 +237,15 @@ function detectEngineKindFromText(text: string): QuickSearchEngineKind | null {
     lower.includes("phev") ||
     lower.includes("plug-in") ||
     lower.includes("plugin") ||
-    lower.includes("подключаем")
+    lower.includes("подключаем") ||
+    lower.includes("插电")
   ) {
     return "phev";
   }
   if (
     lower.includes("hybrid") ||
     lower.includes("гибрид") ||
+    lower.includes("混动") ||
     lower.includes("range extender") ||
     lower.includes("удлинител") ||
     lower.includes("rehv") ||
@@ -248,7 +258,10 @@ function detectEngineKindFromText(text: string): QuickSearchEngineKind | null {
     /\bbev\b/.test(lower) ||
     lower.includes("электромобил") ||
     lower.includes("electric vehicle") ||
-    (lower.includes("электро") && !lower.includes("гибрид"))
+    lower.includes("纯电") ||
+    lower.includes("电动汽车") ||
+    (lower.includes("электро") && !lower.includes("гибрид")) ||
+    /30[-\s]?мин(?:утн)?|30[-\s]?minute|半小时功率|30\s*分钟功率/.test(lower)
   ) {
     return "electric";
   }
@@ -264,44 +277,126 @@ function detectEngineKindFromText(text: string): QuickSearchEngineKind | null {
   return null;
 }
 
-function parsePowerHpFromText(text: string, kind: QuickSearchEngineKind | null): number | null {
-  if (kind === "electric") {
-    const thirtyMinHp = firstMatchNumber(text, [
-      /30[-\s]?мин(?:утн\w*)?[^\n]{0,50}?(\d{2,4})\s*(?:л\.?\s*с\.?|hp)/i,
-      /(\d{2,4})\s*(?:л\.?\s*с\.?|hp)[^\n]{0,40}?30[-\s]?мин/i,
-    ]);
-    if (thirtyMinHp) return Math.round(thirtyMinHp);
-    const thirtyMinKw = firstMatchNumber(text, [
-      /30[-\s]?мин(?:утн\w*)?[^\n]{0,50}?(\d{2,4}(?:[.,]\d+)?)\s*кВт/i,
-      /(\d{2,4}(?:[.,]\d+)?)\s*кВт[^\n]{0,40}?30[-\s]?мин/i,
-    ]);
-    if (thirtyMinKw) return kwToHp(thirtyMinKw);
-  }
+function parseThirtyMinutePowerHp(text: string): number | null {
+  const thirtyMinHp = firstMatchNumber(text, [
+    /30[-\s]?мин(?:утн\w*)?[^\n]{0,50}?(\d{2,4})\s*(?:л\.?\s*с\.?|hp|PS)/i,
+    /(\d{2,4})\s*(?:л\.?\s*с\.?|hp|PS)[^\n]{0,40}?30[-\s]?мин/i,
+    /получасов\w*[^\n]{0,40}?(\d{2,4})\s*(?:л\.?\s*с\.?|hp)/i,
+    /30[-\s]?minute[^\n]{0,50}?(\d{2,4})\s*(?:hp|PS)/i,
+    /(\d{2,4})\s*(?:hp|PS)[^\n]{0,40}?30[-\s]?min/i,
+    /半小时功率[^\n]{0,24}?(\d{2,4})/,
+    /30\s*分钟功率[^\n]{0,24}?(\d{2,4})/,
+  ]);
+  if (thirtyMinHp) return Math.round(thirtyMinHp);
 
-  if (kind === "hybrid" || kind === "phev") {
-    const iceHp = firstMatchNumber(text, [
-      /(?:ДВС|ICE|бензин(?:овый)?(?:\s+двигатель)?|petrol(?:\s+engine)?)[^\n]{0,50}?(\d{2,4})\s*(?:л\.?\s*с\.?|hp)/i,
-      /(\d{2,4})\s*(?:л\.?\s*с\.?|hp)[^\n]{0,40}?(?:ДВС|ICE|бензин)/i,
-      /мощность\s+ДВС[^\n]{0,20}?(\d{2,4})/i,
-    ]);
-    if (iceHp) return Math.round(iceHp);
-    const iceKw = firstMatchNumber(text, [
-      /(?:ДВС|ICE|бензин(?:овый)?)[^\n]{0,50}?(\d{2,3}(?:[.,]\d+)?)\s*кВт/i,
-    ]);
-    if (iceKw) return kwToHp(iceKw);
-    // Для гибрида не берём первую попавшуюся мощность — часто это сумма системы.
-    return null;
+  const thirtyMinKw = firstMatchNumber(text, [
+    /30[-\s]?мин(?:утн\w*)?[^\n]{0,50}?(\d{2,4}(?:[.,]\d+)?)\s*(?:кВт|kW)/i,
+    /(\d{2,4}(?:[.,]\d+)?)\s*(?:кВт|kW)[^\n]{0,40}?30[-\s]?мин/i,
+    /30[-\s]?min(?:ute)?[^\n]{0,50}?(\d{2,4}(?:[.,]\d+)?)\s*kW/i,
+    /UNECE\s*R?85[^\n]{0,40}?(\d{2,4}(?:[.,]\d+)?)\s*(?:кВт|kW)/i,
+    /半小时功率[^\n]{0,24}?(\d{2,4}(?:[.,]\d+)?)\s*(?:kW|千瓦)/i,
+    /30\s*分钟功率[^\n]{0,24}?(\d{2,4}(?:[.,]\d+)?)\s*(?:kW|千瓦)/i,
+  ]);
+  if (thirtyMinKw) return kwToHp(thirtyMinKw);
+  return null;
+}
+
+export function detectHybridLayout(text: string): HybridLayout | null {
+  const lower = text.toLowerCase();
+  const series =
+    /последовательн|series hybrid|range extender|удлинител|erev|\breev\b|re-ev|增程式|串联/.test(lower);
+  const parallel =
+    /параллельн|parallel hybrid|series-parallel|power-split|смешанн|并联|混联/.test(lower);
+  if (series && parallel) {
+    if (/range extender|erev|增程|последовательн|串联/.test(lower) && !/series-parallel|混联/.test(lower)) {
+      return "series";
+    }
+    return "parallel";
   }
+  if (series) return "series";
+  if (parallel) return "parallel";
+  return null;
+}
+
+function parseIcePowerHp(text: string, allowGeneric: boolean): number | null {
+  const labeled = firstMatchNumber(text, [
+    /(?:ДВС|ICE|бензин(?:овый)?(?:\s+двигатель)?|petrol(?:\s+engine)?|diesel(?:\s+engine)?)[^\n]{0,50}?(\d{2,4})\s*(?:л\.?\s*с\.?|hp|PS)/i,
+    /(\d{2,4})\s*(?:л\.?\s*с\.?|hp|PS)[^\n]{0,40}?(?:ДВС|ICE|бензин|дизел)/i,
+    /мощность\s+ДВС[^\n]{0,20}?(\d{2,4})/i,
+  ]);
+  if (labeled) return Math.round(labeled);
+  const labeledKw = firstMatchNumber(text, [
+    /(?:ДВС|ICE|бензин(?:овый)?|diesel)[^\n]{0,50}?(\d{2,3}(?:[.,]\d+)?)\s*(?:кВт|kW)/i,
+  ]);
+  if (labeledKw) return kwToHp(labeledKw);
+  const besideDisplacement = firstMatchNumber(text, [
+    /\d(?:[.,]\d{1,2})?\s*-?\s*T[^\n]{0,30}?(\d{2,4})\s*(?:hp|PS|л\.?\s*с)/i,
+    /(\d{2,4})\s*(?:hp|PS|л\.?\s*с\.?)[^\n]{0,20}?\d(?:[.,]\d{1,2})?\s*-?\s*T\b/i,
+  ]);
+  if (besideDisplacement) return Math.round(besideDisplacement);
+  if (!allowGeneric) return null;
 
   const stripped = text.replace(
-    /(?:суммарн\w*|системн\w*|combined|общая\s+мощност\w*|электромотор\w*|electric motor)[^\n]{0,40}/gi,
+    /(?:суммарн\w*|системн\w*|combined|общая\s+мощност\w*|электромотор\w*|electric motor|30[-\s]?мин\w*|30[-\s]?min\w*)[^\n]{0,40}/gi,
     " ",
   );
-  const genericHp = firstMatchNumber(stripped, [
-    /(\d{2,4})\s*(?:л\.?\s*с\.?|h\.?p\.?)\b/i,
-  ]);
+  const genericHp = firstMatchNumber(stripped, [/(\d{2,4})\s*(?:л\.?\s*с\.?|h\.?p\.?|PS)\b/i]);
   if (genericHp && genericHp >= 40 && genericHp <= 1500) return Math.round(genericHp);
   return null;
+}
+
+export function resolveUtilPower(input: {
+  engineKind: QuickSearchEngineKind | null;
+  layout: HybridLayout | null;
+  icePowerHp: number | null;
+  electricPowerHp: number | null;
+}): { powerHp: number | null; note: string | null } {
+  const { engineKind, layout, icePowerHp, electricPowerHp } = input;
+  if (engineKind === "electric") {
+    return {
+      powerHp: electricPowerHp,
+      note: electricPowerHp
+        ? "Электромобиль: в калькулятор идёт 30-минутная мощность."
+        : "Электромобиль: в источниках нет 30-минутной мощности.",
+    };
+  }
+  if (engineKind === "ice") {
+    return {
+      powerHp: icePowerHp,
+      note: icePowerHp ? "Бензин / дизель: объём и мощность ДВС." : null,
+    };
+  }
+  if (engineKind === "hybrid" || engineKind === "phev") {
+    if (layout === "parallel") {
+      if (icePowerHp && electricPowerHp) {
+        return {
+          powerHp: icePowerHp + electricPowerHp,
+          note: `Параллельный гибрид: мощность ДВС ${icePowerHp} л.с. + 30-минутная мощность электромотора ${electricPowerHp} л.с.`,
+        };
+      }
+      const missing = [
+        icePowerHp ? null : "мощность ДВС",
+        electricPowerHp ? null : "30-минутная мощность электромотора",
+      ].filter((item): item is string => Boolean(item));
+      return {
+        powerHp: null,
+        note: `Параллельный гибрид. Не хватает: ${missing.join(", ")}.`,
+      };
+    }
+    if (layout === "series") {
+      return {
+        powerHp: electricPowerHp,
+        note: electricPowerHp
+          ? "Последовательный гибрид: в мощность идёт 30-минутная мощность электромотора. Объём — у ДВС."
+          : "Последовательный гибрид: в источниках нет 30-минутной мощности электромотора.",
+      };
+    }
+    return {
+      powerHp: null,
+      note: "Гибрид: не удалось понять, последовательный он или параллельный. Для параллельного считается сумма мощности ДВС и 30-минутной мощности электромотора.",
+    };
+  }
+  return { powerHp: icePowerHp ?? electricPowerHp, note: null };
 }
 
 function litersToCc(liters: number | null): number | null {
@@ -405,17 +500,37 @@ function parseAgeFromText(text: string): CarAge | null {
 }
 
 export function extractSpecsFromDocument(text: string): Partial<QuickSearchSuggestion> {
-  const engineKind = detectEngineKindFromText(text);
+  const electricPowerHp = parseThirtyMinutePowerHp(text);
+  let engineKind = detectEngineKindFromText(text);
+  const volumeCcRaw = parseVolumeCcFromText(text);
+  if (!engineKind && electricPowerHp && !volumeCcRaw) {
+    engineKind = "electric";
+  }
+  if (!engineKind && volumeCcRaw) {
+    engineKind = "ice";
+  }
+  const layout =
+    engineKind === "hybrid" || engineKind === "phev" ? detectHybridLayout(text) : null;
+  const icePowerHp = parseIcePowerHp(text, engineKind === "ice" || engineKind == null);
+  const resolved = resolveUtilPower({
+    engineKind,
+    layout,
+    icePowerHp,
+    electricPowerHp,
+  });
   const engine = parseEngine(null, engineKind);
-  const volumeCc = engine === "electric" ? null : parseVolumeCcFromText(text);
   return {
     title: parseTitleFromText(text),
     originCountry: parseOriginFromText(text),
     engineKind,
+    hybridLayout: layout,
     engine,
-    powerHp: parsePowerHpFromText(text, engineKind),
-    volumeCc,
+    powerHp: resolved.powerHp,
+    icePowerHp,
+    electricPowerHp,
+    volumeCc: engine === "electric" ? null : volumeCcRaw,
     age: parseAgeFromText(text),
+    note: resolved.note,
   };
 }
 
@@ -425,19 +540,13 @@ function parseFromUnstructured(text: string): Partial<QuickSearchSuggestion> {
 
 export function withHybridNote(suggestion: QuickSearchSuggestion): QuickSearchSuggestion {
   if (suggestion.note) return suggestion;
-  if (suggestion.engineKind === "hybrid" || suggestion.engineKind === "phev") {
-    return {
-      ...suggestion,
-      note: "Для гибрида в калькулятор берутся мощность и объём ДВС, не электромотор и не суммарная мощность.",
-    };
-  }
-  if (suggestion.engineKind === "electric") {
-    return {
-      ...suggestion,
-      note: "Для электромобиля в утильсбор идёт 30-минутная мощность.",
-    };
-  }
-  return suggestion;
+  const resolved = resolveUtilPower({
+    engineKind: suggestion.engineKind,
+    layout: suggestion.hybridLayout,
+    icePowerHp: suggestion.icePowerHp,
+    electricPowerHp: suggestion.electricPowerHp,
+  });
+  return resolved.note ? { ...suggestion, note: resolved.note } : suggestion;
 }
 
 export function parseCalculatorSuggestion(
@@ -491,8 +600,11 @@ export function parseCalculatorSuggestion(
       (jsonTrusted ? parseOrigin(json?.originCountry ?? json?.origin_country) : null) ??
       null,
     engineKind,
+    hybridLayout: fromText.hybridLayout ?? null,
     engine,
     powerHp: powerHp ? Math.round(powerHp) : null,
+    icePowerHp: fromText.icePowerHp ?? null,
+    electricPowerHp: fromText.electricPowerHp ?? null,
     volumeCc: volumeCc ? Math.round(volumeCc) : null,
     price: jsonTrusted ? asPositiveNumber(json?.price) : null,
     currency: jsonTrusted ? parseCurrency(json?.currency) : null,
@@ -503,9 +615,50 @@ export function parseCalculatorSuggestion(
 }
 
 export function canApplyCalculatorSuggestion(suggestion: QuickSearchSuggestion): boolean {
-  if (!suggestion.engine || !suggestion.powerHp) return false;
-  if (suggestion.engine !== "electric" && !suggestion.volumeCc) return false;
-  return true;
+  return missingCalculatorData(suggestion).length === 0;
+}
+
+/** Чего не хватает, чтобы перенести расчёт в калькулятор. */
+export function missingCalculatorData(suggestion: QuickSearchSuggestion | null): string[] {
+  if (!suggestion) {
+    return ["тип двигателя", "объём ДВС или 30-минутная мощность"];
+  }
+
+  const missing: string[] = [];
+  const isHybrid = suggestion.engineKind === "hybrid" || suggestion.engineKind === "phev";
+  const isElectric = suggestion.engine === "electric" || suggestion.engineKind === "electric";
+
+  if (!suggestion.engineKind && !suggestion.engine) {
+    missing.push("тип двигателя");
+  }
+
+  if (isHybrid && !suggestion.hybridLayout) {
+    missing.push("вид гибрида: последовательный или параллельный");
+  }
+
+  if (isElectric) {
+    if (!suggestion.electricPowerHp && !suggestion.powerHp) {
+      missing.push("30-минутная мощность");
+    }
+    return missing;
+  }
+
+  if (isHybrid && suggestion.hybridLayout === "parallel") {
+    if (!suggestion.icePowerHp) missing.push("мощность ДВС");
+    if (!suggestion.electricPowerHp) missing.push("30-минутная мощность электромотора");
+  } else if (isHybrid && suggestion.hybridLayout === "series") {
+    if (!suggestion.electricPowerHp && !suggestion.powerHp) {
+      missing.push("30-минутная мощность электромотора");
+    }
+  } else if (isHybrid) {
+    if (!suggestion.icePowerHp) missing.push("мощность ДВС");
+    if (!suggestion.electricPowerHp) missing.push("30-минутная мощность электромотора");
+  } else if (!suggestion.icePowerHp && !suggestion.powerHp) {
+    missing.push("мощность двигателя в л.с.");
+  }
+
+  if (!suggestion.volumeCc) missing.push("объём двигателя");
+  return missing;
 }
 
 export function engineKindLabel(kind: QuickSearchEngineKind | null): string | null {

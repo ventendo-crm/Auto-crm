@@ -5,12 +5,13 @@ import { FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api-client";
 import { OFFER_VEHICLE_TITLE_MAX } from "@/lib/calculator/offer-share";
 import {
-  canApplyCalculatorSuggestion,
   engineKindLabel,
+  missingCalculatorData,
   UTIL_SEARCH_TEMPLATE,
   type QuickSearchSuggestion,
 } from "@/lib/tavily/calculator-suggestion";
@@ -62,6 +63,7 @@ export function CalculatorQuickSearch({
   const [summary, setSummary] = useState<string | null>(null);
   const [suggestion, setSuggestion] = useState<QuickSearchSuggestion | null>(null);
   const [applied, setApplied] = useState(false);
+  const [sourcesOpen, setSourcesOpen] = useState(false);
   const [variants, setVariants] = useState<
     Array<{ answer: string; sourceUrl: string | null; sourceTitle: string | null }>
   >([]);
@@ -80,6 +82,7 @@ export function CalculatorQuickSearch({
       setSummary(result.summary);
       setVariants(result.variants);
       setSuggestion(result.suggestion);
+      setSourcesOpen(false);
       setApplied(false);
     } catch (error) {
       setSummary(null);
@@ -92,18 +95,28 @@ export function CalculatorQuickSearch({
     }
   };
 
+  const missing = missingCalculatorData(suggestion);
+
   const handleApply = () => {
-    if (!suggestion || !canApplyCalculatorSuggestion(suggestion)) {
-      toast.error("Не хватает мощности или объёма, чтобы подставить расчёт");
+    if (!suggestion || missing.length > 0) {
+      toast.error(
+        missing.length > 0
+          ? `Не хватает: ${missing.join(", ")}`
+          : "Не хватает данных, чтобы подставить расчёт",
+      );
       return;
     }
     if (suggestion.title) saveOfferTitle(suggestion.title);
     onApplyToCalculator(suggestion);
     setApplied(true);
     const hybridNote =
-      suggestion.engineKind === "hybrid" || suggestion.engineKind === "phev"
-        ? " Для гибрида в калькулятор взяты мощность и объём ДВС."
-        : "";
+      suggestion.hybridLayout === "parallel"
+        ? " Параллельный гибрид: мощность ДВС + 30-минутная мощность электромотора."
+        : suggestion.hybridLayout === "series"
+          ? " Последовательный гибрид: 30-минутная мощность электромотора, объём ДВС."
+          : suggestion.engine === "electric"
+            ? " Электромобиль: 30-минутная мощность."
+            : "";
     toast.success(
       suggestion.price
         ? `Параметры перенесены.${hybridNote} Можно отправить КП во вкладке «Подбор».`
@@ -114,7 +127,6 @@ export function CalculatorQuickSearch({
 
   const kind = engineKindLabel(suggestion?.engineKind ?? null);
   const calcEngine = suggestion ? engineCalcLabel(suggestion) : null;
-  const canApply = suggestion ? canApplyCalculatorSuggestion(suggestion) : false;
 
   return (
     <Card className="border-0 shadow-card">
@@ -124,14 +136,15 @@ export function CalculatorQuickSearch({
           ИИ-поиск
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Достаточно марки и модели. Ищем спецификации этой машины (сайт бренда, Autohome, Wikipedia),
-          а не таблицы утильсбора. Для гибрида — объём и мощность ДВС.
+          Достаточно марки и модели. Бензин и дизель — объём и мощность ДВС. Электро — 30-минутная
+          мощность. Гибрид: последовательный или параллельный. Таблицы утильсбора не используются.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200">
-          Для гибрида в расчёт идут мощность и объём ДВС, не электромотор и не суммарная мощность.
-          Перед КП сверьте цифры по источникам.
+          Бензин и дизель: объём и мощность ДВС. Электромобиль: 30-минутная мощность. Параллельный
+          гибрид: мощность ДВС + 30-минутная мощность электромотора. Последовательный: только
+          30-минутная мощность электромотора, объём остаётся у ДВС. Перед КП сверьте цифры.
         </div>
         <p className="text-xs text-muted-foreground">
           Шаблон: <span className="font-medium text-foreground">{UTIL_SEARCH_TEMPLATE}</span>
@@ -167,9 +180,14 @@ export function CalculatorQuickSearch({
             )}
 
             {!suggestion && (
-              <p className="text-xs text-muted-foreground">
-                Не удалось собрать поля для калькулятора. Уточните марку, мощность ДВС и объём.
-              </p>
+              <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+                <p className="font-medium">Не хватает данных</p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                  {missing.map((item) => (
+                    <li key={item}>{item}</li>
+                  ))}
+                </ul>
+              </div>
             )}
 
             {suggestion && (
@@ -202,7 +220,13 @@ export function CalculatorQuickSearch({
                     <li>
                       Мощность:{" "}
                       <span className="text-foreground">{suggestion.powerHp} л.с.</span>
-                      {suggestion.engine === "electric" ? " (30-минутная)" : " (ДВС)"}
+                      {suggestion.hybridLayout === "parallel" &&
+                      suggestion.icePowerHp &&
+                      suggestion.electricPowerHp
+                        ? ` (${suggestion.icePowerHp} ДВС + ${suggestion.electricPowerHp} электро, 30-мин.)`
+                        : suggestion.hybridLayout === "series" || suggestion.engine === "electric"
+                          ? " (30-минутная)"
+                          : " (ДВС)"}
                     </li>
                   )}
                   {suggestion.volumeCc != null && suggestion.engine !== "electric" && (
@@ -227,7 +251,7 @@ export function CalculatorQuickSearch({
                     type="button"
                     variant="brand"
                     className="w-full sm:w-auto"
-                    disabled={!canApply}
+                    disabled={missing.length > 0}
                     onClick={handleApply}
                   >
                     <ArrowDownToLine className="mr-1.5 h-4 w-4" />
@@ -245,35 +269,53 @@ export function CalculatorQuickSearch({
                     </Button>
                   )}
                 </div>
-                {!canApply && (
-                  <p className="text-xs text-muted-foreground">
-                    Не хватает мощности или объёма ДВС — уточните запрос и нажмите «Найти» ещё раз.
-                  </p>
+                {missing.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
+                    <p className="font-medium">Не хватает данных</p>
+                    <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                      {missing.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </div>
             )}
 
             {variants.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Источники</p>
-                {variants.map((variant, index) => (
-                  <div key={`${variant.sourceUrl ?? "no-url"}-${index}`} className="rounded-xl border px-4 py-3">
-                    <p className="text-sm leading-relaxed">{variant.answer}</p>
-                    {variant.sourceUrl && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        Источник:{" "}
-                        <a
-                          href={variant.sourceUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="underline underline-offset-2 hover:text-foreground"
-                        >
-                          {variant.sourceTitle || variant.sourceUrl}
-                        </a>
-                      </p>
-                    )}
+              <div className="rounded-xl border">
+                <CollapsibleTrigger
+                  open={sourcesOpen}
+                  onToggle={() => setSourcesOpen((open) => !open)}
+                  className="px-4 py-3"
+                >
+                  <span className="text-sm font-medium">Источники ({variants.length})</span>
+                </CollapsibleTrigger>
+                <CollapsiblePanel open={sourcesOpen}>
+                  <div className="space-y-2 border-t px-4 py-3">
+                    {variants.map((variant, index) => (
+                      <div
+                        key={`${variant.sourceUrl ?? "no-url"}-${index}`}
+                        className="rounded-xl border px-4 py-3"
+                      >
+                        <p className="text-sm leading-relaxed">{variant.answer}</p>
+                        {variant.sourceUrl && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            Источник:{" "}
+                            <a
+                              href={variant.sourceUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="underline underline-offset-2 hover:text-foreground"
+                            >
+                              {variant.sourceTitle || variant.sourceUrl}
+                            </a>
+                          </p>
+                        )}
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </CollapsiblePanel>
               </div>
             )}
           </div>
