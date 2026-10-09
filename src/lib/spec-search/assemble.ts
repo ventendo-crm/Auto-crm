@@ -1,7 +1,8 @@
 import {
-  extractSpecsFromDocument,
+  extractSpecsVariantsFromDocument,
   parseTrimAnchors,
   resolveUtilPower,
+  textHasStrongEvOrPhevSignal,
   titleFromUserQuery,
   withHybridNote,
   type HybridLayout,
@@ -159,6 +160,10 @@ function modelQueryParts(query: string): {
   let brand: string | null = null;
   const modelIds: string[] = [];
   for (const token of tokens) {
+    // Год и рынок — не идентификаторы модели (иначе «2026»/china ломают матчинг).
+    if (/^(19|20)\d{2}$/.test(token)) continue;
+    if (/^(china|korea|kyrgyzstan|китай|корея|киргизия|рф|russia)$/i.test(token)) continue;
+
     const resolved = resolveBrandToken(token);
     if (resolved && !brand) {
       brand = resolved;
@@ -274,15 +279,44 @@ function buildSuggestionFromGroup(
     item.specs.drivetrain ? [{ value: item.specs.drivetrain, weight: item.weight }] : [],
   );
 
-  const engineKind = (pickVoted(kindVotes) as QuickSearchEngineKind | null) ?? null;
+  let engineKind = (pickVoted(kindVotes) as QuickSearchEngineKind | null) ?? null;
+  let volumeCc = engineKind === "electric" ? null : pickVoted(volumeVotes);
+  let icePowerHp = engineKind === "electric" ? null : pickVoted(icePowerVotes);
+  let electricPowerHp = pickVoted(electricPowerVotes);
+  let batteryRangeKm = pickVoted(rangeVotes);
+  let hybridLayout =
+    engineKind === "electric"
+      ? null
+      : ((pickVoted(layoutVotes) as HybridLayout | null) ?? null);
+
+  const groupBlob = group
+    .map((item) => [item.doc.title, item.doc.text].filter(Boolean).join("\n"))
+    .join("\n");
+  // Ложный PHEV/hybrid без электро-цифр → обычный бензин (не ищем 30-мин. мощность).
+  if (
+    (engineKind === "phev" || engineKind === "hybrid") &&
+    volumeCc &&
+    !electricPowerHp &&
+    !batteryRangeKm &&
+    !textHasStrongEvOrPhevSignal(groupBlob)
+  ) {
+    engineKind = "ice";
+    hybridLayout = null;
+    electricPowerHp = null;
+    batteryRangeKm = null;
+  }
+
+  if (engineKind === "ice") {
+    electricPowerHp = null;
+    batteryRangeKm = null;
+    hybridLayout = null;
+  }
+  if (engineKind === "electric") {
+    volumeCc = null;
+    icePowerHp = null;
+  }
+
   const isElectric = engineKind === "electric";
-  const hybridLayout = isElectric
-    ? null
-    : ((pickVoted(layoutVotes) as HybridLayout | null) ?? null);
-  const volumeCc = isElectric ? null : pickVoted(volumeVotes);
-  const icePowerHp = isElectric ? null : pickVoted(icePowerVotes);
-  const electricPowerHp = pickVoted(electricPowerVotes);
-  const batteryRangeKm = pickVoted(rangeVotes);
   const drivetrain = pickVoted(drivetrainVotes) as QuickSearchSuggestion["drivetrain"];
   const tagVotes = new Map<string, number>();
   for (const item of group) {
@@ -291,11 +325,13 @@ function buildSuggestionFromGroup(
     }
   }
   const trimTags =
-    tagVotes.size > 0
-      ? [...tagVotes.entries()]
-          .sort((a, b) => b[1] - a[1])
-          .map(([tag]) => tag)
-      : null;
+    engineKind === "ice"
+      ? null
+      : tagVotes.size > 0
+        ? [...tagVotes.entries()]
+            .sort((a, b) => b[1] - a[1])
+            .map(([tag]) => tag)
+        : null;
 
   const resolved = resolveUtilPower({
     engineKind,
@@ -435,19 +471,42 @@ export function trimMatchesRequestedRange(
   return suggestion.batteryRangeKm === anchors.batteryRangeKm;
 }
 
+function completenessScore(suggestion: QuickSearchSuggestion): number {
+  let score = 0;
+  if (suggestion.engineKind) score += 1;
+  if (suggestion.volumeCc) score += 3;
+  if (suggestion.powerHp || suggestion.icePowerHp) score += 2;
+  if (suggestion.engineKind === "ice" && suggestion.volumeCc) score += 2;
+  // Неполный PHEV без объёма/мощностей не должен вытеснять бензин 2.0
+  if (
+    (suggestion.engineKind === "phev" || suggestion.engineKind === "hybrid") &&
+    !suggestion.volumeCc &&
+    !suggestion.icePowerHp &&
+    !suggestion.electricPowerHp
+  ) {
+    score -= 6;
+  }
+  return score;
+}
+
 export function listTrimCandidates(
   docs: SpecDocument[],
   userQuery: string,
 ): SpecTrimCandidate[] {
   const anchors = parseTrimAnchors(userQuery);
-  const extracted = docs.map((doc) => {
+  const extracted = docs.flatMap((doc) => {
     const blob = [doc.title, doc.text].filter(Boolean).join("\n");
-    return {
-      doc,
-      specs: extractSpecsFromDocument(blob),
-      weight: hostWeight(doc.url),
-      relevance: modelRelevance(blob, userQuery),
-    } satisfies ExtractedDoc;
+    const relevance = modelRelevance(blob, userQuery);
+    const weight = hostWeight(doc.url);
+    return extractSpecsVariantsFromDocument(blob).map(
+      (specs) =>
+        ({
+          doc,
+          specs,
+          weight,
+          relevance,
+        }) satisfies ExtractedDoc,
+    );
   });
 
   const bestRelevance = extracted.reduce((max, item) => Math.max(max, item.relevance), 0);
@@ -486,7 +545,8 @@ export function listTrimCandidates(
     const blob = group
       .map((item) => [item.doc.title, item.doc.text].filter(Boolean).join("\n"))
       .join("\n");
-    const matchScore = scoreTrimAgainstAnchors(suggestion, blob, anchors);
+    const matchScore =
+      scoreTrimAgainstAnchors(suggestion, blob, anchors) + completenessScore(suggestion);
     candidates.push({
       id: trimFingerprint(suggestion),
       label: trimLabel(suggestion),
@@ -497,9 +557,10 @@ export function listTrimCandidates(
     });
   }
 
+  // До 5 вариантов, чтобы и бензин 2.0, и PHEV остались в списке / уточнении типа.
   return candidates
     .sort((a, b) => b.matchScore - a.matchScore || a.label.localeCompare(b.label, "ru"))
-    .slice(0, 3);
+    .slice(0, 5);
 }
 
 /** Уникальные типы двигателя среди найденных комплектаций. */

@@ -375,7 +375,13 @@ function firstMarkerIndex(text: string, patterns: RegExp[]): number | null {
   return best;
 }
 
-/** Тип по началу страницы: сравнение с гибридом ниже не перебивает электромобиль. */
+function isMildHybridOnly(text: string): boolean {
+  const lower = text.toLowerCase();
+  if (!/(mild\s*hybrid|soft\s*hybrid|m[- ]?hybrid|微混|轻混)/i.test(lower)) return false;
+  return !textHasStrongEvOrPhevSignal(lower);
+}
+
+/** Тип по началу страницы: ДВС тоже учитываем — иначе PHEV в лиде перебивает 2.0 бензин. */
 function detectLeadPowertrain(text: string): QuickSearchEngineKind | null {
   const lead = text.slice(0, 700).toLowerCase();
   const electricAt = firstMarkerIndex(lead, [
@@ -389,19 +395,33 @@ function detectLeadPowertrain(text: string): QuickSearchEngineKind | null {
     /fully electric/,
   ]);
   const phevAt = firstMarkerIndex(lead, [/phev/, /plug-in/, /plugin/, /插电混动/, /插电式/, /подключаем/]);
-  const hybridAt = firstMarkerIndex(lead, [
-    /hybrid/,
-    /гибрид/,
-    /混动/,
-    /增程式/,
-    /range extender/,
-    /\berev\b/,
-    /\breev\b/,
+  const hybridAt = isMildHybridOnly(lead)
+    ? null
+    : firstMarkerIndex(lead, [
+        /(?<!mild\s)(?<!soft\s)\bhybrid\b/,
+        /гибрид/,
+        /混动/,
+        /增程式/,
+        /range extender/,
+        /\berev\b/,
+        /\breev\b/,
+      ]);
+  const iceAt = firstMarkerIndex(lead, [
+    /\bgasoline\b/,
+    /\bpetrol\b/,
+    /бензин/,
+    /\bdiesel\b/,
+    /дизель/,
+    /skylactiv-?g/,
+    /2\.[05]\s*l\b/,
+    /2\.[05]\s*литр/,
+    /自然吸气|燃油版|汽油/,
   ]);
   const ranked: Array<{ at: number; kind: QuickSearchEngineKind }> = [];
   if (electricAt != null) ranked.push({ at: electricAt, kind: "electric" });
   if (phevAt != null) ranked.push({ at: phevAt, kind: "phev" });
   if (hybridAt != null) ranked.push({ at: hybridAt, kind: "hybrid" });
+  if (iceAt != null) ranked.push({ at: iceAt, kind: "ice" });
   ranked.sort((a, b) => a.at - b.at);
   return ranked[0]?.kind ?? null;
 }
@@ -421,14 +441,15 @@ function detectEngineKindFromText(text: string): QuickSearchEngineKind | null {
     return "phev";
   }
   if (
-    lower.includes("hybrid") ||
-    lower.includes("гибрид") ||
-    lower.includes("混动") ||
-    lower.includes("range extender") ||
-    lower.includes("удлинител") ||
-    lower.includes("rehv") ||
-    lower.includes("er ev") ||
-    lower.includes("e-rev")
+    !isMildHybridOnly(lower) &&
+    (lower.includes("hybrid") ||
+      lower.includes("гибрид") ||
+      lower.includes("混动") ||
+      lower.includes("range extender") ||
+      lower.includes("удлинител") ||
+      lower.includes("rehv") ||
+      lower.includes("er ev") ||
+      lower.includes("e-rev"))
   ) {
     return "hybrid";
   }
@@ -724,7 +745,7 @@ function extractFromSpecTable(text: string): {
   return { volumeCc, icePowerHp, electricPowerHp };
 }
 
-function textHasStrongEvOrPhevSignal(text: string): boolean {
+export function textHasStrongEvOrPhevSignal(text: string): boolean {
   const lower = text.toLowerCase();
   return (
     /\bphev\b/.test(lower) ||
@@ -747,13 +768,20 @@ function textHasStrongIceSignal(text: string): boolean {
   );
 }
 
-export function extractSpecsFromDocument(text: string): Partial<QuickSearchSuggestion> {
+function buildSpecsForKind(
+  text: string,
+  forcedKind: QuickSearchEngineKind | null,
+): Partial<QuickSearchSuggestion> {
   const fromTable = extractFromSpecTable(text);
-  const electricPowerHp = fromTable.electricPowerHp ?? parseThirtyMinutePowerHp(text);
-  let engineKind = detectEngineKindFromText(text);
   const volumeCcRaw = fromTable.volumeCc ?? parseVolumeCcFromText(text);
-  // Каталоги/PDF с кучей гибридов не должны перебивать обычный ДВС, если есть объём и нет явного PHEV/EV.
+  let engineKind = forcedKind ?? detectEngineKindFromText(text);
+  const electricPowerHp =
+    engineKind === "ice"
+      ? null
+      : fromTable.electricPowerHp ?? parseThirtyMinutePowerHp(text);
+
   if (
+    !forcedKind &&
     volumeCcRaw &&
     engineKind &&
     engineKind !== "ice" &&
@@ -768,16 +796,17 @@ export function extractSpecsFromDocument(text: string): Partial<QuickSearchSugge
   if (!engineKind && volumeCcRaw) {
     engineKind = "ice";
   }
+
   const layout =
     engineKind === "hybrid" || engineKind === "phev" ? detectHybridLayout(text) : null;
   const icePowerHp =
     fromTable.icePowerHp ??
-    parseIcePowerHp(text, engineKind === "ice" || engineKind == null);
+    parseIcePowerHp(text, engineKind === "ice" || engineKind == null || engineKind === "phev");
   const resolved = resolveUtilPower({
     engineKind,
     layout,
-    icePowerHp,
-    electricPowerHp,
+    icePowerHp: engineKind === "electric" ? null : icePowerHp,
+    electricPowerHp: engineKind === "ice" ? null : electricPowerHp,
   });
   const engine = parseEngine(null, engineKind);
   const markers = extractTrimMarkersFromText(text);
@@ -785,18 +814,54 @@ export function extractSpecsFromDocument(text: string): Partial<QuickSearchSugge
     title: parseTitleFromText(text),
     originCountry: parseOriginFromText(text),
     engineKind,
-    hybridLayout: layout,
+    hybridLayout: engineKind === "ice" || engineKind === "electric" ? null : layout,
     engine,
     powerHp: resolved.powerHp,
-    icePowerHp,
-    electricPowerHp,
+    icePowerHp: engineKind === "electric" ? null : icePowerHp,
+    electricPowerHp: engineKind === "ice" ? null : electricPowerHp,
     volumeCc: engine === "electric" ? null : volumeCcRaw,
-    batteryRangeKm: markers.batteryRangeKm,
+    batteryRangeKm: engineKind === "ice" ? null : markers.batteryRangeKm,
     drivetrain: markers.drivetrain,
-    trimTags: markers.trimTags.length > 0 ? markers.trimTags : null,
+    // У принудительного ICE с смешанной страницы не тащим PHEV-издания (Plus/LiDAR).
+    trimTags:
+      forcedKind === "ice"
+        ? null
+        : markers.trimTags.length > 0
+          ? markers.trimTags
+          : null,
     age: parseAgeFromText(text),
     note: resolved.note,
   };
+}
+
+export function extractSpecsFromDocument(text: string): Partial<QuickSearchSuggestion> {
+  return buildSpecsForKind(text, null);
+}
+
+/**
+ * Одна страница часто описывает и бензин, и PHEV (Mazda CX-5 China).
+ * Тогда отдаём оба варианта, чтобы 2.0 л не терялся.
+ */
+export function extractSpecsVariantsFromDocument(
+  text: string,
+): Array<Partial<QuickSearchSuggestion>> {
+  const primary = buildSpecsForKind(text, null);
+  const hasIceEvidence =
+    Boolean(primary.volumeCc) ||
+    textHasStrongIceSignal(text) ||
+    /\b2\.[05]\s*l\b|\b2\.[05]t\b|skylactiv|汽油|燃油/i.test(text);
+  const hasPhevEvidence = textHasStrongEvOrPhevSignal(text);
+
+  if (hasIceEvidence && hasPhevEvidence) {
+    const ice = buildSpecsForKind(text, "ice");
+    const phev = buildSpecsForKind(text, "phev");
+    const variants: Array<Partial<QuickSearchSuggestion>> = [];
+    if (ice.volumeCc || ice.icePowerHp || ice.powerHp) variants.push(ice);
+    if (phev.engineKind === "phev") variants.push(phev);
+    if (variants.length > 0) return variants;
+  }
+
+  return [primary];
 }
 
 export function mergeSuggestionWithDocs(
@@ -883,6 +948,18 @@ function parseFromUnstructured(text: string): Partial<QuickSearchSuggestion> {
 }
 
 export function withHybridNote(suggestion: QuickSearchSuggestion): QuickSearchSuggestion {
+  if (suggestion.engineKind === "ice") {
+    return {
+      ...suggestion,
+      hybridLayout: null,
+      electricPowerHp: null,
+      batteryRangeKm: null,
+      note:
+        suggestion.note && /30-минут|электромотор|гибрид/i.test(suggestion.note)
+          ? null
+          : suggestion.note,
+    };
+  }
   if (suggestion.note) return suggestion;
   const resolved = resolveUtilPower({
     engineKind: suggestion.engineKind,
@@ -968,15 +1045,25 @@ export function canApplyCalculatorSuggestion(suggestion: QuickSearchSuggestion):
 /** Чего не хватает, чтобы перенести расчёт в калькулятор. */
 export function missingCalculatorData(suggestion: QuickSearchSuggestion | null): string[] {
   if (!suggestion) {
-    return ["тип двигателя", "объём ДВС или 30-минутная мощность"];
+    return ["тип двигателя", "объём и мощность двигателя"];
   }
 
   const missing: string[] = [];
+  const isIce = suggestion.engineKind === "ice";
   const isHybrid = suggestion.engineKind === "hybrid" || suggestion.engineKind === "phev";
   const isElectric = suggestion.engine === "electric" || suggestion.engineKind === "electric";
 
   if (!suggestion.engineKind && !suggestion.engine) {
     missing.push("тип двигателя");
+  }
+
+  // Бензин/дизель: только объём и мощность ДВС. 30-минутную мощность не ищем.
+  if (isIce) {
+    if (!suggestion.icePowerHp && !suggestion.powerHp) {
+      missing.push("мощность двигателя в л.с.");
+    }
+    if (!suggestion.volumeCc) missing.push("объём двигателя");
+    return missing;
   }
 
   if (isHybrid && !suggestion.hybridLayout) {
@@ -1004,7 +1091,7 @@ export function missingCalculatorData(suggestion: QuickSearchSuggestion | null):
     missing.push("мощность двигателя в л.с.");
   }
 
-  if (!suggestion.volumeCc) missing.push("объём двигателя");
+  if (!isElectric && !suggestion.volumeCc) missing.push("объём двигателя");
   return missing;
 }
 

@@ -200,9 +200,16 @@ export function CalculatorQuickSearch({
     const trimmed = query.trim();
     if (!suggestion || missing.length === 0 || trimmed.length < 3) return;
 
+    // Для ДВС не тащим в допоиск формулировки про 30-минутную мощность.
+    const refillMissing =
+      suggestion.engineKind === "ice"
+        ? missing.filter((item) => !/30-минут|электромотор/i.test(item))
+        : missing;
+    if (refillMissing.length === 0) return;
+
     setRefilling(true);
     try {
-      const result = await api.quickSearch.refill(trimmed, suggestion, missing);
+      const result = await api.quickSearch.refill(trimmed, suggestion, refillMissing);
       const next = result.suggestion ?? suggestion;
       setSummary(result.summary);
       setVariants((prev) => {
