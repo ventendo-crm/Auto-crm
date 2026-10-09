@@ -37,7 +37,7 @@ export const UTIL_SEARCH_TEMPLATE =
 /** Короткий запрос в поиск: спецификации ДВС и 30-минутная мощность электро, без таблиц утильсбора. */
 export function buildSpecRetrievalQuery(userQuery: string): string {
   const model = userQuery.trim();
-  return `${model} petrol diesel hybrid PHEV series parallel range extender EREV 30-minute power horsepower displacement 增程式 串联 并联 半小时功率 排量 功率 发动机 混动 纯电 объём ДВС мощность`;
+  return `${model} specifications powertrain battery motor engine 参数 动力电池 纯电 排量 半小时功率`;
 }
 
 /** @deprecated используйте buildSpecRetrievalQuery */
@@ -231,7 +231,51 @@ export function titleFromUserQuery(query: string): string | null {
   return cleaned.slice(0, 120);
 }
 
+function firstMarkerIndex(text: string, patterns: RegExp[]): number | null {
+  let best: number | null = null;
+  for (const pattern of patterns) {
+    const match = pattern.exec(text);
+    if (match?.index == null) continue;
+    if (best == null || match.index < best) best = match.index;
+  }
+  return best;
+}
+
+/** Тип по началу страницы: сравнение с гибридом ниже не перебивает электромобиль. */
+function detectLeadPowertrain(text: string): QuickSearchEngineKind | null {
+  const lead = text.slice(0, 700).toLowerCase();
+  const electricAt = firstMarkerIndex(lead, [
+    /纯电/,
+    /电动汽车/,
+    /电动车/,
+    /\bbev\b/,
+    /электромобил/,
+    /pure electric/,
+    /battery electric/,
+    /fully electric/,
+  ]);
+  const phevAt = firstMarkerIndex(lead, [/phev/, /plug-in/, /plugin/, /插电混动/, /插电式/, /подключаем/]);
+  const hybridAt = firstMarkerIndex(lead, [
+    /hybrid/,
+    /гибрид/,
+    /混动/,
+    /增程式/,
+    /range extender/,
+    /\berev\b/,
+    /\breev\b/,
+  ]);
+  const ranked: Array<{ at: number; kind: QuickSearchEngineKind }> = [];
+  if (electricAt != null) ranked.push({ at: electricAt, kind: "electric" });
+  if (phevAt != null) ranked.push({ at: phevAt, kind: "phev" });
+  if (hybridAt != null) ranked.push({ at: hybridAt, kind: "hybrid" });
+  ranked.sort((a, b) => a.at - b.at);
+  return ranked[0]?.kind ?? null;
+}
+
 function detectEngineKindFromText(text: string): QuickSearchEngineKind | null {
+  const fromLead = detectLeadPowertrain(text);
+  if (fromLead) return fromLead;
+
   const lower = text.toLowerCase();
   if (
     lower.includes("phev") ||
@@ -260,8 +304,8 @@ function detectEngineKindFromText(text: string): QuickSearchEngineKind | null {
     lower.includes("electric vehicle") ||
     lower.includes("纯电") ||
     lower.includes("电动汽车") ||
-    (lower.includes("электро") && !lower.includes("гибрид")) ||
-    /30[-\s]?мин(?:утн)?|30[-\s]?minute|半小时功率|30\s*分钟功率/.test(lower)
+    lower.includes("电动车") ||
+    (lower.includes("электро") && !lower.includes("гибрид"))
   ) {
     return "electric";
   }

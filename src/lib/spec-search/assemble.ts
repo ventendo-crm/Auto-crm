@@ -54,17 +54,33 @@ function pickVoted<T extends string | number>(
   return best;
 }
 
+function queryTokens(query: string): string[] {
+  return (query.toLowerCase().match(/[a-zа-яё0-9+]{2,}/gi) ?? []).filter((token) => token.length >= 2);
+}
+
+function modelRelevance(text: string, query: string): number {
+  const hay = text.toLowerCase();
+  return queryTokens(query).reduce((score, token) => score + (hay.includes(token) ? 1 : 0), 0);
+}
+
 export function assembleSpecSuggestion(
   docs: SpecDocument[],
   userQuery: string,
 ): QuickSearchSuggestion | null {
-  const extracted = docs.map((doc) => ({
-    doc,
-    specs: extractSpecsFromDocument([doc.title, doc.text].filter(Boolean).join("\n")),
-    weight: hostWeight(doc.url),
-  }));
+  const extracted = docs.map((doc) => {
+    const blob = [doc.title, doc.text].filter(Boolean).join("\n");
+    return {
+      doc,
+      specs: extractSpecsFromDocument(blob),
+      weight: hostWeight(doc.url),
+      relevance: modelRelevance(blob, userQuery),
+    };
+  });
+  const bestRelevance = extracted.reduce((max, item) => Math.max(max, item.relevance), 0);
+  const focused =
+    bestRelevance > 0 ? extracted.filter((item) => item.relevance >= bestRelevance) : extracted;
 
-  const volumeVotes = extracted.flatMap((item) =>
+  const volumeVotes = focused.flatMap((item) =>
     item.specs.volumeCc
       ? [
           {
@@ -74,33 +90,34 @@ export function assembleSpecSuggestion(
         ]
       : [],
   );
-  const icePowerVotes = extracted.flatMap((item) =>
+  const icePowerVotes = focused.flatMap((item) =>
     item.specs.icePowerHp ? [{ value: item.specs.icePowerHp, weight: item.weight }] : [],
   );
-  const electricPowerVotes = extracted.flatMap((item) =>
+  const electricPowerVotes = focused.flatMap((item) =>
     item.specs.electricPowerHp
       ? [{ value: item.specs.electricPowerHp, weight: item.weight }]
       : [],
   );
-  const kindVotes = extracted.flatMap((item) =>
+  const kindVotes = focused.flatMap((item) =>
     item.specs.engineKind
       ? [{ value: item.specs.engineKind, weight: item.weight }]
       : [],
   );
-  const layoutVotes = extracted.flatMap((item) =>
+  const layoutVotes = focused.flatMap((item) =>
     item.specs.hybridLayout
       ? [{ value: item.specs.hybridLayout, weight: item.weight }]
       : [],
   );
-  const originVotes = extracted.flatMap((item) =>
+  const originVotes = focused.flatMap((item) =>
     item.specs.originCountry
       ? [{ value: item.specs.originCountry, weight: item.weight }]
       : [],
   );
 
   const engineKind = (pickVoted(kindVotes) as QuickSearchEngineKind | null) ?? null;
-  const hybridLayout = (pickVoted(layoutVotes) as HybridLayout | null) ?? null;
-  const volumeCc = pickVoted(volumeVotes);
+  const isElectric = engineKind === "electric";
+  const hybridLayout = isElectric ? null : ((pickVoted(layoutVotes) as HybridLayout | null) ?? null);
+  const volumeCc = isElectric ? null : pickVoted(volumeVotes);
   const icePowerHp = pickVoted(icePowerVotes);
   const electricPowerHp = pickVoted(electricPowerVotes);
   const resolved = resolveUtilPower({
@@ -111,13 +128,12 @@ export function assembleSpecSuggestion(
   });
   const originCountry = pickVoted(originVotes);
   const title =
-    extracted.find((item) => item.specs.title)?.specs.title ?? titleFromUserQuery(userQuery);
-  const engine =
-    engineKind === "electric"
-      ? "electric"
-      : volumeCc || engineKind === "hybrid" || engineKind === "phev" || engineKind === "ice"
-        ? "petrol"
-        : null;
+    focused.find((item) => item.specs.title)?.specs.title ?? titleFromUserQuery(userQuery);
+  const engine = isElectric
+    ? "electric"
+    : volumeCc || engineKind === "hybrid" || engineKind === "phev" || engineKind === "ice"
+      ? "petrol"
+      : null;
   const age = extracted.find((item) => item.specs.age)?.specs.age ?? null;
 
   if (!engine && !resolved.powerHp && !volumeCc && !title) return null;
@@ -129,7 +145,7 @@ export function assembleSpecSuggestion(
     hybridLayout,
     engine,
     powerHp: resolved.powerHp,
-    icePowerHp,
+    icePowerHp: isElectric ? null : icePowerHp,
     electricPowerHp,
     volumeCc: engine === "electric" ? null : volumeCc,
     price: null,
