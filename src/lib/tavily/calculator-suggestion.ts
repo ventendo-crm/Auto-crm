@@ -26,26 +26,15 @@ export type QuickSearchSuggestion = {
 export const UTIL_SEARCH_TEMPLATE =
   "Рассчитай утильсбор для импорта автомобиля в Россию";
 
-export function buildCalculatorSearchQuery(userQuery: string): string {
+/** Короткий запрос в поиск: только модель и спецификации, без таблиц утильсбора. */
+export function buildSpecRetrievalQuery(userQuery: string): string {
   const model = userQuery.trim();
-  return `${model} engine specs displacement liters turbo hybrid PHEV ICE brochure official manufacturer
+  return `${model} PHEV HEV hybrid engine displacement turbo specs brochure 排量 功率 发动机 混动 характеристики объём ДВС`;
+}
 
-${UTIL_SEARCH_TEMPLATE}: ${model}
-
-Ищи спецификации модели «${model}», не таблицы ставок утильсбора.
-Нужен фактический рабочий объём ДВС этой машины (литраж x.xT из спецификации), а не скобки закона «до 1 л», «от 1 до 2 л», «свыше 3 л».
-
-Гибрид / PHEV: объём и мощность именно ДВС, не электромотор и не суммарную мощность.
-Электромобиль: 30-минутная мощность в л.с.
-Сам сбор не считай.
-
-JSON в конце, неизвестное — null, без markdown:
-{"title":null,"originCountry":null,"engineKind":null,"engine":null,"powerHp":null,"volumeCc":null,"price":null,"currency":null,"age":null,"note":null}
-originCountry: china | korea | kyrgyzstan | null
-engineKind: ice | hybrid | phev | electric | null
-engine: petrol | diesel | electric | null — для гибрида petrol или diesel
-age: new | under3 | null
-currency: CNY | USD | KRW | RUB | null`;
+/** @deprecated используйте buildSpecRetrievalQuery */
+export function buildCalculatorSearchQuery(userQuery: string): string {
+  return buildSpecRetrievalQuery(userQuery);
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -415,7 +404,7 @@ function parseAgeFromText(text: string): CarAge | null {
   return null;
 }
 
-function parseFromUnstructured(text: string): Partial<QuickSearchSuggestion> {
+export function extractSpecsFromDocument(text: string): Partial<QuickSearchSuggestion> {
   const engineKind = detectEngineKindFromText(text);
   const engine = parseEngine(null, engineKind);
   const volumeCc = engine === "electric" ? null : parseVolumeCcFromText(text);
@@ -430,7 +419,11 @@ function parseFromUnstructured(text: string): Partial<QuickSearchSuggestion> {
   };
 }
 
-function withHybridNote(suggestion: QuickSearchSuggestion): QuickSearchSuggestion {
+function parseFromUnstructured(text: string): Partial<QuickSearchSuggestion> {
+  return extractSpecsFromDocument(text);
+}
+
+export function withHybridNote(suggestion: QuickSearchSuggestion): QuickSearchSuggestion {
   if (suggestion.note) return suggestion;
   if (suggestion.engineKind === "hybrid" || suggestion.engineKind === "phev") {
     return {

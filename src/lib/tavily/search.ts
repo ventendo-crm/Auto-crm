@@ -5,10 +5,10 @@ import {
   outboundFetch,
   type OutboundVia,
 } from "@/lib/http/outbound-fetch";
+import { assembleSpecSuggestion, specSummary } from "@/lib/spec-search/assemble";
+import { searchWikipediaSpecs, type SpecDocument } from "@/lib/spec-search/wikipedia";
 import {
-  buildCalculatorSearchQuery,
-  humanSummaryFromAnswer,
-  parseCalculatorSuggestion,
+  buildSpecRetrievalQuery,
   type QuickSearchSuggestion,
 } from "@/lib/tavily/calculator-suggestion";
 
@@ -149,16 +149,17 @@ async function callTavilySearch(
   dispatcher: Dispatcher,
   signal: AbortSignal,
 ): Promise<{ status: number; ok: boolean; body: string }> {
-  const russianQuery = buildCalculatorSearchQuery(query);
+  const retrievalQuery = buildSpecRetrievalQuery(query);
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     Accept: "application/json",
   };
   const payload: Record<string, unknown> = {
-    query: russianQuery,
-    search_depth: "advanced",
-    include_answer: true,
-    max_results: 5,
+    query: retrievalQuery,
+    search_depth: "basic",
+    include_answer: false,
+    include_raw_content: true,
+    max_results: 8,
     topic: "general",
     exclude_domains: TAVILY_EXCLUDE_DOMAINS,
   };
@@ -215,56 +216,50 @@ function throwFromTavilyHttp(status: number, body: string, apiKey: string): neve
   );
 }
 
-function parseTavilySuccess(body: string, userQuery: string): TavilyQuickSearchResult {
+function parseTavilyDocuments(body: string): SpecDocument[] {
   const data = JSON.parse(body) as {
-    answer?: string;
-    results?: Array<{ title?: string; url?: string; content?: string }>;
+    results?: Array<{
+      title?: string;
+      url?: string;
+      content?: string;
+      raw_content?: string;
+    }>;
   };
 
-  const summaryRaw =
-    (typeof data.answer === "string" && data.answer.trim()) ||
-    (typeof data.results?.[0]?.content === "string" && data.results[0].content.trim()) ||
-    "";
-
-  const sourceDocs = (data.results ?? [])
-    .slice(0, 5)
+  return (data.results ?? [])
+    .slice(0, 8)
     .map((item) => {
       const raw =
+        (typeof item.raw_content === "string" && item.raw_content.trim()) ||
         (typeof item.content === "string" && item.content.trim()) ||
-        (typeof item.title === "string" && item.title.trim()) ||
         "";
       if (!raw) return null;
       return {
-        full: raw,
-        answer: firstSentence(raw),
-        sourceUrl: typeof item.url === "string" ? item.url : null,
-        sourceTitle: typeof item.title === "string" ? item.title : null,
-      };
+        text: raw.slice(0, 8_000),
+        title: typeof item.title === "string" ? item.title : null,
+        url: typeof item.url === "string" ? item.url : null,
+      } satisfies SpecDocument;
     })
-    .filter((item): item is NonNullable<typeof item> => item !== null);
+    .filter((item): item is SpecDocument => item !== null);
+}
 
-  const variants = sourceDocs.map((item) => ({
-    answer: item.answer,
-    sourceUrl: item.sourceUrl,
-    sourceTitle: item.sourceTitle,
-  }));
-
-  if (!summaryRaw && variants.length === 0) {
-    throw new TavilySearchError("Не удалось найти ответ по этому запросу", "TAVILY_EMPTY");
+function toSearchResult(docs: SpecDocument[], userQuery: string): TavilyQuickSearchResult {
+  if (docs.length === 0) {
+    throw new TavilySearchError("Не удалось найти спецификации по этому запросу", "TAVILY_EMPTY");
   }
 
-  const suggestion = parseCalculatorSuggestion(
-    summaryRaw,
-    sourceDocs.map((item) => ({ answer: item.full, sourceTitle: item.sourceTitle })),
-    userQuery,
-  );
-  const summary =
-    humanSummaryFromAnswer(summaryRaw) ||
-    suggestion?.note ||
-    variants[0]?.answer ||
-    "";
+  const suggestion = assembleSpecSuggestion(docs, userQuery);
+  const variants = docs.slice(0, 5).map((item) => ({
+    answer: firstSentence(item.text),
+    sourceUrl: item.url,
+    sourceTitle: item.title,
+  }));
 
-  return { summary, variants, suggestion };
+  return {
+    summary: specSummary(suggestion, variants[0]?.answer ?? ""),
+    variants,
+    suggestion,
+  };
 }
 
 function htmlBlockMessage(via: OutboundVia): string {
@@ -290,6 +285,8 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
     );
   }
 
+  const wikiPromise = searchWikipediaSpecs(query).catch(() => [] as SpecDocument[]);
+
   const dispatchers = listOutboundDispatchers();
   let lastHtmlVia: OutboundVia | null = null;
   let lastNetworkError: unknown = null;
@@ -302,7 +299,9 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
         const response = await callTavilySearch(apiKey, query, mode, dispatcher, controller.signal);
         if (response.ok) {
           try {
-            return parseTavilySuccess(response.body, query);
+            const tavilyDocs = parseTavilyDocuments(response.body);
+            const wikiDocs = await wikiPromise;
+            return toSearchResult([...tavilyDocs, ...wikiDocs], query);
           } catch (error) {
             if (error instanceof TavilySearchError) throw error;
             throw new TavilySearchError("Tavily вернул некорректный ответ", "TAVILY_REQUEST_FAILED");
@@ -330,6 +329,11 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
         clearTimeout(timeout);
       }
     }
+  }
+
+  const wikiDocs = await wikiPromise;
+  if (wikiDocs.length > 0) {
+    return toSearchResult(wikiDocs, query);
   }
 
   if (lastNetworkError) {
