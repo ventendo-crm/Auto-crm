@@ -1,5 +1,6 @@
 import { withAuth } from "@/lib/api-handler";
 import { error, ok } from "@/lib/api-response";
+import { AI_QUICK_SEARCH_ENABLED } from "@/lib/features";
 import { assertCompanyCalculatorAccess } from "@/lib/services/company-workspace";
 import { serialize } from "@/lib/serialize";
 import {
@@ -12,6 +13,10 @@ import { quickSearchBodySchema } from "@/lib/validators/quick-search";
 export const runtime = "nodejs";
 
 export const POST = withAuth(async (request, { user }) => {
+  if (!AI_QUICK_SEARCH_ENABLED) {
+    return error("ИИ-поиск временно отключён", 503);
+  }
+
   await assertCompanyCalculatorAccess(user);
 
   const body = quickSearchBodySchema.parse(await request.json());

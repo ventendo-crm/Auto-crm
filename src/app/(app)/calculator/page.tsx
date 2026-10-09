@@ -11,6 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/hooks/use-auth";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
+import { AI_QUICK_SEARCH_ENABLED } from "@/lib/features";
 import { canAccessCalculator, getClientRoleName } from "@/lib/permissions";
 import type { QuickSearchSuggestion } from "@/lib/tavily/calculator-suggestion";
 
@@ -42,12 +43,14 @@ function CalculatorContent() {
       </TabsList>
 
       <TabsContent value="calc" className="mt-4 space-y-6">
-        <CalculatorQuickSearch
-          onApplyToCalculator={setSearchSuggestion}
-          onOpenOfferTab={() => setTab("offer")}
-        />
+        {AI_QUICK_SEARCH_ENABLED ? (
+          <CalculatorQuickSearch
+            onApplyToCalculator={setSearchSuggestion}
+            onOpenOfferTab={() => setTab("offer")}
+          />
+        ) : null}
         <CustomsCalculator
-          searchSuggestion={searchSuggestion}
+          searchSuggestion={AI_QUICK_SEARCH_ENABLED ? searchSuggestion : null}
           onSearchSuggestionApplied={() => setSearchSuggestion(null)}
         />
       </TabsContent>
