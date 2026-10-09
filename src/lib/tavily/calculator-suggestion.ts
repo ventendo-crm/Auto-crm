@@ -11,6 +11,18 @@ export type QuickSearchEngineKind = "ice" | "hybrid" | "phev" | "electric";
 /** Последовательный — колёса крутит электромотор. Параллельный — и ДВС, и электромотор. */
 export type HybridLayout = "series" | "parallel";
 
+export type DrivetrainKind = "2wd" | "4wd";
+
+export type TrimAnchors = {
+  /** Запрошенный электрический пробег комплектации, км (CLTC/WLTC). */
+  batteryRangeKm: number | null;
+  drivetrain: DrivetrainKind | null;
+  /** Издание/опции: ultra, lidar, … */
+  tags: string[];
+  /** Марка/модель без якорей комплектации. */
+  modelPart: string;
+};
+
 export type QuickSearchSuggestion = {
   title: string | null;
   originCountry: OriginCountry | null;
@@ -23,6 +35,10 @@ export type QuickSearchSuggestion = {
   /** 30-минутная мощность электромотора. */
   electricPowerHp: number | null;
   volumeCc: number | null;
+  /** Электрический пробег комплектации (для различения 180/240 km). */
+  batteryRangeKm: number | null;
+  drivetrain: DrivetrainKind | null;
+  trimTags: string[] | null;
   price: number | null;
   currency: CurrencyCode | null;
   age: CarAge | null;
@@ -34,35 +50,128 @@ export type QuickSearchSuggestion = {
 export const UTIL_SEARCH_TEMPLATE =
   "Рассчитай утильсбор для импорта автомобиля в Россию";
 
-/** Короткий запрос в поиск: спецификации ДВС и 30-минутная мощность электро, без таблиц утильсбора. */
-export function buildSpecRetrievalQuery(userQuery: string): string {
-  const model = userQuery.trim();
-  return `${model} specifications powertrain battery motor engine 参数 动力电池 纯电 排量 半小时功率`;
+const KNOWN_TRIM_TAGS = ["ultra", "lidar", "max", "pro", "plus", "flagship", "premium"] as const;
+
+/** Якоря комплектации из запроса менеджера (240 km, 4WD, Ultra, LiDAR). */
+export function parseTrimAnchors(query: string): TrimAnchors {
+  const raw = query.trim();
+  const lower = raw.toLowerCase();
+
+  let batteryRangeKm: number | null = null;
+  const rangePatterns = [
+    /(\d{2,3})\s*(?:km|км)\b/i,
+    /(?:续航|纯电续航|electric\s+range|cltc|wltc)[^\d]{0,12}(\d{2,3})/i,
+    /(\d{2,3})\s*(?:km|км)?\s*(?:cltc|wltc|续航)/i,
+  ];
+  for (const pattern of rangePatterns) {
+    const match = raw.match(pattern);
+    if (match?.[1]) {
+      const value = Number(match[1]);
+      if (value >= 50 && value <= 900) {
+        batteryRangeKm = value;
+        break;
+      }
+    }
+  }
+
+  let drivetrain: DrivetrainKind | null = null;
+  if (/\b(4wd|awd|4x4|四驱|全时四驱)\b/i.test(lower)) drivetrain = "4wd";
+  else if (/\b(2wd|fwd|rwd|两驱|前驱|后驱)\b/i.test(lower)) drivetrain = "2wd";
+
+  const tags: string[] = [];
+  for (const tag of KNOWN_TRIM_TAGS) {
+    if (tag === "lidar") {
+      if (/\blida?r\b/i.test(lower) || lower.includes("激光雷达")) tags.push("lidar");
+    } else if (new RegExp(`\\b${tag}\\b`, "i").test(lower)) {
+      tags.push(tag);
+    }
+  }
+
+  const modelPart = raw
+    .replace(/(\d{2,3})\s*(?:km|км)\b/gi, " ")
+    .replace(/(?:续航|纯电续航|electric\s+range|cltc|wltc)[^\d]{0,12}\d{2,3}/gi, " ")
+    .replace(/\b(4wd|awd|4x4|2wd|fwd|rwd|四驱|两驱|全时四驱|前驱|后驱)\b/gi, " ")
+    .replace(/\b(lidar|lida|laser\s*radar|edition|версия|комплектаци\w*)\b/gi, " ")
+    .replace(/\b(ultra|max|pro|plus|flagship|premium)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return {
+    batteryRangeKm,
+    drivetrain,
+    tags,
+    modelPart: modelPart.length >= 2 ? modelPart : raw,
+  };
 }
 
-/** Второй запрос только за тем, чего не хватает для выбранной комплектации. */
+/**
+ * В Tavily уходит только то, что ввёл менеджер (марка, модель, комплектация).
+ * Тип двигателя не подсказываем словами petrol/EV — его определяет разбор страниц.
+ */
+export function buildSpecRetrievalQuery(userQuery: string): string {
+  return userQuery.trim();
+}
+
+/** Допоиск: тот же запрос менеджера + список недостающих полей на русском. */
 export function buildMissingFieldsQuery(model: string, missing: string[]): string {
-  const focus: string[] = [];
-  const blob = missing.join(" ").toLowerCase();
-  if (blob.includes("30-минут") || blob.includes("электромотор")) {
-    focus.push("30-minute power 半小时功率 30分钟功率 UNECE R85");
+  const parts = [model.trim(), ...missing.map((item) => item.trim()).filter(Boolean)];
+  return parts.join(" ");
+}
+
+/** Пробег / привод / издание из текста страницы спецификаций. */
+export function extractTrimMarkersFromText(text: string): {
+  batteryRangeKm: number | null;
+  drivetrain: DrivetrainKind | null;
+  trimTags: string[];
+} {
+  const lower = text.toLowerCase();
+  const rangeVotes = new Map<number, number>();
+
+  const bump = (value: number, weight: number) => {
+    if (value < 50 || value > 900) return;
+    rangeVotes.set(value, (rangeVotes.get(value) ?? 0) + weight);
+  };
+
+  for (const match of text.matchAll(
+    /(?:纯电续航|综合续航|续航里程|续航|electric\s+range|ev\s+range|all[- ]electric\s+range|cltc|wltc)[^\d]{0,16}(\d{2,3})\s*(?:km|км)?/gi,
+  )) {
+    bump(Number(match[1]), 3);
   }
-  if (blob.includes("объём") || blob.includes("объем")) {
-    focus.push("displacement 排量 engine volume liters");
+  for (const match of text.matchAll(/(\d{2,3})\s*(?:km|км)\b/gi)) {
+    const value = Number(match[1]);
+    // Заводские комплектации PHEV часто 80–300 km; отсекаем годы и коды.
+    if (value >= 80 && value <= 400) bump(value, 1);
   }
-  if (blob.includes("мощность двс") || blob.includes("мощность двигателя")) {
-    focus.push("ICE engine power horsepower 发动机功率");
+  // «240 km Ultra» / «180KM 4WD» в названии комплектации
+  for (const match of text.matchAll(
+    /(\d{2,3})\s*(?:km|км)\s*(?:ultra|max|pro|lidar|4wd|awd|edition|dht)/gi,
+  )) {
+    bump(Number(match[1]), 4);
   }
-  if (blob.includes("вид гибрида") || blob.includes("последовательн") || blob.includes("параллельн")) {
-    focus.push("series parallel range extender PHEV 增程式 串联 并联");
+
+  let batteryRangeKm: number | null = null;
+  let bestScore = 0;
+  for (const [value, score] of rangeVotes) {
+    if (score > bestScore) {
+      batteryRangeKm = value;
+      bestScore = score;
+    }
   }
-  if (blob.includes("тип двигателя")) {
-    focus.push("BEV PHEV hybrid petrol diesel 纯电 混动");
+
+  let drivetrain: DrivetrainKind | null = null;
+  if (/\b(4wd|awd|4x4|四驱|全时四驱)\b/i.test(lower)) drivetrain = "4wd";
+  else if (/\b(2wd|fwd|rwd|两驱|前驱|后驱)\b/i.test(lower)) drivetrain = "2wd";
+
+  const trimTags: string[] = [];
+  for (const tag of KNOWN_TRIM_TAGS) {
+    if (tag === "lidar") {
+      if (/\blida?r\b/i.test(lower) || lower.includes("激光雷达")) trimTags.push("lidar");
+    } else if (new RegExp(`\\b${tag}\\b`, "i").test(lower)) {
+      trimTags.push(tag);
+    }
   }
-  if (focus.length === 0) {
-    focus.push("specifications 参数 半小时功率 排量");
-  }
-  return `${model.trim()} ${focus.join(" ")}`;
+
+  return { batteryRangeKm, drivetrain, trimTags };
 }
 
 /** @deprecated используйте buildSpecRetrievalQuery */
@@ -615,11 +724,44 @@ function extractFromSpecTable(text: string): {
   return { volumeCc, icePowerHp, electricPowerHp };
 }
 
+function textHasStrongEvOrPhevSignal(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    /\bphev\b/.test(lower) ||
+    /plug-?in/.test(lower) ||
+    lower.includes("插电") ||
+    lower.includes("纯电") ||
+    /\bbev\b/.test(lower) ||
+    /электромобил/.test(lower) ||
+    /battery electric|pure electric/.test(lower) ||
+    /增程式|range extender|\berev\b|\breev\b/.test(lower)
+  );
+}
+
+function textHasStrongIceSignal(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    /gasoline|petrol|бензин|дизель|diesel|skylactiv|naturally aspirated|turbo petrol/.test(
+      lower,
+    ) || /发动机|内燃机|рабочий объ[её]м|displacement/.test(lower)
+  );
+}
+
 export function extractSpecsFromDocument(text: string): Partial<QuickSearchSuggestion> {
   const fromTable = extractFromSpecTable(text);
   const electricPowerHp = fromTable.electricPowerHp ?? parseThirtyMinutePowerHp(text);
   let engineKind = detectEngineKindFromText(text);
   const volumeCcRaw = fromTable.volumeCc ?? parseVolumeCcFromText(text);
+  // Каталоги/PDF с кучей гибридов не должны перебивать обычный ДВС, если есть объём и нет явного PHEV/EV.
+  if (
+    volumeCcRaw &&
+    engineKind &&
+    engineKind !== "ice" &&
+    !textHasStrongEvOrPhevSignal(text.slice(0, 2_500)) &&
+    (textHasStrongIceSignal(text) || fromTable.icePowerHp)
+  ) {
+    engineKind = "ice";
+  }
   if (!engineKind && electricPowerHp && !volumeCcRaw) {
     engineKind = "electric";
   }
@@ -638,6 +780,7 @@ export function extractSpecsFromDocument(text: string): Partial<QuickSearchSugge
     electricPowerHp,
   });
   const engine = parseEngine(null, engineKind);
+  const markers = extractTrimMarkersFromText(text);
   return {
     title: parseTitleFromText(text),
     originCountry: parseOriginFromText(text),
@@ -648,6 +791,9 @@ export function extractSpecsFromDocument(text: string): Partial<QuickSearchSugge
     icePowerHp,
     electricPowerHp,
     volumeCc: engine === "electric" ? null : volumeCcRaw,
+    batteryRangeKm: markers.batteryRangeKm,
+    drivetrain: markers.drivetrain,
+    trimTags: markers.trimTags.length > 0 ? markers.trimTags : null,
     age: parseAgeFromText(text),
     note: resolved.note,
   };
@@ -688,6 +834,9 @@ export function mergeSuggestionWithDocs(
     icePowerHp,
     electricPowerHp,
     volumeCc,
+    batteryRangeKm: base.batteryRangeKm ?? patch.batteryRangeKm ?? null,
+    drivetrain: base.drivetrain ?? patch.drivetrain ?? null,
+    trimTags: base.trimTags ?? patch.trimTags ?? null,
     price: base.price ?? patch.price ?? null,
     currency: base.currency ?? patch.currency ?? null,
     age: base.age ?? patch.age ?? null,
@@ -714,6 +863,9 @@ function assemblePartialFromDocs(
         icePowerHp: acc.icePowerHp ?? specs.icePowerHp ?? null,
         electricPowerHp: acc.electricPowerHp ?? specs.electricPowerHp ?? null,
         volumeCc: acc.volumeCc ?? specs.volumeCc ?? null,
+        batteryRangeKm: acc.batteryRangeKm ?? specs.batteryRangeKm ?? null,
+        drivetrain: acc.drivetrain ?? specs.drivetrain ?? null,
+        trimTags: acc.trimTags ?? specs.trimTags ?? null,
         age: acc.age ?? specs.age ?? null,
         price: acc.price ?? specs.price ?? null,
         currency: acc.currency ?? specs.currency ?? null,
@@ -798,6 +950,9 @@ export function parseCalculatorSuggestion(
     icePowerHp: fromText.icePowerHp ?? null,
     electricPowerHp: fromText.electricPowerHp ?? null,
     volumeCc: volumeCc ? Math.round(volumeCc) : null,
+    batteryRangeKm: fromText.batteryRangeKm ?? null,
+    drivetrain: fromText.drivetrain ?? null,
+    trimTags: fromText.trimTags ?? null,
     price: jsonTrusted ? asPositiveNumber(json?.price) : null,
     currency: jsonTrusted ? parseCurrency(json?.currency) : null,
     age: fromText.age ?? (jsonTrusted ? parseAge(json?.age) : null) ?? null,

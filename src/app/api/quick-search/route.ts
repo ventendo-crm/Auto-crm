@@ -19,7 +19,16 @@ export const POST = withAuth(async (request, { user }) => {
   try {
     const result =
       body.mode === "refill"
-        ? await refillMissingSpecs(body.query, body.base, body.missing)
+        ? await refillMissingSpecs(
+            body.query,
+            {
+              ...body.base,
+              batteryRangeKm: body.base.batteryRangeKm ?? null,
+              drivetrain: body.base.drivetrain ?? null,
+              trimTags: body.base.trimTags ?? null,
+            },
+            body.missing,
+          )
         : await searchWithTavily(body.query);
     return ok(serialize(result));
   } catch (err) {

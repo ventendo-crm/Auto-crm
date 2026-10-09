@@ -7,7 +7,9 @@ import {
 } from "@/lib/http/outbound-fetch";
 import {
   assembleSpecSuggestion,
+  buildSearchSummary,
   listTrimCandidates,
+  scoreTrimAgainstAnchors,
   specSummary,
   type SpecTrimCandidate,
 } from "@/lib/spec-search/assemble";
@@ -16,6 +18,7 @@ import {
   buildMissingFieldsQuery,
   buildSpecRetrievalQuery,
   mergeSuggestionWithDocs,
+  parseTrimAnchors,
   type QuickSearchSuggestion,
 } from "@/lib/tavily/calculator-suggestion";
 
@@ -264,10 +267,7 @@ function toSearchResult(docs: SpecDocument[], userQuery: string): TavilyQuickSea
   }));
 
   return {
-    summary:
-      trims.length > 1
-        ? `Найдено комплектаций: ${trims.length}. Выберите нужную — от этого зависят объём и мощность.`
-        : specSummary(suggestion, variants[0]?.answer ?? ""),
+    summary: buildSearchSummary(trims, suggestion, userQuery, variants[0]?.answer ?? ""),
     variants,
     suggestion,
     trims,
@@ -366,6 +366,15 @@ export async function searchWithTavily(query: string): Promise<TavilyQuickSearch
   return toSearchResult(docs, query);
 }
 
+function normalizeSuggestion(base: QuickSearchSuggestion): QuickSearchSuggestion {
+  return {
+    ...base,
+    batteryRangeKm: base.batteryRangeKm ?? null,
+    drivetrain: base.drivetrain ?? null,
+    trimTags: base.trimTags ?? null,
+  };
+}
+
 export async function refillMissingSpecs(
   query: string,
   base: QuickSearchSuggestion,
@@ -381,25 +390,30 @@ export async function refillMissingSpecs(
     throw new TavilySearchError("Не удалось доискать недостающие характеристики", "TAVILY_EMPTY");
   }
 
-  const suggestion = mergeSuggestionWithDocs(base, docs, query);
+  const suggestion = mergeSuggestionWithDocs(normalizeSuggestion(base), docs, query);
   const variants = docs.slice(0, 5).map((item) => ({
     answer: firstSentence(item.text),
     sourceUrl: item.url,
     sourceTitle: item.title,
   }));
+  const matchScore = scoreTrimAgainstAnchors(
+    suggestion,
+    variants.map((item) => item.answer).join("\n"),
+    parseTrimAnchors(query),
+  );
+  const trim: SpecTrimCandidate = {
+    id: "selected",
+    label: specSummary(suggestion, "Выбранная комплектация"),
+    suggestion,
+    sourceUrl: variants[0]?.sourceUrl ?? null,
+    sourceTitle: variants[0]?.sourceTitle ?? null,
+    matchScore,
+  };
 
   return {
-    summary: specSummary(suggestion, variants[0]?.answer ?? ""),
+    summary: buildSearchSummary([trim], suggestion, query, variants[0]?.answer ?? ""),
     variants,
     suggestion,
-    trims: [
-      {
-        id: "selected",
-        label: specSummary(suggestion, "Выбранная комплектация"),
-        suggestion,
-        sourceUrl: variants[0]?.sourceUrl ?? null,
-        sourceTitle: variants[0]?.sourceTitle ?? null,
-      },
-    ],
+    trims: [trim],
   };
 }

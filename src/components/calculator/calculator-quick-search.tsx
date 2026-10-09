@@ -13,6 +13,7 @@ import {
   engineKindLabel,
   missingCalculatorData,
   UTIL_SEARCH_TEMPLATE,
+  type QuickSearchEngineKind,
   type QuickSearchSuggestion,
 } from "@/lib/tavily/calculator-suggestion";
 
@@ -24,6 +25,7 @@ type TrimOption = {
   suggestion: QuickSearchSuggestion;
   sourceUrl: string | null;
   sourceTitle: string | null;
+  matchScore?: number;
 };
 
 type SourceVariant = {
@@ -31,6 +33,25 @@ type SourceVariant = {
   sourceUrl: string | null;
   sourceTitle: string | null;
 };
+
+function distinctKindsFromTrims(trims: TrimOption[]): QuickSearchEngineKind[] {
+  const seen = new Set<QuickSearchEngineKind>();
+  const order: QuickSearchEngineKind[] = [];
+  for (const trim of trims) {
+    const kind = trim.suggestion.engineKind;
+    if (!kind || seen.has(kind)) continue;
+    seen.add(kind);
+    order.push(kind);
+  }
+  return order;
+}
+
+function engineKindChoiceLabel(kind: QuickSearchEngineKind): string {
+  if (kind === "ice") return "Бензин / дизель";
+  if (kind === "hybrid") return "Гибрид";
+  if (kind === "phev") return "Подключаемый гибрид";
+  return "Электромобиль";
+}
 
 function engineCalcLabel(suggestion: QuickSearchSuggestion): string | null {
   if (suggestion.engine === "electric") return "электро";
@@ -79,6 +100,9 @@ export function CalculatorQuickSearch({
   const [suggestion, setSuggestion] = useState<QuickSearchSuggestion | null>(null);
   const [trims, setTrims] = useState<TrimOption[]>([]);
   const [selectedTrimId, setSelectedTrimId] = useState<string | null>(null);
+  const [selectedEngineKind, setSelectedEngineKind] = useState<QuickSearchEngineKind | null>(
+    null,
+  );
   const [applied, setApplied] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(false);
   const [variants, setVariants] = useState<SourceVariant[]>([]);
@@ -93,19 +117,33 @@ export function CalculatorQuickSearch({
     preferredTrimId: string | null = null,
   ) => {
     const nextTrims = result.trims ?? [];
+    const kinds = distinctKindsFromTrims(nextTrims);
     setSummary(result.summary);
     setVariants(result.variants);
     setTrims(nextTrims);
-    const nextSuggestion =
-      nextTrims.find((item) => item.id === preferredTrimId)?.suggestion ??
-      nextTrims[0]?.suggestion ??
-      result.suggestion;
-    const nextTrimId =
-      nextTrims.find((item) => item.id === preferredTrimId)?.id ?? nextTrims[0]?.id ?? null;
-    setSelectedTrimId(nextTrimId);
-    setSuggestion(nextSuggestion);
     setSourcesOpen(false);
     setApplied(false);
+
+    if (kinds.length > 1) {
+      setSelectedEngineKind(null);
+      setSelectedTrimId(null);
+      setSuggestion(null);
+      return;
+    }
+
+    const onlyKind = kinds[0] ?? null;
+    setSelectedEngineKind(onlyKind);
+    const pool = onlyKind
+      ? nextTrims.filter((item) => item.suggestion.engineKind === onlyKind)
+      : nextTrims;
+    const nextSuggestion =
+      pool.find((item) => item.id === preferredTrimId)?.suggestion ??
+      pool[0]?.suggestion ??
+      result.suggestion;
+    const nextTrimId =
+      pool.find((item) => item.id === preferredTrimId)?.id ?? pool[0]?.id ?? null;
+    setSelectedTrimId(nextTrimId);
+    setSuggestion(nextSuggestion);
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -126,6 +164,7 @@ export function CalculatorQuickSearch({
       setSuggestion(null);
       setTrims([]);
       setSelectedTrimId(null);
+      setSelectedEngineKind(null);
       setApplied(false);
       toast.error(error instanceof Error ? error.message : "Не удалось выполнить поиск");
     } finally {
@@ -133,15 +172,26 @@ export function CalculatorQuickSearch({
     }
   };
 
+  const handleSelectEngineKind = (kind: QuickSearchEngineKind) => {
+    setSelectedEngineKind(kind);
+    setApplied(false);
+    const pool = trims.filter((item) => item.suggestion.engineKind === kind);
+    const first = pool[0] ?? null;
+    setSelectedTrimId(first?.id ?? null);
+    setSuggestion(first?.suggestion ?? null);
+    setSummary(
+      pool.length > 1
+        ? `Тип: ${engineKindChoiceLabel(kind)}. Выберите комплектацию.`
+        : `Тип: ${engineKindChoiceLabel(kind)}.`,
+    );
+  };
+
   const handleSelectTrim = (trim: TrimOption) => {
     setSelectedTrimId(trim.id);
     setSuggestion(trim.suggestion);
+    if (trim.suggestion.engineKind) setSelectedEngineKind(trim.suggestion.engineKind);
     setApplied(false);
-    setSummary(
-      trims.length > 1
-        ? `Выбрана комплектация: ${trim.label}`
-        : summary,
-    );
+    setSummary(`Выбрана комплектация: ${trim.label}`);
   };
 
   const missing = missingCalculatorData(suggestion);
@@ -243,6 +293,14 @@ export function CalculatorQuickSearch({
   const kind = engineKindLabel(suggestion?.engineKind ?? null);
   const calcEngine = suggestion ? engineCalcLabel(suggestion) : null;
   const busy = loading || refilling;
+  const engineKindOptions = distinctKindsFromTrims(trims);
+  const needsEngineKindClarification =
+    engineKindOptions.length > 1 && selectedEngineKind == null;
+  const visibleTrims = selectedEngineKind
+    ? trims.filter((item) => item.suggestion.engineKind === selectedEngineKind)
+    : needsEngineKindClarification
+      ? []
+      : trims;
 
   return (
     <Card className="border-0 shadow-card">
@@ -252,9 +310,8 @@ export function CalculatorQuickSearch({
           ИИ-поиск
         </CardTitle>
         <p className="text-sm text-muted-foreground">
-          Достаточно марки и модели. Если нашлось несколько комплектаций — выберите нужную. Бензин и
-          дизель — объём и мощность ДВС. Электро — 30-минутная мощность. Гибрид: последовательный или
-          параллельный.
+          Введите марку, модель и при необходимости комплектацию. Тип двигателя определяется по
+          источникам; если вариантов несколько — система спросит.
         </p>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -270,7 +327,7 @@ export function CalculatorQuickSearch({
           <Input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Марка и модель, например Trumpchi S7"
+            placeholder="Марка, модель, комплектация — например Trumpchi S7 240 km Ultra"
             disabled={busy}
             className="min-w-0 flex-1"
             aria-label="Марка и модель для расчёта утильсбора"
@@ -296,14 +353,63 @@ export function CalculatorQuickSearch({
               </div>
             )}
 
-            {trims.length > 1 && (
+            {needsEngineKindClarification && (
+              <div className="space-y-2 rounded-xl border border-brand/30 bg-brand/5 px-4 py-3">
+                <p className="text-sm font-medium">Уточните тип двигателя</p>
+                <p className="text-xs text-muted-foreground">
+                  В источниках нашлось несколько типов. Выберите нужный — от него зависят правила
+                  утильсбора.
+                </p>
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                  {engineKindOptions.map((option) => (
+                    <Button
+                      key={option}
+                      type="button"
+                      variant="outline"
+                      className="w-full sm:w-auto"
+                      disabled={busy}
+                      onClick={() => handleSelectEngineKind(option)}
+                    >
+                      {engineKindChoiceLabel(option)}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {selectedEngineKind && engineKindOptions.length > 1 && (
+              <p className="text-xs text-muted-foreground">
+                Тип:{" "}
+                <span className="font-medium text-foreground">
+                  {engineKindChoiceLabel(selectedEngineKind)}
+                </span>
+                .{" "}
+                <button
+                  type="button"
+                  className="underline underline-offset-2 hover:text-foreground"
+                  disabled={busy}
+                  onClick={() => {
+                    setSelectedEngineKind(null);
+                    setSelectedTrimId(null);
+                    setSuggestion(null);
+                    setSummary(
+                      "В источниках разные типы двигателя. Уточните тип — затем можно выбрать комплектацию.",
+                    );
+                  }}
+                >
+                  Изменить
+                </button>
+              </p>
+            )}
+
+            {visibleTrims.length > 1 && (
               <div className="space-y-2 rounded-xl border px-4 py-3">
                 <p className="text-sm font-medium">Комплектации</p>
                 <p className="text-xs text-muted-foreground">
                   Выберите вариант — от него зависят объём и мощность для утильсбора.
                 </p>
                 <div className="flex flex-col gap-2">
-                  {trims.map((trim) => {
+                  {visibleTrims.map((trim) => {
                     const selected = trim.id === selectedTrimId;
                     return (
                       <button
@@ -330,7 +436,7 @@ export function CalculatorQuickSearch({
               </div>
             )}
 
-            {!suggestion && (
+            {!suggestion && !needsEngineKindClarification && (
               <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-100">
                 <p className="font-medium">Не хватает данных</p>
                 <ul className="mt-1 list-disc space-y-0.5 pl-4">
@@ -383,6 +489,32 @@ export function CalculatorQuickSearch({
                   {suggestion.volumeCc != null && suggestion.engine !== "electric" && (
                     <li>
                       Объём: <span className="text-foreground">{suggestion.volumeCc} см³</span>
+                    </li>
+                  )}
+                  {suggestion.batteryRangeKm != null && (
+                    <li>
+                      Запас хода (батарея):{" "}
+                      <span className="text-foreground">{suggestion.batteryRangeKm} km</span>
+                    </li>
+                  )}
+                  {suggestion.drivetrain && (
+                    <li>
+                      Привод:{" "}
+                      <span className="text-foreground">
+                        {suggestion.drivetrain === "4wd" ? "4WD" : "2WD"}
+                      </span>
+                    </li>
+                  )}
+                  {suggestion.trimTags && suggestion.trimTags.length > 0 && (
+                    <li>
+                      Издание:{" "}
+                      <span className="text-foreground">
+                        {suggestion.trimTags
+                          .map((tag) =>
+                            tag === "lidar" ? "LiDAR" : tag.charAt(0).toUpperCase() + tag.slice(1),
+                          )
+                          .join(" · ")}
+                      </span>
                     </li>
                   )}
                   {suggestion.price != null && (

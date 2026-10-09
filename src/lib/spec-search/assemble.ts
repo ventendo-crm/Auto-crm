@@ -1,11 +1,13 @@
 import {
   extractSpecsFromDocument,
+  parseTrimAnchors,
   resolveUtilPower,
   titleFromUserQuery,
   withHybridNote,
   type HybridLayout,
   type QuickSearchEngineKind,
   type QuickSearchSuggestion,
+  type TrimAnchors,
 } from "@/lib/tavily/calculator-suggestion";
 import type { SpecDocument } from "@/lib/spec-search/wikipedia";
 
@@ -15,6 +17,8 @@ export type SpecTrimCandidate = {
   suggestion: QuickSearchSuggestion;
   sourceUrl: string | null;
   sourceTitle: string | null;
+  /** Совпадение с запрошенной комплектацией (выше — лучше). */
+  matchScore: number;
 };
 
 function hostWeight(url: string | null): number {
@@ -30,7 +34,8 @@ function hostWeight(url: string | null): number {
       host.includes("zeekr") ||
       host.includes("hyundai") ||
       host.includes("kia.") ||
-      host.includes("changan")
+      host.includes("changan") ||
+      host.includes("trumpchi")
     ) {
       return 4;
     }
@@ -63,13 +68,161 @@ function pickVoted<T extends string | number>(
   return best;
 }
 
-function queryTokens(query: string): string[] {
-  return (query.toLowerCase().match(/[a-zа-яё0-9+]{2,}/gi) ?? []).filter((token) => token.length >= 2);
+/** Известные марки для мягкой поправки опечаток (mazds → mazda). */
+const KNOWN_BRANDS = [
+  "mazda",
+  "toyota",
+  "hyundai",
+  "kia",
+  "bmw",
+  "audi",
+  "mercedes",
+  "volkswagen",
+  "ford",
+  "nissan",
+  "honda",
+  "subaru",
+  "mitsubishi",
+  "lexus",
+  "volvo",
+  "skoda",
+  "changan",
+  "geely",
+  "byd",
+  "zeekr",
+  "gac",
+  "trumpchi",
+  "haval",
+  "chery",
+  "exeed",
+  "lixiang",
+  "li",
+  "nio",
+  "xpeng",
+  "tesla",
+  "chevrolet",
+  "jeep",
+  "porsche",
+  "genesis",
+] as const;
+
+function editDistanceOne(a: string, b: string): boolean {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  if (a === b) return true;
+  let i = 0;
+  let j = 0;
+  let edits = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) {
+      i += 1;
+      j += 1;
+      continue;
+    }
+    edits += 1;
+    if (edits > 1) return false;
+    if (a.length > b.length) i += 1;
+    else if (a.length < b.length) j += 1;
+    else {
+      i += 1;
+      j += 1;
+    }
+  }
+  if (i < a.length || j < b.length) edits += 1;
+  return edits <= 1;
 }
 
+function resolveBrandToken(token: string): string | null {
+  const lower = token.toLowerCase();
+  if ((KNOWN_BRANDS as readonly string[]).includes(lower)) return lower;
+  if (lower.length < 4) return null;
+  for (const brand of KNOWN_BRANDS) {
+    if (brand.length >= 4 && editDistanceOne(lower, brand)) return brand;
+  }
+  return null;
+}
+
+function normalizeCompact(value: string): string {
+  return value.toLowerCase().replace(/[-_.\s]/g, "");
+}
+
+/** Токены марки/модели с сохранением cx-5 как одного идентификатора. */
+function modelQueryParts(query: string): {
+  brand: string | null;
+  modelIds: string[];
+  tokens: string[];
+} {
+  const modelPart = parseTrimAnchors(query).modelPart.toLowerCase();
+  const tokens =
+    modelPart.match(/[a-zа-яё0-9]+(?:-[a-zа-яё0-9]+)+|[a-zа-яё0-9]{2,}/gi)?.map((t) =>
+      t.toLowerCase(),
+    ) ?? [];
+  let brand: string | null = null;
+  const modelIds: string[] = [];
+  for (const token of tokens) {
+    const resolved = resolveBrandToken(token);
+    if (resolved && !brand) {
+      brand = resolved;
+      continue;
+    }
+    if (token.includes("-") || /\d/.test(token)) {
+      modelIds.push(token, normalizeCompact(token));
+    } else if (token.length >= 2) {
+      modelIds.push(token);
+    }
+  }
+  return { brand, modelIds: [...new Set(modelIds)], tokens };
+}
+
+/**
+ * Релевантность страницы к запрошенной марке/модели.
+ * Чужие брендбуки (Geely при поиске Mazda) дают 0 и отбрасываются.
+ */
 function modelRelevance(text: string, query: string): number {
   const hay = text.toLowerCase();
-  return queryTokens(query).reduce((score, token) => score + (hay.includes(token) ? 1 : 0), 0);
+  const hayCompact = normalizeCompact(text);
+  const { brand, modelIds, tokens } = modelQueryParts(query);
+
+  let score = 0;
+  let modelHit = false;
+
+  for (const id of modelIds) {
+    if (id.length < 2) continue;
+    if (hay.includes(id) || hayCompact.includes(normalizeCompact(id))) {
+      score += id.includes("-") || /\d/.test(id) ? 6 : 2;
+      modelHit = true;
+    }
+  }
+
+  if (brand) {
+    if (hay.includes(brand) || hayCompact.includes(brand)) {
+      score += 4;
+    } else {
+      // Опечатка в запросе: в тексте правильная марка
+      score -= 2;
+    }
+  }
+
+  // Штраф, если в заголовке/начале явная чужая марка
+  const lead = hay.slice(0, 400);
+  for (const other of KNOWN_BRANDS) {
+    if (brand && other === brand) continue;
+    if (new RegExp(`\\b${other}\\b`).test(lead) && (!brand || !lead.includes(brand))) {
+      score -= 5;
+      break;
+    }
+  }
+
+  // Без совпадения модели (cx-5) не считаем страницу полезной, если модель была в запросе
+  const requiredModel = modelIds.some((id) => id.includes("-") || /\d/.test(id));
+  if (requiredModel && !modelHit) {
+    return Math.min(score, 0);
+  }
+
+  if (!brand && !modelHit) {
+    score = tokens.reduce((sum, token) => sum + (hay.includes(token) ? 1 : 0), 0);
+  }
+
+  return score;
 }
 
 type ExtractedDoc = {
@@ -112,6 +265,14 @@ function buildSuggestionFromGroup(
       ? [{ value: item.specs.originCountry, weight: item.weight }]
       : [],
   );
+  const rangeVotes = group.flatMap((item) =>
+    item.specs.batteryRangeKm
+      ? [{ value: item.specs.batteryRangeKm, weight: item.weight }]
+      : [],
+  );
+  const drivetrainVotes = group.flatMap((item) =>
+    item.specs.drivetrain ? [{ value: item.specs.drivetrain, weight: item.weight }] : [],
+  );
 
   const engineKind = (pickVoted(kindVotes) as QuickSearchEngineKind | null) ?? null;
   const isElectric = engineKind === "electric";
@@ -121,6 +282,21 @@ function buildSuggestionFromGroup(
   const volumeCc = isElectric ? null : pickVoted(volumeVotes);
   const icePowerHp = isElectric ? null : pickVoted(icePowerVotes);
   const electricPowerHp = pickVoted(electricPowerVotes);
+  const batteryRangeKm = pickVoted(rangeVotes);
+  const drivetrain = pickVoted(drivetrainVotes) as QuickSearchSuggestion["drivetrain"];
+  const tagVotes = new Map<string, number>();
+  for (const item of group) {
+    for (const tag of item.specs.trimTags ?? []) {
+      tagVotes.set(tag, (tagVotes.get(tag) ?? 0) + item.weight);
+    }
+  }
+  const trimTags =
+    tagVotes.size > 0
+      ? [...tagVotes.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([tag]) => tag)
+      : null;
+
   const resolved = resolveUtilPower({
     engineKind,
     layout: hybridLayout,
@@ -149,6 +325,9 @@ function buildSuggestionFromGroup(
     icePowerHp,
     electricPowerHp,
     volumeCc: engine === "electric" ? null : volumeCc,
+    batteryRangeKm,
+    drivetrain,
+    trimTags,
     price: null,
     currency: null,
     age,
@@ -162,6 +341,8 @@ function trimFingerprint(suggestion: QuickSearchSuggestion): string {
     suggestion.engineKind ?? "unknown",
     suggestion.hybridLayout ?? "-",
     suggestion.volumeCc ?? "-",
+    suggestion.batteryRangeKm ?? "-",
+    suggestion.drivetrain ?? "-",
     suggestion.icePowerHp ?? "-",
     suggestion.electricPowerHp ?? "-",
   ].join("|");
@@ -179,14 +360,86 @@ function trimLabel(suggestion: QuickSearchSuggestion): string {
     const liters = (suggestion.volumeCc / 1000).toFixed(1).replace(".0", "");
     parts.push(`${liters} л`);
   }
+  if (suggestion.batteryRangeKm) parts.push(`${suggestion.batteryRangeKm} km`);
+  if (suggestion.drivetrain === "4wd") parts.push("4WD");
+  if (suggestion.drivetrain === "2wd") parts.push("2WD");
+  if (suggestion.trimTags?.includes("ultra")) parts.push("Ultra");
+  if (suggestion.trimTags?.includes("lidar")) parts.push("LiDAR");
+  for (const tag of suggestion.trimTags ?? []) {
+    if (tag === "ultra" || tag === "lidar") continue;
+    parts.push(tag.charAt(0).toUpperCase() + tag.slice(1));
+  }
   if (suggestion.powerHp) parts.push(`${suggestion.powerHp} л.с.`);
   return parts.join(" · ") || suggestion.title || "Комплектация";
+}
+
+/** Насколько комплектация совпадает с якорями запроса. */
+export function scoreTrimAgainstAnchors(
+  suggestion: QuickSearchSuggestion,
+  textBlob: string,
+  anchors: TrimAnchors,
+): number {
+  const hay = textBlob.toLowerCase();
+  let score = 0;
+
+  if (anchors.batteryRangeKm != null) {
+    const wanted = anchors.batteryRangeKm;
+    const hasWanted =
+      suggestion.batteryRangeKm === wanted ||
+      hay.includes(`${wanted} km`) ||
+      hay.includes(`${wanted}km`) ||
+      hay.includes(`${wanted} км`) ||
+      new RegExp(`续航[^\\d]{0,8}${wanted}`).test(hay);
+    if (hasWanted || suggestion.batteryRangeKm === wanted) {
+      score += 12;
+    } else if (suggestion.batteryRangeKm != null && suggestion.batteryRangeKm !== wanted) {
+      score -= 10;
+    } else {
+      // В тексте есть другой типичный пробег рядом с комплектацией
+      const rival = hay.match(/\b(1[5-9]0|2[0-4]0|2[5-9]0|3[0-5]0)\s*(?:km|км)\b/);
+      if (rival && Number(rival[1]) !== wanted) score -= 6;
+    }
+  }
+
+  if (anchors.drivetrain) {
+    if (suggestion.drivetrain === anchors.drivetrain) score += 4;
+    else if (suggestion.drivetrain && suggestion.drivetrain !== anchors.drivetrain) score -= 3;
+    else if (
+      (anchors.drivetrain === "4wd" && /\b(4wd|awd|四驱)\b/.test(hay)) ||
+      (anchors.drivetrain === "2wd" && /\b(2wd|两驱)\b/.test(hay))
+    ) {
+      score += 3;
+    }
+  }
+
+  for (const tag of anchors.tags) {
+    if (suggestion.trimTags?.includes(tag)) score += 3;
+    else if (tag === "lidar" && (/\blida?r\b/.test(hay) || hay.includes("激光雷达"))) score += 3;
+    else if (tag !== "lidar" && new RegExp(`\\b${tag}\\b`).test(hay)) score += 2;
+  }
+
+  // Полнота полей калькулятора — только tie-breaker
+  if (suggestion.engineKind) score += 1;
+  if (suggestion.powerHp) score += 1;
+  if (suggestion.volumeCc || suggestion.engine === "electric") score += 0.5;
+  if (suggestion.hybridLayout) score += 0.5;
+
+  return score;
+}
+
+export function trimMatchesRequestedRange(
+  suggestion: QuickSearchSuggestion | null,
+  anchors: TrimAnchors,
+): boolean {
+  if (!anchors.batteryRangeKm || !suggestion) return true;
+  return suggestion.batteryRangeKm === anchors.batteryRangeKm;
 }
 
 export function listTrimCandidates(
   docs: SpecDocument[],
   userQuery: string,
 ): SpecTrimCandidate[] {
+  const anchors = parseTrimAnchors(userQuery);
   const extracted = docs.map((doc) => {
     const blob = [doc.title, doc.text].filter(Boolean).join("\n");
     return {
@@ -198,10 +451,16 @@ export function listTrimCandidates(
   });
 
   const bestRelevance = extracted.reduce((max, item) => Math.max(max, item.relevance), 0);
+  // Не берём страницы с relevance ≤ 0 (чужой бренд / без модели) — иначе Mazda тянет Geely PHEV.
+  const matched = extracted.filter((item) => item.relevance > 0);
   const focused =
-    bestRelevance > 0
-      ? extracted.filter((item) => item.relevance >= Math.max(1, bestRelevance - 1))
-      : extracted;
+    matched.length > 0
+      ? matched.filter((item) => item.relevance >= Math.max(1, bestRelevance - 2))
+      : [];
+
+  if (focused.length === 0) {
+    return [];
+  }
 
   const byKind = new Map<string, ExtractedDoc[]>();
   for (const item of focused) {
@@ -209,6 +468,8 @@ export function listTrimCandidates(
       item.specs.engineKind ?? "unknown",
       item.specs.hybridLayout ?? "-",
       item.specs.volumeCc ?? "-",
+      item.specs.batteryRangeKm ?? "-",
+      item.specs.drivetrain ?? "-",
     ].join("|");
     const list = byKind.get(key) ?? [];
     list.push(item);
@@ -222,28 +483,38 @@ export function listTrimCandidates(
     const bestDoc = [...group].sort(
       (a, b) => b.relevance - a.relevance || b.weight - a.weight,
     )[0];
+    const blob = group
+      .map((item) => [item.doc.title, item.doc.text].filter(Boolean).join("\n"))
+      .join("\n");
+    const matchScore = scoreTrimAgainstAnchors(suggestion, blob, anchors);
     candidates.push({
       id: trimFingerprint(suggestion),
       label: trimLabel(suggestion),
       suggestion,
       sourceUrl: bestDoc?.doc.url ?? null,
       sourceTitle: bestDoc?.doc.title ?? null,
+      matchScore,
     });
   }
 
   return candidates
-    .sort((a, b) => {
-      const score = (item: SpecTrimCandidate) => {
-        let value = 0;
-        if (item.suggestion.engineKind) value += 2;
-        if (item.suggestion.powerHp) value += 2;
-        if (item.suggestion.volumeCc || item.suggestion.engine === "electric") value += 1;
-        if (item.suggestion.hybridLayout) value += 1;
-        return value;
-      };
-      return score(b) - score(a);
-    })
+    .sort((a, b) => b.matchScore - a.matchScore || a.label.localeCompare(b.label, "ru"))
     .slice(0, 3);
+}
+
+/** Уникальные типы двигателя среди найденных комплектаций. */
+export function distinctEngineKinds(
+  trims: SpecTrimCandidate[],
+): QuickSearchEngineKind[] {
+  const seen = new Set<QuickSearchEngineKind>();
+  const order: QuickSearchEngineKind[] = [];
+  for (const trim of trims) {
+    const kind = trim.suggestion.engineKind;
+    if (!kind || seen.has(kind)) continue;
+    seen.add(kind);
+    order.push(kind);
+  }
+  return order;
 }
 
 export function assembleSpecSuggestion(
@@ -263,6 +534,10 @@ export function specSummary(suggestion: QuickSearchSuggestion | null, fallback: 
     const liters = (suggestion.volumeCc / 1000).toFixed(1).replace(".0", "");
     parts.push(`ДВС ${liters} л`);
   }
+  if (suggestion.batteryRangeKm) parts.push(`${suggestion.batteryRangeKm} km`);
+  if (suggestion.drivetrain === "4wd") parts.push("4WD");
+  if (suggestion.trimTags?.includes("ultra")) parts.push("Ultra");
+  if (suggestion.trimTags?.includes("lidar")) parts.push("LiDAR");
   if (suggestion.hybridLayout === "parallel" && suggestion.icePowerHp && suggestion.electricPowerHp) {
     parts.push(
       `параллельный: ${suggestion.icePowerHp} + ${suggestion.electricPowerHp} = ${suggestion.powerHp} л.с.`,
@@ -277,4 +552,43 @@ export function specSummary(suggestion: QuickSearchSuggestion | null, fallback: 
     );
   }
   return parts.join(" · ") || fallback;
+}
+
+/** Краткий вывод с предупреждением, если запрошенный пробег не найден. */
+export function buildSearchSummary(
+  trims: SpecTrimCandidate[],
+  suggestion: QuickSearchSuggestion | null,
+  userQuery: string,
+  fallback: string,
+): string {
+  const anchors = parseTrimAnchors(userQuery);
+  const exactRange = anchors.batteryRangeKm
+    ? trims.some((item) => item.suggestion.batteryRangeKm === anchors.batteryRangeKm)
+    : true;
+  const exactMatch =
+    trims.length > 0 &&
+    (!anchors.batteryRangeKm || exactRange) &&
+    trims[0]!.matchScore >= (anchors.batteryRangeKm ? 8 : 0);
+
+  const kinds = distinctEngineKinds(trims);
+  if (kinds.length > 1) {
+    return "В источниках разные типы двигателя. Уточните тип — затем можно выбрать комплектацию.";
+  }
+
+  if (anchors.batteryRangeKm && !exactRange) {
+    const rivals = trims
+      .map((item) => item.suggestion.batteryRangeKm)
+      .filter((value): value is number => value != null && value !== anchors.batteryRangeKm);
+    const rivalText = rivals.length > 0 ? ` (в т.ч. ${[...new Set(rivals)].join(", ")} km)` : "";
+    return `Комплектация ${anchors.batteryRangeKm} km в источниках не найдена; ниже близкие варианты${rivalText}. Проверьте выбор перед переносом.`;
+  }
+
+  if (trims.length > 1) {
+    if (exactMatch && anchors.batteryRangeKm) {
+      return `Найдено комплектаций: ${trims.length}. Первой стоит ближайшая к запросу (${anchors.batteryRangeKm} km${anchors.drivetrain ? `, ${anchors.drivetrain.toUpperCase()}` : ""}).`;
+    }
+    return `Найдено комплектаций: ${trims.length}. Выберите нужную — от этого зависят объём и мощность.`;
+  }
+
+  return specSummary(suggestion, fallback);
 }
