@@ -125,6 +125,15 @@ export const api = {
       }),
   },
 
+  company: {
+    get: () => request<{ id: string; name: string; slug: string }>("/api/company"),
+    updateName: (name: string) =>
+      request<{ id: string; name: string; slug: string }>("/api/company", {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      }),
+  },
+
   dashboard: {
     get: (managerId?: string) => {
       const query = managerId ? `?managerId=${encodeURIComponent(managerId)}` : "";

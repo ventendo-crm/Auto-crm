@@ -189,6 +189,12 @@ export function ManagersPanel({
                   <p className="mt-1 text-xs text-muted-foreground">
                     Добавлен: {formatDateTime(manager.createdAt)}
                   </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Вход:{" "}
+                    {manager.lastLoginAt
+                      ? formatDateTime(manager.lastLoginAt)
+                      : "ещё не входил"}
+                  </p>
                 </div>
 
                 <div className="flex items-center justify-between gap-3 sm:flex-col sm:items-end">
@@ -228,6 +234,10 @@ export function ManagersPanel({
                       <span className="font-medium">{user.name}</span>
                       <span className="mx-2 text-muted-foreground">·</span>
                       <span className="text-muted-foreground">{user.email}</span>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
+                        Вход:{" "}
+                        {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "ещё не входил"}
+                      </p>
                     </div>
                     <Badge variant="secondary">{roleLabel(user.role.name)}</Badge>
                   </div>

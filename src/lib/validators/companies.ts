@@ -23,6 +23,11 @@ export const createCompanySchema = z.object({
     .max(72, "Пароль ADMIN: максимум 72 символа"),
 });
 
+/** Админ компании меняет только отображаемое название; slug (логин) не трогаем. */
+export const updateCompanyNameSchema = z.object({
+  name: z.string().trim().min(2, "Укажите название компании").max(120),
+});
+
 export const connectTelegramBotSchema = z.object({
   token: z.string().trim().min(20).max(200),
   defaultChatId: z.string().trim().max(64).optional().nullable(),
