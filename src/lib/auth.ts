@@ -149,8 +149,14 @@ export async function authenticateUser(
       email: normalizedEmail,
       ...(companySlug ? { company: { slug: companySlug } } : {}),
     },
-    include: {
-      role: true,
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      passwordHash: true,
+      companyId: true,
+      isPlatformAdmin: true,
+      role: { select: { name: true } },
       company: { select: { id: true, slug: true } },
     },
   });

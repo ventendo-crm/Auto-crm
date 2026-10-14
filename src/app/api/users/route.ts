@@ -4,11 +4,14 @@ import { prisma } from "@/lib/prisma";
 import { canManageManagers, canManageUsers, ROLES } from "@/lib/permissions";
 import { createUser, mapUserListItem, userListSelect } from "@/lib/services/users";
 import { serialize } from "@/lib/serialize";
+import { ensureUserLastLoginAtColumn } from "@/lib/user-last-login";
 import { createManagerSchema, createUserSchema } from "@/lib/validators/user";
 
 export const GET = withAuth(async (_request, { user }) => {
   const isAdmin = canManageUsers(user.role);
   assertAllowed(isAdmin || canManageManagers(user.role));
+
+  await ensureUserLastLoginAtColumn();
 
   const users = await prisma.user.findMany({
     where: {

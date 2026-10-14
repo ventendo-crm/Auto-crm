@@ -4,6 +4,7 @@ import { error, ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { isRoleName } from "@/lib/permissions";
 import { serialize } from "@/lib/serialize";
+import { recordUserLastLogin } from "@/lib/user-last-login";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -43,8 +44,15 @@ export const POST = withAuth(async (request, { user }) => {
 
   const target = await prisma.user.findUnique({
     where: { id: body.userId },
-    include: {
-      role: true,
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      telegramChatId: true,
+      createdAt: true,
+      companyId: true,
+      isPlatformAdmin: true,
+      role: { select: { id: true, name: true } },
       company: { select: { id: true, name: true, slug: true } },
     },
   });
@@ -57,11 +65,7 @@ export const POST = withAuth(async (request, { user }) => {
     return error("Некорректная роль профиля", 500);
   }
 
-  const lastLoginAt = new Date();
-  await prisma.user.update({
-    where: { id: target.id },
-    data: { lastLoginAt },
-  });
+  const lastLoginAt = await recordUserLastLogin(target.id);
 
   const token = await createSessionToken({
     id: target.id,
