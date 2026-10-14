@@ -3,21 +3,7 @@ import { AuthError, createSessionToken, getAuthCookieOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma";
 import { isRoleName } from "@/lib/permissions";
 import { serialize } from "@/lib/serialize";
-import { recordUserLastLogin } from "@/lib/user-last-login";
 import bcrypt from "bcryptjs";
-
-const loginUserSelect = {
-  id: true,
-  name: true,
-  email: true,
-  passwordHash: true,
-  companyId: true,
-  isPlatformAdmin: true,
-  telegramChatId: true,
-  createdAt: true,
-  role: { select: { id: true, name: true } },
-  company: { select: { id: true, name: true, slug: true } },
-} as const;
 
 export async function POST(req: Request) {
   try {
@@ -31,7 +17,10 @@ export async function POST(req: Request) {
         email: normalizedEmail,
         ...(companySlug ? { company: { slug: String(companySlug).trim() } } : {}),
       },
-      select: loginUserSelect,
+      include: {
+        role: true,
+        company: { select: { id: true, name: true, slug: true } },
+      },
     });
 
     if (users.length === 0) {
@@ -84,7 +73,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const lastLoginAt = await recordUserLastLogin(user.id);
+    const lastLoginAt = new Date();
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { lastLoginAt },
+    });
 
     const token = await createSessionToken({
       id: user.id,
