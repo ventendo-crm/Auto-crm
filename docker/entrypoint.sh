@@ -30,12 +30,6 @@ if [ -f ./prisma/ensure-password-reset-token.sql ]; then
     || echo "[auto-crm] Password reset token ensure failed — continuing"
 fi
 
-echo "[auto-crm] Ensuring user lastLoginAt column..."
-if [ -f ./prisma/ensure-user-last-login-at.sql ]; then
-  run_as_nextjs npx prisma db execute --file ./prisma/ensure-user-last-login-at.sql --schema ./prisma/schema.prisma \
-    || echo "[auto-crm] User lastLoginAt ensure failed — continuing"
-fi
-
 echo "[auto-crm] Ensuring company calculator settings table..."
 if [ -f ./prisma/ensure-company-calculator-settings.sql ]; then
   run_as_nextjs npx prisma db execute --file ./prisma/ensure-company-calculator-settings.sql --schema ./prisma/schema.prisma \
