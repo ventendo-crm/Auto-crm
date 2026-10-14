@@ -73,12 +73,6 @@ export async function POST(req: Request) {
       );
     }
 
-    const lastLoginAt = new Date();
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt },
-    });
-
     const token = await createSessionToken({
       id: user.id,
       email: user.email,
@@ -94,7 +88,6 @@ export async function POST(req: Request) {
       email: user.email,
       telegramChatId: user.telegramChatId,
       createdAt: user.createdAt,
-      lastLoginAt,
       companyId: user.companyId,
       isPlatformAdmin: user.isPlatformAdmin,
       company: user.company,

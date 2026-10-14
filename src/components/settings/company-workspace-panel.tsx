@@ -10,7 +10,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useAuth } from "@/hooks/use-auth";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { api } from "@/lib/api-client";
 import { getDefaultCompanyWorkspace } from "@/lib/company-workspace/defaults";
@@ -53,25 +52,16 @@ function newId(prefix: string) {
 }
 
 export function CompanyWorkspacePanel() {
-  const { refresh: refreshAuth } = useAuth();
   const { applyLocal } = useCompanyWorkspace();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingName, setSavingName] = useState(false);
-  const [companyName, setCompanyName] = useState("");
-  const [companySlug, setCompanySlug] = useState("");
   const [form, setForm] = useState<ResolvedCompanyWorkspace>(getDefaultCompanyWorkspace);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [data, company] = await Promise.all([
-        api.companyWorkspace.get(),
-        api.company.get(),
-      ]);
+      const data = await api.companyWorkspace.get();
       applyLocal(data);
-      setCompanyName(company.name);
-      setCompanySlug(company.slug);
       setForm({
         stageLabels: data.stageLabels,
         clientVisibleStages: data.clientVisibleStages,
@@ -89,25 +79,6 @@ export function CompanyWorkspacePanel() {
       setLoading(false);
     }
   }, [applyLocal]);
-
-  const handleSaveName = async () => {
-    const trimmed = companyName.trim();
-    if (trimmed.length < 2) {
-      toast.error("Укажите название компании");
-      return;
-    }
-    setSavingName(true);
-    try {
-      const saved = await api.company.updateName(trimmed);
-      setCompanyName(saved.name);
-      await refreshAuth();
-      toast.success("Название компании сохранено");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Не удалось сохранить название");
-    } finally {
-      setSavingName(false);
-    }
-  };
 
   useEffect(() => {
     void load();
@@ -177,44 +148,6 @@ export function CompanyWorkspacePanel() {
 
   return (
     <div className="space-y-4">
-      <Card className="border-0 shadow-card">
-        <CardHeader>
-          <CardTitle className="text-base">Название компании</CardTitle>
-          <CardDescription>
-            Отображается сотрудникам в меню аккаунта и в клиентских материалах. Служебный код
-            (slug) для входа не меняется.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="space-y-2">
-            <Label htmlFor="company-display-name">Название</Label>
-            <Input
-              id="company-display-name"
-              value={companyName}
-              onChange={(event) => setCompanyName(event.target.value)}
-              placeholder="Название компании"
-              maxLength={120}
-              disabled={savingName}
-            />
-          </div>
-          {companySlug ? (
-            <p className="text-xs text-muted-foreground">
-              Код для входа (slug): <span className="font-medium text-foreground">{companySlug}</span>
-            </p>
-          ) : null}
-          <Button
-            type="button"
-            variant="brand"
-            size="sm"
-            disabled={savingName || companyName.trim().length < 2}
-            onClick={() => void handleSaveName()}
-          >
-            {savingName ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Сохранить название
-          </Button>
-        </CardContent>
-      </Card>
-
       <Card className="border-0 shadow-card">
         <CardHeader>
           <CardTitle className="text-base">Модули</CardTitle>

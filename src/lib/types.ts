@@ -18,8 +18,6 @@ export interface User {
   email: string;
   telegramChatId?: string | null;
   createdAt: string;
-  /** Последний успешный вход; null — ещё не входил после появления поля. */
-  lastLoginAt?: string | null;
   companyId?: string;
   isPlatformAdmin?: boolean;
   company?: { id: string; name: string; slug: string } | null;

@@ -1,7 +1,6 @@
 import { hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ROLES } from "@/lib/permissions";
-import { createAuditLog } from "@/lib/services/audit";
 import { ensureClientStageMessages } from "@/lib/services/client-stage-messages";
 import { ensureCompanyCalculatorSettings } from "@/lib/services/company-calculator-settings";
 import { ensureCompanyAppearanceSettings } from "@/lib/services/company-appearance";
@@ -139,40 +138,6 @@ export async function createCompanyWithAdmin(params: {
       _count: { select: { users: true, deals: true } },
     },
   });
-}
-
-export async function updateCompanyName(params: {
-  companyId: string;
-  actorId: string;
-  name: string;
-}) {
-  const name = params.name.trim();
-  const existing = await prisma.company.findUniqueOrThrow({
-    where: { id: params.companyId },
-    select: { id: true, name: true, slug: true },
-  });
-
-  if (existing.name === name) {
-    return existing;
-  }
-
-  const updated = await prisma.company.update({
-    where: { id: params.companyId },
-    data: { name },
-    select: { id: true, name: true, slug: true },
-  });
-
-  await createAuditLog({
-    userId: params.actorId,
-    companyId: params.companyId,
-    entity: "Company",
-    entityId: params.companyId,
-    action: "UPDATE",
-    oldValue: { name: existing.name },
-    newValue: { name: updated.name },
-  });
-
-  return updated;
 }
 
 export function serializeCompanyBotSettings(company: {

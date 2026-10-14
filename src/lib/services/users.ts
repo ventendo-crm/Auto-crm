@@ -98,7 +98,6 @@ export const userListSelect = {
   email: true,
   telegramChatId: true,
   createdAt: true,
-  lastLoginAt: true,
   role: { select: { id: true, name: true } },
   clientDeal: { select: { id: true, clientName: true } },
   _count: { select: { dealManagerAssignments: true } },

@@ -57,12 +57,6 @@ export const POST = withAuth(async (request, { user }) => {
     return error("Некорректная роль профиля", 500);
   }
 
-  const lastLoginAt = new Date();
-  await prisma.user.update({
-    where: { id: target.id },
-    data: { lastLoginAt },
-  });
-
   const token = await createSessionToken({
     id: target.id,
     email: target.email,
@@ -78,7 +72,6 @@ export const POST = withAuth(async (request, { user }) => {
     email: target.email,
     telegramChatId: target.telegramChatId,
     createdAt: target.createdAt,
-    lastLoginAt,
     companyId: target.companyId,
     isPlatformAdmin: target.isPlatformAdmin,
     company: target.company,

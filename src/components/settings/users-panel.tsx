@@ -218,12 +218,6 @@ export function UsersPanel() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     Добавлен: {formatDateTime(user.createdAt)}
                   </p>
-                  {user.role.name !== "CLIENT" && (
-                    <p className="mt-0.5 text-xs text-muted-foreground">
-                      Вход:{" "}
-                      {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : "ещё не входил"}
-                    </p>
-                  )}
                   {user.clientDeal && (
                     <p className="mt-1 text-xs text-muted-foreground">
                       Личный кабинет: {user.clientDeal.clientName}
