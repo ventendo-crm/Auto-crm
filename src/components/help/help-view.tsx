@@ -1,6 +1,7 @@
 "use client";
 
 import { BookOpen, MessageSquarePlus, Search } from "lucide-react";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { HelpFeedbackForm } from "@/components/help/help-feedback-form";
 import { HelpMarkdown } from "@/components/help/help-markdown";
@@ -17,12 +18,25 @@ import { cn } from "@/lib/utils";
 const FEEDBACK_ID = "__feedback__";
 
 export function HelpView() {
+  const searchParams = useSearchParams();
+  const articleFromQuery = searchParams.get("article")?.trim() ?? "";
+  const initialArticleId =
+    (articleFromQuery && getHelpArticle(articleFromQuery)?.id) ||
+    HELP_ARTICLES[0]?.id ||
+    FEEDBACK_ID;
+
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState(HELP_ARTICLES[0]?.id ?? FEEDBACK_ID);
+  const [selectedId, setSelectedId] = useState(initialArticleId);
   const showFeedback = selectedId === FEEDBACK_ID;
 
   const filtered = useMemo(() => searchHelpArticles(query), [query]);
   const groups = useMemo(() => groupHelpArticlesByCategory(filtered), [filtered]);
+
+  useEffect(() => {
+    if (!articleFromQuery) return;
+    const article = getHelpArticle(articleFromQuery);
+    if (article) setSelectedId(article.id);
+  }, [articleFromQuery]);
 
   useEffect(() => {
     if (showFeedback) return;

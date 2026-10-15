@@ -1,6 +1,7 @@
 "use client";
 
 import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, Pencil, RefreshCw, Share2, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   useEffect,
@@ -1720,6 +1721,18 @@ export function CustomsCalculator({
                     ))}
                   </SelectContent>
                 </Select>
+                <FieldHint>
+                  Гибрид: параллельный / PHEV / HEV — мощность ДВС + 30‑минутная мощность
+                  электромотора(ов), тип «Бензин / Дизель». Последовательный (EREV) — только
+                  30‑минутная мощность, тип «Электро и последовательный гибрид». Берите цифры из
+                  ОТТС / СБКТС / ЭПТС, не пиковую и не рекламную.{" "}
+                  <Link
+                    href="/help?article=calculator-hybrid-recycling"
+                    className="font-medium text-brand underline-offset-2 hover:underline"
+                  >
+                    Подробнее в Помощи
+                  </Link>
+                </FieldHint>
               </div>
             </div>
 
