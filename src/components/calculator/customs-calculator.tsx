@@ -1,6 +1,6 @@
 "use client";
 
-import { Calculator as CalculatorIcon, FileDown, ImageDown, Loader2, Pencil, RefreshCw, Share2, X } from "lucide-react";
+import { Calculator as CalculatorIcon, CircleHelp, FileDown, ImageDown, Loader2, Pencil, RefreshCw, Share2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -27,6 +27,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -1705,7 +1706,37 @@ export function CustomsCalculator({
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Тип двигателя</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label>Тип двигателя</Label>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        aria-label="Как считать утильсбор для гибридов"
+                      >
+                        <CircleHelp className="h-4 w-4" />
+                      </button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-md">
+                      <DialogHeader>
+                        <DialogTitle>Утильсбор для гибридов</DialogTitle>
+                        <DialogDescription className="text-left leading-relaxed">
+                          Гибрид: параллельный / PHEV / HEV — мощность ДВС + 30‑минутная мощность
+                          электромотора(ов), тип «Бензин / Дизель». Последовательный (EREV) — только
+                          30‑минутная мощность, тип «Электро и последовательный гибрид». Берите цифры
+                          из ОТТС / СБКТС / ЭПТС, не пиковую и не рекламную.{" "}
+                          <Link
+                            href="/help?article=calculator-hybrid-recycling"
+                            className="font-medium text-brand underline-offset-2 hover:underline"
+                          >
+                            Подробнее в Помощи
+                          </Link>
+                        </DialogDescription>
+                      </DialogHeader>
+                    </DialogContent>
+                  </Dialog>
+                </div>
                 <Select
                   value={normalizeEngine(engine)}
                   onValueChange={(value) => setEngine(value as EngineType)}
@@ -1721,18 +1752,6 @@ export function CustomsCalculator({
                     ))}
                   </SelectContent>
                 </Select>
-                <FieldHint>
-                  Гибрид: параллельный / PHEV / HEV — мощность ДВС + 30‑минутная мощность
-                  электромотора(ов), тип «Бензин / Дизель». Последовательный (EREV) — только
-                  30‑минутная мощность, тип «Электро и последовательный гибрид». Берите цифры из
-                  ОТТС / СБКТС / ЭПТС, не пиковую и не рекламную.{" "}
-                  <Link
-                    href="/help?article=calculator-hybrid-recycling"
-                    className="font-medium text-brand underline-offset-2 hover:underline"
-                  >
-                    Подробнее в Помощи
-                  </Link>
-                </FieldHint>
               </div>
             </div>
 
