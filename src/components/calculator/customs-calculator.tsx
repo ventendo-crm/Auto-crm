@@ -1320,6 +1320,8 @@ export function CustomsCalculator({
 
   const applyHistoryItem = (item: CalculatorHistoryItem) => {
     applyScenario(item);
+    // Расчёты до галочки не хранили год и считались по ставкам 2026.
+    setRecyclingFee2027(item.recyclingFee2027 === true);
     setRates(item.rates);
     setRatesUpdatedAt(item.ratesUpdatedAt);
     setSubmitted(true);
@@ -1886,9 +1888,11 @@ export function CustomsCalculator({
               <span className="min-w-0 flex-1">
                 <span className="text-sm font-medium leading-snug">По ставкам 2027 года</span>
                 <FieldHint>
-                  Коммерческий утильсбор считается по коэффициентам с 1 января 2027 года. Льготный
-                  сбор для физлица не меняется: 3 400 ₽ для нового авто и до 3 лет, 5 200 ₽ для
-                  старше. Пошлина, акциз, НДС и таможенный сбор остаются по ставкам 2026 года.
+                  {recyclingFee2027
+                    ? "Коммерческий утильсбор считается по коэффициентам с 1 января 2027 года."
+                    : "Сейчас утильсбор по ставкам 2026 года. Включите, чтобы посчитать коммерческий сбор по коэффициентам 2027 года."}{" "}
+                  Льготный сбор для физлица не меняется: 3 400 ₽ для нового авто и до 3 лет, 5 200 ₽
+                  для старше. Пошлина, акциз, НДС и таможенный сбор остаются по ставкам 2026 года.
                 </FieldHint>
               </span>
             </label>
