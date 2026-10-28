@@ -17,6 +17,7 @@ import {
   MediaItem,
   NotificationItem,
   Paginated,
+  PreparationReminderSettings,
   ReminderItem,
   Role,
   ImportProcessEntry,
@@ -1023,6 +1024,13 @@ export const api = {
     disconnectBot: () =>
       request<CompanyTelegramBotSettings>("/api/telegram/bot-settings", {
         method: "DELETE",
+      }),
+    getPreparationReminders: () =>
+      request<PreparationReminderSettings>("/api/telegram/preparation-reminders"),
+    savePreparationReminders: (data: PreparationReminderSettings) =>
+      request<PreparationReminderSettings>("/api/telegram/preparation-reminders", {
+        method: "PUT",
+        body: JSON.stringify(data),
       }),
     listTemplates: () => request<TelegramTemplateItem[]>("/api/telegram/templates"),
     updateTemplate: (key: string, data: { textBody: string }) =>

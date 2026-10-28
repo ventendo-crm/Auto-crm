@@ -22,6 +22,7 @@ import { CompaniesPanel } from "@/components/settings/companies-panel";
 import { CompanyWorkspacePanel } from "@/components/settings/company-workspace-panel";
 import { EmailTemplatesPanel } from "@/components/settings/email-templates-panel";
 import { GoogleCalendarSettingsCard } from "@/components/settings/google-calendar-settings-card";
+import { PreparationReminderSettingsCard } from "@/components/settings/preparation-reminder-settings-card";
 import { TelegramBotSettingsCard } from "@/components/settings/telegram-bot-settings-card";
 import { TelegramTemplatesPanel } from "@/components/settings/telegram-templates-panel";
 import { Header } from "@/components/layout/header";
@@ -221,6 +222,7 @@ function SettingsViewInner() {
           {isAdmin && (
             <TabsContent value="telegram" className="mt-4 space-y-4">
               <TelegramBotSettingsCard />
+              <PreparationReminderSettingsCard />
               <TelegramTemplatesPanel />
             </TabsContent>
           )}
