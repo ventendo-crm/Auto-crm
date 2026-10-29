@@ -1,4 +1,4 @@
-import { DealStageType } from "@prisma/client";
+import type { DealStageType } from "@prisma/client";
 import {
   ApiResponse,
   AuthProfile,
@@ -31,9 +31,9 @@ import {
   StageHistoryItem,
   User,
 } from "@/lib/types";
-import { DealActivityItem } from "@/lib/services/deal-activity";
-import { AdditionalOptionGroupState } from "@/lib/services/additional-options";
-import { DealExpenseItem } from "@/lib/services/deal-expenses";
+import type { DealActivityItem } from "@/lib/services/deal-activity";
+import type { AdditionalOptionGroupState } from "@/lib/services/additional-options";
+import type { DealExpenseItem } from "@/lib/services/deal-expenses";
 
 export class ApiRequestError extends Error {
   constructor(

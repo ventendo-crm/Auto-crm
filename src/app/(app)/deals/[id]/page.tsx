@@ -34,7 +34,7 @@ import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { useScrollToTabPanel } from "@/hooks/use-scroll-to-tab-panel";
 import { api } from "@/lib/api-client";
 import { canClearDealHistory, canManageDealClient, canManageDealExpenses, canManageDealReminders, canUploadDealDocuments, canViewDealFinances, getClientRoleName } from "@/lib/permissions";
-import { DealActivityItem } from "@/lib/services/deal-activity";
+import type { DealActivityItem } from "@/lib/services/deal-activity";
 import { DealDetail } from "@/lib/types";
 
 export default function DealPage() {

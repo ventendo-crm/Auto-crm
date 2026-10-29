@@ -1,5 +1,9 @@
-import { DealExpenseItem, sumDealExpenses } from "@/lib/services/deal-expenses";
+import type { DealExpenseItem } from "@/lib/services/deal-expenses";
 import { DealFinancialSummary } from "@/lib/types";
+
+function sumDealExpenses(expenses: DealExpenseItem[]): number {
+  return expenses.reduce((total, item) => total + item.amount, 0);
+}
 
 function toNumber(value: number | null | undefined): number {
   if (value === null || value === undefined) return 0;

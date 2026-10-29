@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { api } from "@/lib/api-client";
-import { DealExpenseItem } from "@/lib/services/deal-expenses";
+import type { DealExpenseItem } from "@/lib/services/deal-expenses";
 import { formatCurrency } from "@/lib/utils";
 
 interface ExpenseRow {

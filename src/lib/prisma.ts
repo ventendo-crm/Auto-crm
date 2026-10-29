@@ -1,3 +1,4 @@
+import "server-only";
 import { PrismaClient } from "@prisma/client";
 
 // Увеличивайте при изменении prisma/schema.prisma, чтобы dev-сервер подхватил новый клиент.

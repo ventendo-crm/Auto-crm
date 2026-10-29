@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { api } from "@/lib/api-client";
-import { AdditionalOptionGroupState } from "@/lib/services/additional-options";
+import type { AdditionalOptionGroupState } from "@/lib/services/additional-options";
 
 interface DealOverviewSummaryProps {
   dealId: string;
