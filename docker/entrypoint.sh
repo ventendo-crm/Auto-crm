@@ -81,6 +81,12 @@ if command -v npx >/dev/null 2>&1; then
   fi
 fi
 
+echo "[auto-crm] Ensuring deal stage reminder columns..."
+if [ -f ./prisma/ensure-stage-reminders.sql ]; then
+  run_as_nextjs npx prisma db execute --file ./prisma/ensure-stage-reminders.sql --schema ./prisma/schema.prisma \
+    || echo "[auto-crm] Stage reminder columns ensure failed — continuing"
+fi
+
 echo "[auto-crm] Ensuring default roles..."
 if [ -f ./prisma/ensure-roles.sql ]; then
   run_as_nextjs npx prisma db execute --file ./prisma/ensure-roles.sql --schema ./prisma/schema.prisma \
