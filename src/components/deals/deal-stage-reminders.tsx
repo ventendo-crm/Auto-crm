@@ -13,12 +13,17 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { api } from "@/lib/api-client";
 import {
+  DEFAULT_STAGE_REMINDER_TIME,
+  DEFAULT_STAGE_REMINDER_TIMEZONE,
   formatReminderMoment,
   isStageReminderStage,
+  parseStageReminderSendTime,
   STAGE_REMINDER_INTERVAL_PRESETS,
   STAGE_REMINDER_MAX_DAYS,
   STAGE_REMINDER_MIN_DAYS,
   STAGE_REMINDER_STAGES,
+  STAGE_REMINDER_TIMEZONES,
+  stageReminderTimeZoneLabel,
 } from "@/lib/preparation-reminders/message";
 import { DealStageReminderSettings } from "@/lib/types";
 
@@ -43,11 +48,15 @@ export function DealStageReminders({ dealId, currentStage, canManage = false }: 
   const [enabled, setEnabled] = useState(false);
   const [intervalChoice, setIntervalChoice] = useState<string>("1");
   const [customDays, setCustomDays] = useState("4");
+  const [sendTime, setSendTime] = useState(DEFAULT_STAGE_REMINDER_TIME);
+  const [timeZone, setTimeZone] = useState<string>(DEFAULT_STAGE_REMINDER_TIMEZONE);
   const [saved, setSaved] = useState<DealStageReminderSettings | null>(null);
 
   const apply = useCallback((data: DealStageReminderSettings) => {
     setSaved(data);
     setEnabled(data.enabled);
+    setSendTime(data.sendTime || DEFAULT_STAGE_REMINDER_TIME);
+    setTimeZone(data.timeZone || DEFAULT_STAGE_REMINDER_TIMEZONE);
     if ((STAGE_REMINDER_INTERVAL_PRESETS as readonly number[]).includes(data.intervalDays)) {
       setIntervalChoice(String(data.intervalDays));
     } else {
@@ -86,11 +95,17 @@ export function DealStageReminders({ dealId, currentStage, canManage = false }: 
       toast.error(`Интервал — целое число дней от ${STAGE_REMINDER_MIN_DAYS} до ${STAGE_REMINDER_MAX_DAYS}`);
       return;
     }
+    if (!parseStageReminderSendTime(sendTime)) {
+      toast.error("Укажите время отправки");
+      return;
+    }
     setSaving(true);
     try {
       const updated = await api.deals.saveStageReminder(dealId, {
         enabled,
         intervalDays,
+        sendTime,
+        timeZone,
       });
       apply(updated);
       toast.success("Напоминания сохранены");
@@ -136,6 +151,35 @@ export function DealStageReminders({ dealId, currentStage, canManage = false }: 
               </span>
             </label>
 
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor={`reminder-time-${dealId}`}>Время отправки</Label>
+                <Input
+                  id={`reminder-time-${dealId}`}
+                  type="time"
+                  step={60}
+                  value={sendTime}
+                  disabled={!canManage || saving}
+                  onChange={(event) => setSendTime(event.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Часовой пояс</Label>
+                <Select value={timeZone} disabled={!canManage || saving} onValueChange={setTimeZone}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {STAGE_REMINDER_TIMEZONES.map((zone) => (
+                      <SelectItem key={zone.id} value={zone.id}>
+                        {zone.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
             <div className="space-y-2">
               <Label>Периодичность напоминаний</Label>
               <Select
@@ -171,7 +215,7 @@ export function DealStageReminders({ dealId, currentStage, canManage = false }: 
 
             <p className="text-sm text-muted-foreground">
               {saved.nextAt && isStageReminderStage(currentStage) && saved.enabled
-                ? `Следующее напоминание: ${formatReminderMoment(new Date(saved.nextAt))} МСК`
+                ? `Следующее напоминание: ${formatReminderMoment(new Date(saved.nextAt), saved.timeZone)}, ${stageReminderTimeZoneLabel(saved.timeZone)}`
                 : enabled
                   ? `На этом этапе напоминания не отправляются. Они начнутся после перехода на ${stageNames}.`
                   : "Следующее напоминание не запланировано."}

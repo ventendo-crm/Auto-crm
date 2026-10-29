@@ -2,40 +2,69 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DealStageType } from "@prisma/client";
 import {
-  addReminderDays,
+  advanceStageReminderSchedule,
   computeStageReminderNextAt,
   isStageReminderDue,
   renderStageReminderMessage,
+  scheduleStageReminderAt,
 } from "@/lib/preparation-reminders/message";
 
-const now = new Date("2026-10-29T12:00:00.000Z");
+const eveningMoscow = new Date("2026-10-29T19:50:00.000Z");
 
-test("новое включение на Таможне планирует срок через выбранные дни", () => {
-  const nextAt = computeStageReminderNextAt({
-    enabled: true,
+test("каждые 3 дня в 10:00 по Москве — 1 ноября 10:00", () => {
+  const nextAt = scheduleStageReminderAt({
+    now: eveningMoscow,
     intervalDays: 3,
-    stage: DealStageType.CUSTOMS,
-    now,
-    previous: { enabled: false, intervalDays: 1, nextAt: null },
+    sendTime: "10:00",
+    timeZone: "Europe/Moscow",
   });
-  assert.equal(nextAt?.toISOString(), addReminderDays(now, 3).toISOString());
+  assert.equal(nextAt.toISOString(), "2026-11-01T07:00:00.000Z");
 });
 
-test("Подготовка и Транспортировка планируются так же", () => {
-  for (const stage of [DealStageType.PREPARATION, DealStageType.TRANSPORT]) {
+test("каждый день в 10:00 после этого часа — завтра", () => {
+  const nextAt = scheduleStageReminderAt({
+    now: eveningMoscow,
+    intervalDays: 1,
+    sendTime: "10:00",
+    timeZone: "Europe/Moscow",
+  });
+  assert.equal(nextAt.toISOString(), "2026-10-30T07:00:00.000Z");
+  assert.equal(isStageReminderDue(nextAt, eveningMoscow), false);
+});
+
+test("каждый день, если выбранное время сегодня ещё впереди", () => {
+  const nextAt = scheduleStageReminderAt({
+    now: eveningMoscow,
+    intervalDays: 1,
+    sendTime: "23:30",
+    timeZone: "Europe/Moscow",
+  });
+  assert.equal(nextAt.toISOString(), "2026-10-29T20:30:00.000Z");
+});
+
+test("то же время в Самаре на час раньше по UTC, чем в Москве", () => {
+  const nextAt = scheduleStageReminderAt({
+    now: new Date("2026-10-29T18:50:00.000Z"),
+    intervalDays: 3,
+    sendTime: "10:00",
+    timeZone: "Europe/Samara",
+  });
+  assert.equal(nextAt.toISOString(), "2026-11-01T06:00:00.000Z");
+});
+
+test("Подготовка и Транспортировка планируются так же, на других этапах срок не ставится", () => {
+  for (const stage of [DealStageType.PREPARATION, DealStageType.TRANSPORT, DealStageType.CUSTOMS]) {
     const nextAt = computeStageReminderNextAt({
       enabled: true,
       intervalDays: 1,
+      sendTime: "10:00",
+      timeZone: "Europe/Moscow",
       stage,
-      now,
+      now: eveningMoscow,
     });
-    assert.ok(nextAt);
-    assert.equal(isStageReminderDue(nextAt, now), false);
-    assert.equal(isStageReminderDue(nextAt, addReminderDays(now, 1)), true);
+    assert.equal(nextAt?.toISOString(), "2026-10-30T07:00:00.000Z");
   }
-});
 
-test("на других этапах срок не ставится", () => {
   for (const stage of [
     DealStageType.LEADS,
     DealStageType.SEARCH,
@@ -46,9 +75,10 @@ test("на других этапах срок не ставится", () => {
       computeStageReminderNextAt({
         enabled: true,
         intervalDays: 1,
+        sendTime: "10:00",
+        timeZone: "Europe/Moscow",
         stage,
-        now,
-        previous: { enabled: true, intervalDays: 1, nextAt: addReminderDays(now, 1) },
+        now: eveningMoscow,
       }),
       null,
     );
@@ -60,36 +90,87 @@ test("выключенные напоминания не планируются"
     computeStageReminderNextAt({
       enabled: false,
       intervalDays: 2,
+      sendTime: "10:00",
+      timeZone: "Europe/Moscow",
       stage: DealStageType.CUSTOMS,
-      now,
-      previous: { enabled: true, intervalDays: 2, nextAt: addReminderDays(now, 2) },
+      now: eveningMoscow,
+      previous: {
+        enabled: true,
+        intervalDays: 2,
+        sendTime: "10:00",
+        timeZone: "Europe/Moscow",
+        nextAt: new Date("2026-11-01T07:00:00.000Z"),
+      },
     }),
     null,
   );
 });
 
-test("смена периодичности пересчитывает следующий срок", () => {
-  const previousNext = addReminderDays(now, 7);
-  const nextAt = computeStageReminderNextAt({
+test("смена времени или пояса пересчитывает срок, повторное сохранение — нет", () => {
+  const previousNext = new Date("2026-11-01T07:00:00.000Z");
+  const same = computeStageReminderNextAt({
     enabled: true,
-    intervalDays: 2,
-    stage: DealStageType.TRANSPORT,
-    now,
-    previous: { enabled: true, intervalDays: 7, nextAt: previousNext },
+    intervalDays: 3,
+    sendTime: "10:00",
+    timeZone: "Europe/Moscow",
+    stage: DealStageType.CUSTOMS,
+    now: eveningMoscow,
+    previous: {
+      enabled: true,
+      intervalDays: 3,
+      sendTime: "10:00",
+      timeZone: "Europe/Moscow",
+      nextAt: previousNext,
+    },
   });
-  assert.equal(nextAt?.toISOString(), addReminderDays(now, 2).toISOString());
+  assert.equal(same?.toISOString(), previousNext.toISOString());
+
+  const moved = computeStageReminderNextAt({
+    enabled: true,
+    intervalDays: 3,
+    sendTime: "10:00",
+    timeZone: "Europe/Samara",
+    stage: DealStageType.CUSTOMS,
+    now: eveningMoscow,
+    previous: {
+      enabled: true,
+      intervalDays: 3,
+      sendTime: "10:00",
+      timeZone: "Europe/Moscow",
+      nextAt: previousNext,
+    },
+  });
+  assert.equal(moved?.toISOString(), "2026-11-01T06:00:00.000Z");
 });
 
-test("повторное сохранение той же периодичности не сдвигает срок", () => {
-  const previousNext = addReminderDays(now, 5);
+test("старый срок не в выбранное время пересчитывается при сохранении", () => {
   const nextAt = computeStageReminderNextAt({
     enabled: true,
-    intervalDays: 5,
+    intervalDays: 3,
+    sendTime: "10:00",
+    timeZone: "Europe/Moscow",
     stage: DealStageType.PREPARATION,
-    now,
-    previous: { enabled: true, intervalDays: 5, nextAt: previousNext },
+    now: eveningMoscow,
+    previous: {
+      enabled: true,
+      intervalDays: 3,
+      sendTime: "10:00",
+      timeZone: "Europe/Moscow",
+      nextAt: new Date("2026-11-01T19:50:00.000Z"),
+    },
   });
-  assert.equal(nextAt?.toISOString(), previousNext.toISOString());
+  assert.equal(nextAt?.toISOString(), "2026-11-01T07:00:00.000Z");
+});
+
+test("после отправки следующий слот в то же местное время", () => {
+  const nextAt = advanceStageReminderSchedule({
+    scheduledAt: new Date("2026-11-01T07:00:00.000Z"),
+    now: new Date("2026-11-01T07:05:00.000Z"),
+    intervalDays: 3,
+    sendTime: "10:00",
+    timeZone: "Europe/Moscow",
+  });
+  assert.equal(nextAt.toISOString(), "2026-11-04T07:00:00.000Z");
 });
 
 test("текст содержит этап, VIN и ссылку на карточку", () => {

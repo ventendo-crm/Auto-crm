@@ -3,7 +3,7 @@ import { getDealManagerIds } from "@/lib/deal-managers";
 import { ROLES } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
-  addReminderDays,
+  advanceStageReminderSchedule,
   computeStageReminderNextAt,
   isStageReminderDue,
   isStageReminderStage,
@@ -21,6 +21,8 @@ import { canUpdateDeal } from "@/lib/permissions";
 export interface DealStageReminderView {
   enabled: boolean;
   intervalDays: number;
+  sendTime: string;
+  timeZone: string;
   nextAt: string | null;
   activeOnStage: boolean;
   managersMissingTelegram: Array<{ id: string; name: string }>;
@@ -30,6 +32,8 @@ export interface DealStageReminderView {
 function toView(input: {
   enabled: boolean;
   intervalDays: number;
+  sendTime: string;
+  timeZone: string;
   nextAt: Date | null;
   stage: string;
   managers: Array<{ id: string; name: string; telegramChatId: string | null }>;
@@ -37,6 +41,8 @@ function toView(input: {
   return {
     enabled: input.enabled,
     intervalDays: input.intervalDays,
+    sendTime: input.sendTime,
+    timeZone: input.timeZone,
     nextAt: input.nextAt ? input.nextAt.toISOString() : null,
     activeOnStage: input.enabled && isStageReminderStage(input.stage) && input.nextAt != null,
     managersMissingTelegram: input.managers
@@ -70,6 +76,8 @@ const stageReminderSelect = {
   currentStage: true,
   stageReminderEnabled: true,
   stageReminderIntervalDays: true,
+  stageReminderSendTime: true,
+  stageReminderTimeZone: true,
   stageReminderNextAt: true,
   managerId: true,
   clientUserId: true,
@@ -100,6 +108,8 @@ export async function getDealStageReminder(
   return toView({
     enabled: deal.stageReminderEnabled,
     intervalDays: deal.stageReminderIntervalDays,
+    sendTime: deal.stageReminderSendTime,
+    timeZone: deal.stageReminderTimeZone,
     nextAt: deal.stageReminderNextAt,
     stage: deal.currentStage,
     managers,
@@ -123,11 +133,15 @@ export async function saveDealStageReminder(
   const nextAt = computeStageReminderNextAt({
     enabled: input.enabled,
     intervalDays: input.intervalDays,
+    sendTime: input.sendTime,
+    timeZone: input.timeZone,
     stage: deal.currentStage,
     now,
     previous: {
       enabled: deal.stageReminderEnabled,
       intervalDays: deal.stageReminderIntervalDays,
+      sendTime: deal.stageReminderSendTime,
+      timeZone: deal.stageReminderTimeZone,
       nextAt: deal.stageReminderNextAt,
     },
   });
@@ -137,12 +151,16 @@ export async function saveDealStageReminder(
     data: {
       stageReminderEnabled: input.enabled,
       stageReminderIntervalDays: input.intervalDays,
+      stageReminderSendTime: input.sendTime,
+      stageReminderTimeZone: input.timeZone,
       stageReminderNextAt: nextAt,
     },
     select: {
       currentStage: true,
       stageReminderEnabled: true,
       stageReminderIntervalDays: true,
+      stageReminderSendTime: true,
+      stageReminderTimeZone: true,
       stageReminderNextAt: true,
       companyId: true,
       managerId: true,
@@ -154,6 +172,8 @@ export async function saveDealStageReminder(
   return toView({
     enabled: updated.stageReminderEnabled,
     intervalDays: updated.stageReminderIntervalDays,
+    sendTime: updated.stageReminderSendTime,
+    timeZone: updated.stageReminderTimeZone,
     nextAt: updated.stageReminderNextAt,
     stage: updated.currentStage,
     managers,
@@ -217,6 +237,8 @@ export async function deliverPreparationReminder(
       currentStage: true,
       stageReminderEnabled: true,
       stageReminderIntervalDays: true,
+      stageReminderSendTime: true,
+      stageReminderTimeZone: true,
       stageReminderNextAt: true,
       managerId: true,
       managerAssignments: { select: { managerId: true } },
@@ -233,7 +255,13 @@ export async function deliverPreparationReminder(
     return "skipped";
   }
 
-  const claimedNextAt = addReminderDays(now, deal.stageReminderIntervalDays);
+  const claimedNextAt = advanceStageReminderSchedule({
+    scheduledAt: deal.stageReminderNextAt ?? now,
+    now,
+    intervalDays: deal.stageReminderIntervalDays,
+    sendTime: deal.stageReminderSendTime,
+    timeZone: deal.stageReminderTimeZone,
+  });
   const claimed = await prisma.deal.updateMany({
     where: {
       id: deal.id,

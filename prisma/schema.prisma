@@ -118,6 +118,8 @@ model Deal {
   stageEnteredAt     DateTime
   stageReminderEnabled Boolean @default(false)
   stageReminderIntervalDays Int @default(1)
+  stageReminderSendTime String @default("10:00")
+  stageReminderTimeZone String @default("Europe/Moscow")
   stageReminderNextAt DateTime?
   expectedArrival    DateTime?
   actualArrival      DateTime?

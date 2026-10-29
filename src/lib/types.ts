@@ -53,6 +53,8 @@ export interface CompanyListItem {
 export interface DealStageReminderSettings {
   enabled: boolean;
   intervalDays: number;
+  sendTime: string;
+  timeZone: string;
   nextAt: string | null;
   activeOnStage: boolean;
   managersMissingTelegram: Array<{ id: string; name: string }>;

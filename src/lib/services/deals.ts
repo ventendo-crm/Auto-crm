@@ -429,6 +429,8 @@ export async function changeDealStage(user: AuthUser, id: string, toStage: DealS
         stageReminderNextAt: computeStageReminderNextAt({
           enabled: existing.stageReminderEnabled,
           intervalDays: existing.stageReminderIntervalDays,
+          sendTime: existing.stageReminderSendTime,
+          timeZone: existing.stageReminderTimeZone,
           stage: toStage,
           now,
         }),

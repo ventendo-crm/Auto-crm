@@ -392,7 +392,7 @@ export const api = {
       request<DealStageReminderSettings>(`/api/deals/${dealId}/stage-reminders`),
     saveStageReminder: (
       dealId: string,
-      data: { enabled: boolean; intervalDays: number },
+      data: { enabled: boolean; intervalDays: number; sendTime: string; timeZone: string },
     ) =>
       request<DealStageReminderSettings>(`/api/deals/${dealId}/stage-reminders`, {
         method: "PUT",

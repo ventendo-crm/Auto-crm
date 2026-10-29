@@ -6,8 +6,24 @@ export const STAGE_REMINDER_STAGES = [
   DealStageType.TRANSPORT,
 ] as const;
 
-/** Часовой пояс CRM, тот же, что у Google Календаря. */
-export const STAGE_REMINDER_TIMEZONE = "Europe/Moscow";
+export const STAGE_REMINDER_TIMEZONES = [
+  { id: "Europe/Kaliningrad", label: "Калининград (UTC+2)" },
+  { id: "Europe/Moscow", label: "Москва (UTC+3)" },
+  { id: "Europe/Samara", label: "Самара (UTC+4)" },
+  { id: "Asia/Yekaterinburg", label: "Екатеринбург (UTC+5)" },
+  { id: "Asia/Omsk", label: "Омск (UTC+6)" },
+  { id: "Asia/Krasnoyarsk", label: "Красноярск (UTC+7)" },
+  { id: "Asia/Irkutsk", label: "Иркутск (UTC+8)" },
+  { id: "Asia/Yakutsk", label: "Якутск (UTC+9)" },
+  { id: "Asia/Vladivostok", label: "Владивосток (UTC+10)" },
+  { id: "Asia/Magadan", label: "Магадан (UTC+11)" },
+  { id: "Asia/Kamchatka", label: "Камчатка (UTC+12)" },
+] as const;
+
+export type StageReminderTimeZone = (typeof STAGE_REMINDER_TIMEZONES)[number]["id"];
+
+export const DEFAULT_STAGE_REMINDER_TIME = "10:00";
+export const DEFAULT_STAGE_REMINDER_TIMEZONE: StageReminderTimeZone = "Europe/Moscow";
 
 export const STAGE_REMINDER_MIN_DAYS = 1;
 export const STAGE_REMINDER_MAX_DAYS = 365;
@@ -27,19 +43,152 @@ export function isStageReminderDue(nextAt: Date | null, now: Date): boolean {
   return nextAt != null && nextAt.getTime() <= now.getTime();
 }
 
+export function isStageReminderTimeZone(value: string): value is StageReminderTimeZone {
+  return STAGE_REMINDER_TIMEZONES.some((zone) => zone.id === value);
+}
+
+export function stageReminderTimeZoneLabel(timeZone: string): string {
+  const known = STAGE_REMINDER_TIMEZONES.find((zone) => zone.id === timeZone);
+  if (!known) return timeZone;
+  return known.label.replace(/\s*\(UTC\+\d+\)$/, "");
+}
+
+export function parseStageReminderSendTime(value: string): { hour: number; minute: number } | null {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
+  if (!match) return null;
+  return { hour: Number(match[1]), minute: Number(match[2]) };
+}
+
+type CivilDate = { year: number; month: number; day: number };
+
+function zonedParts(date: Date, timeZone: string): CivilDate & { hour: number; minute: number } {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  const parts = Object.fromEntries(
+    formatter
+      .formatToParts(date)
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  );
+  const hour = Number(parts.hour);
+  return {
+    year: Number(parts.year),
+    month: Number(parts.month),
+    day: Number(parts.day),
+    hour: hour === 24 ? 0 : hour,
+    minute: Number(parts.minute),
+  };
+}
+
+function addCalendarDays(date: CivilDate, days: number): CivilDate {
+  const shifted = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+function zonedTimeToUtc(
+  date: CivilDate,
+  hour: number,
+  minute: number,
+  timeZone: string,
+): Date {
+  const guess = Date.UTC(date.year, date.month - 1, date.day, hour, minute, 0);
+  const seen = zonedParts(new Date(guess), timeZone);
+  const seenUtc = Date.UTC(seen.year, seen.month - 1, seen.day, seen.hour, seen.minute, 0);
+  return new Date(guess - (seenUtc - guess));
+}
+
+function resolveSchedule(sendTime: string, timeZone: string): {
+  hour: number;
+  minute: number;
+  timeZone: string;
+} {
+  const parsed = parseStageReminderSendTime(sendTime) ?? parseStageReminderSendTime(DEFAULT_STAGE_REMINDER_TIME)!;
+  return {
+    hour: parsed.hour,
+    minute: parsed.minute,
+    timeZone: isStageReminderTimeZone(timeZone) ? timeZone : DEFAULT_STAGE_REMINDER_TIMEZONE,
+  };
+}
+
+/**
+ * Ближайшая отправка в выбранное местное время.
+ * «Каждый день» — сегодня, если это время ещё впереди, иначе завтра.
+ * Интервал в несколько дней — через столько календарных дней в этом часовом поясе.
+ */
+export function scheduleStageReminderAt(input: {
+  now: Date;
+  intervalDays: number;
+  sendTime: string;
+  timeZone: string;
+}): Date {
+  const { hour, minute, timeZone } = resolveSchedule(input.sendTime, input.timeZone);
+  const today = zonedParts(input.now, timeZone);
+  let cursor = addCalendarDays(today, input.intervalDays > 1 ? input.intervalDays : 0);
+
+  for (let step = 0; step < 400; step += 1) {
+    const candidate = zonedTimeToUtc(cursor, hour, minute, timeZone);
+    if (candidate.getTime() > input.now.getTime()) return candidate;
+    cursor = addCalendarDays(cursor, input.intervalDays);
+  }
+
+  return addReminderDays(input.now, input.intervalDays);
+}
+
+/** Следующий слот после уже запланированной отправки, в том же местном времени. */
+export function advanceStageReminderSchedule(input: {
+  scheduledAt: Date;
+  now: Date;
+  intervalDays: number;
+  sendTime: string;
+  timeZone: string;
+}): Date {
+  const { hour, minute, timeZone } = resolveSchedule(input.sendTime, input.timeZone);
+  const scheduled = zonedParts(input.scheduledAt, timeZone);
+  let cursor = addCalendarDays(scheduled, input.intervalDays);
+
+  for (let step = 0; step < 400; step += 1) {
+    const candidate = zonedTimeToUtc(cursor, hour, minute, timeZone);
+    if (candidate.getTime() > input.now.getTime()) return candidate;
+    cursor = addCalendarDays(cursor, input.intervalDays);
+  }
+
+  return scheduleStageReminderAt(input);
+}
+
+function scheduledClockMatches(nextAt: Date, sendTime: string, timeZone: string): boolean {
+  const { hour, minute, timeZone: zone } = resolveSchedule(sendTime, timeZone);
+  const parts = zonedParts(nextAt, zone);
+  return parts.hour === hour && parts.minute === minute;
+}
+
 /**
  * Следующая отправка.
  * Выключено или этап вне Подготовки, Таможни и Транспортировки — напоминание не планируется.
- * Включение и смена периодичности отсчитывают новый срок от текущего момента.
+ * Включение, смена периодичности, времени или часового пояса ставят новый срок.
  */
 export function computeStageReminderNextAt(input: {
   enabled: boolean;
   intervalDays: number;
+  sendTime: string;
+  timeZone: string;
   stage: string;
   now: Date;
   previous?: {
     enabled: boolean;
     intervalDays: number;
+    sendTime: string;
+    timeZone: string;
     nextAt: Date | null;
   };
 }): Date | null {
@@ -50,16 +199,23 @@ export function computeStageReminderNextAt(input: {
   const previous = input.previous;
   const turnedOn = !previous?.enabled;
   const intervalChanged = !previous || previous.intervalDays !== input.intervalDays;
-  if (!previous || turnedOn || intervalChanged || !previous.nextAt) {
-    return addReminderDays(input.now, input.intervalDays);
+  const timeChanged = !previous || previous.sendTime !== input.sendTime;
+  const zoneChanged = !previous || previous.timeZone !== input.timeZone;
+  const clockMismatch =
+    previous?.nextAt != null &&
+    !scheduledClockMatches(previous.nextAt, input.sendTime, input.timeZone);
+
+  if (!previous || turnedOn || intervalChanged || timeChanged || zoneChanged || clockMismatch || !previous.nextAt) {
+    return scheduleStageReminderAt(input);
   }
 
   return previous.nextAt;
 }
 
-export function formatReminderMoment(date: Date): string {
+export function formatReminderMoment(date: Date, timeZone: string = DEFAULT_STAGE_REMINDER_TIMEZONE): string {
+  const zone = isStageReminderTimeZone(timeZone) ? timeZone : DEFAULT_STAGE_REMINDER_TIMEZONE;
   return new Intl.DateTimeFormat("ru-RU", {
-    timeZone: STAGE_REMINDER_TIMEZONE,
+    timeZone: zone,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
