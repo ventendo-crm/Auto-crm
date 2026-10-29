@@ -1,115 +1,169 @@
-import { DealStageType, NotificationType, PreparationReminderRecipientMode } from "@prisma/client";
-import { prisma } from "@/lib/prisma";
+import { DealStageType, NotificationType } from "@prisma/client";
 import { getDealManagerIds } from "@/lib/deal-managers";
 import { ROLES } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
 import {
-  DEFAULT_PREPARATION_REMINDER_TEMPLATE,
-  isPreparationReminderDue,
+  addReminderDays,
+  computeStageReminderNextAt,
+  isStageReminderDue,
   isStageReminderStage,
-  preparationReminderVars,
-  renderPreparationReminder,
+  renderStageReminderMessage,
   STAGE_REMINDER_STAGES,
 } from "@/lib/preparation-reminders/message";
 import { getCompanyStageLabels } from "@/lib/services/company-workspace";
+import { canUserViewDeal } from "@/lib/services/deal-access";
 import { createNotification } from "@/lib/services/notifications";
-import {
-  getCompanyTelegramConfig,
-  isCompanyTelegramConfigured,
-  sendCompanyTelegramMessages,
-} from "@/lib/telegram/bot";
-import type { PreparationReminderSettingsInput } from "@/lib/validators/preparation-reminder";
+import { getAppPublicUrl, getCompanyTelegramConfig, isCompanyTelegramConfigured, sendCompanyTelegramMessages } from "@/lib/telegram/bot";
+import type { DealStageReminderInput } from "@/lib/validators/deal-stage-reminder";
+import type { AuthUser } from "@/lib/permissions";
+import { canUpdateDeal } from "@/lib/permissions";
 
-export interface PreparationReminderSettingsView {
+export interface DealStageReminderView {
   enabled: boolean;
-  intervalHours: number;
-  messageTemplate: string;
-  recipientMode: "ASSIGNED" | "SPECIFIC";
-  specificManagerId: string | null;
+  intervalDays: number;
+  nextAt: string | null;
+  activeOnStage: boolean;
+  managersMissingTelegram: Array<{ id: string; name: string }>;
+  hasManager: boolean;
 }
 
-const defaultView = (): PreparationReminderSettingsView => ({
-  enabled: false,
-  intervalHours: 24,
-  messageTemplate: DEFAULT_PREPARATION_REMINDER_TEMPLATE,
-  recipientMode: "ASSIGNED",
-  specificManagerId: null,
-});
-
-function toView(row: {
+function toView(input: {
   enabled: boolean;
-  intervalHours: number;
-  messageTemplate: string;
-  recipientMode: PreparationReminderRecipientMode;
-  specificManagerId: string | null;
-}): PreparationReminderSettingsView {
+  intervalDays: number;
+  nextAt: Date | null;
+  stage: string;
+  managers: Array<{ id: string; name: string; telegramChatId: string | null }>;
+}): DealStageReminderView {
   return {
-    enabled: row.enabled,
-    intervalHours: row.intervalHours,
-    messageTemplate: row.messageTemplate,
-    recipientMode: row.recipientMode,
-    specificManagerId: row.specificManagerId,
+    enabled: input.enabled,
+    intervalDays: input.intervalDays,
+    nextAt: input.nextAt ? input.nextAt.toISOString() : null,
+    activeOnStage: input.enabled && isStageReminderStage(input.stage) && input.nextAt != null,
+    managersMissingTelegram: input.managers
+      .filter((manager) => !manager.telegramChatId?.trim())
+      .map(({ id, name }) => ({ id, name })),
+    hasManager: input.managers.length > 0,
   };
 }
 
-export async function getPreparationReminderSettings(
-  companyId: string,
-): Promise<PreparationReminderSettingsView> {
-  const row = await prisma.companyPreparationReminderSettings.findUnique({
-    where: { companyId },
+async function loadAssignedManagers(deal: {
+  companyId: string;
+  managerId: string | null;
+  managerAssignments: Array<{ managerId: string }>;
+}) {
+  const ids = getDealManagerIds(deal);
+  if (ids.length === 0) return [];
+
+  return prisma.user.findMany({
+    where: {
+      id: { in: ids },
+      companyId: deal.companyId,
+      role: { name: ROLES.MANAGER },
+    },
+    select: { id: true, name: true, telegramChatId: true },
   });
-  return row ? toView(row) : defaultView();
 }
 
-export async function savePreparationReminderSettings(
-  companyId: string,
-  input: PreparationReminderSettingsInput,
-): Promise<PreparationReminderSettingsView> {
-  if (input.recipientMode === "SPECIFIC" && input.specificManagerId) {
-    const manager = await prisma.user.findFirst({
-      where: {
-        id: input.specificManagerId,
-        companyId,
-        role: { name: ROLES.MANAGER },
-      },
-      select: { id: true },
-    });
-    if (!manager) {
-      throw new Error("Выберите менеджера своей компании");
-    }
+const stageReminderSelect = {
+  id: true,
+  companyId: true,
+  currentStage: true,
+  stageReminderEnabled: true,
+  stageReminderIntervalDays: true,
+  stageReminderNextAt: true,
+  managerId: true,
+  clientUserId: true,
+  managerAssignments: { select: { managerId: true } },
+} as const;
+
+async function findVisibleDeal(user: AuthUser, dealId: string) {
+  const deal = await prisma.deal.findFirst({
+    where: { id: dealId, companyId: user.companyId },
+    select: stageReminderSelect,
+  });
+  if (!deal || !(await canUserViewDeal(user, deal))) {
+    return null;
+  }
+  return deal;
+}
+
+export async function getDealStageReminder(
+  user: AuthUser,
+  dealId: string,
+): Promise<DealStageReminderView> {
+  const deal = await findVisibleDeal(user, dealId);
+  if (!deal) {
+    throw new Error("Not found");
   }
 
-  const row = await prisma.companyPreparationReminderSettings.upsert({
-    where: { companyId },
-    create: {
-      companyId,
-      enabled: input.enabled,
-      intervalHours: input.intervalHours,
-      messageTemplate: input.messageTemplate,
-      recipientMode: input.recipientMode,
-      specificManagerId: input.specificManagerId,
-    },
-    update: {
-      enabled: input.enabled,
-      intervalHours: input.intervalHours,
-      messageTemplate: input.messageTemplate,
-      recipientMode: input.recipientMode,
-      specificManagerId: input.specificManagerId,
+  const managers = await loadAssignedManagers(deal);
+  return toView({
+    enabled: deal.stageReminderEnabled,
+    intervalDays: deal.stageReminderIntervalDays,
+    nextAt: deal.stageReminderNextAt,
+    stage: deal.currentStage,
+    managers,
+  });
+}
+
+export async function saveDealStageReminder(
+  user: AuthUser,
+  dealId: string,
+  input: DealStageReminderInput,
+): Promise<DealStageReminderView> {
+  const deal = await findVisibleDeal(user, dealId);
+  if (!deal) {
+    throw new Error("Not found");
+  }
+  if (!canUpdateDeal(user.role, user.id, deal)) {
+    throw new Error("Forbidden");
+  }
+
+  const now = new Date();
+  const nextAt = computeStageReminderNextAt({
+    enabled: input.enabled,
+    intervalDays: input.intervalDays,
+    stage: deal.currentStage,
+    now,
+    previous: {
+      enabled: deal.stageReminderEnabled,
+      intervalDays: deal.stageReminderIntervalDays,
+      nextAt: deal.stageReminderNextAt,
     },
   });
 
-  if (row.enabled) {
-    void runPreparationReminders(companyId).catch((error) => {
-      console.error("[preparation-reminders] run after save failed:", error);
-    });
-  }
+  const updated = await prisma.deal.update({
+    where: { id: deal.id },
+    data: {
+      stageReminderEnabled: input.enabled,
+      stageReminderIntervalDays: input.intervalDays,
+      stageReminderNextAt: nextAt,
+    },
+    select: {
+      currentStage: true,
+      stageReminderEnabled: true,
+      stageReminderIntervalDays: true,
+      stageReminderNextAt: true,
+      companyId: true,
+      managerId: true,
+      managerAssignments: { select: { managerId: true } },
+    },
+  });
 
-  return toView(row);
+  const managers = await loadAssignedManagers(updated);
+  return toView({
+    enabled: updated.stageReminderEnabled,
+    intervalDays: updated.stageReminderIntervalDays,
+    nextAt: updated.stageReminderNextAt,
+    stage: updated.currentStage,
+    managers,
+  });
 }
 
 let batchRunning = false;
 let rerunRequested = false;
 
-export async function runPreparationReminders(companyId?: string): Promise<void> {
+export async function runPreparationReminders(): Promise<void> {
   if (batchRunning) {
     rerunRequested = true;
     return;
@@ -117,48 +171,33 @@ export async function runPreparationReminders(companyId?: string): Promise<void>
 
   batchRunning = true;
   try {
-    let scope = companyId;
     do {
       rerunRequested = false;
-      await dispatchDuePreparationReminders(scope);
-      scope = undefined;
+      await dispatchDueStageReminders();
     } while (rerunRequested);
   } finally {
     batchRunning = false;
   }
 }
 
-async function dispatchDuePreparationReminders(companyId?: string): Promise<void> {
-  const rows = await prisma.companyPreparationReminderSettings.findMany({
+async function dispatchDueStageReminders(): Promise<void> {
+  const now = new Date();
+  const deals = await prisma.deal.findMany({
     where: {
-      enabled: true,
-      ...(companyId ? { companyId } : {}),
+      stageReminderEnabled: true,
+      currentStage: { in: [...STAGE_REMINDER_STAGES] },
+      stageReminderNextAt: { lte: now },
     },
-    select: { companyId: true, intervalHours: true },
+    select: { id: true },
+    orderBy: { stageReminderNextAt: "asc" },
+    take: 100,
   });
 
-  for (const row of rows) {
-    const threshold = new Date(Date.now() - row.intervalHours * 60 * 60 * 1000);
-    const deals = await prisma.deal.findMany({
-      where: {
-        companyId: row.companyId,
-        currentStage: { in: [...STAGE_REMINDER_STAGES] },
-        OR: [
-          { preparationReminderSentAt: null },
-          { preparationReminderSentAt: { lte: threshold } },
-        ],
-      },
-      select: { id: true },
-      orderBy: { stageEnteredAt: "asc" },
-      take: 100,
-    });
-
-    for (const deal of deals) {
-      try {
-        await deliverPreparationReminder(deal.id);
-      } catch (error) {
-        console.error("[preparation-reminders] deal failed:", deal.id, error);
-      }
+  for (const deal of deals) {
+    try {
+      await deliverPreparationReminder(deal.id);
+    } catch (error) {
+      console.error("[preparation-reminders] deal failed:", deal.id, error);
     }
   }
 }
@@ -176,133 +215,110 @@ export async function deliverPreparationReminder(
       carBrand: true,
       carModel: true,
       currentStage: true,
-      stageEnteredAt: true,
-      preparationReminderSentAt: true,
+      stageReminderEnabled: true,
+      stageReminderIntervalDays: true,
+      stageReminderNextAt: true,
       managerId: true,
       managerAssignments: { select: { managerId: true } },
     },
   });
 
-  if (!deal || !isStageReminderStage(deal.currentStage)) {
-    return "skipped";
-  }
-
-  const settings = await prisma.companyPreparationReminderSettings.findUnique({
-    where: { companyId: deal.companyId },
-  });
-  if (!settings?.enabled) {
-    return "skipped";
-  }
-
   const now = new Date();
-  if (!isPreparationReminderDue(deal.preparationReminderSentAt, settings.intervalHours, now)) {
+  if (
+    !deal ||
+    !deal.stageReminderEnabled ||
+    !isStageReminderStage(deal.currentStage) ||
+    !isStageReminderDue(deal.stageReminderNextAt, now)
+  ) {
     return "skipped";
   }
 
+  const claimedNextAt = addReminderDays(now, deal.stageReminderIntervalDays);
   const claimed = await prisma.deal.updateMany({
     where: {
       id: deal.id,
+      stageReminderEnabled: true,
       currentStage: deal.currentStage,
-      preparationReminderSentAt: deal.preparationReminderSentAt,
+      stageReminderNextAt: deal.stageReminderNextAt,
     },
-    data: { preparationReminderSentAt: now },
+    data: { stageReminderNextAt: claimedNextAt },
   });
   if (claimed.count !== 1) {
     return "skipped";
   }
 
   try {
-    const delivered = await sendPreparationReminder(deal, settings);
-    if (delivered) return "sent";
-
-    await prisma.deal.updateMany({
-      where: { id: deal.id, preparationReminderSentAt: now },
-      data: { preparationReminderSentAt: deal.preparationReminderSentAt },
-    });
-    return "failed";
+    const result = await sendStageReminder(deal);
+    if (result === "failed") {
+      await revertClaim(deal.id, claimedNextAt, deal.stageReminderNextAt);
+      return "failed";
+    }
+    if (result === "nobody") {
+      console.warn("[preparation-reminders] no assigned manager, reminder skipped", deal.id);
+    }
+    return result === "delivered" ? "sent" : "skipped";
   } catch (error) {
-    await prisma.deal
-      .updateMany({
-        where: { id: deal.id, preparationReminderSentAt: now },
-        data: { preparationReminderSentAt: deal.preparationReminderSentAt },
-      })
-      .catch((revertError) => {
-        console.error("[preparation-reminders] revert failed:", deal.id, revertError);
-      });
+    await revertClaim(deal.id, claimedNextAt, deal.stageReminderNextAt);
     throw error;
   }
 }
 
-async function sendPreparationReminder(
-  deal: {
-    id: string;
-    companyId: string;
-    clientName: string;
-    vin: string;
-    carBrand: string | null;
-    carModel: string | null;
-    currentStage: DealStageType;
-    stageEnteredAt: Date;
-    managerId: string | null;
-    managerAssignments: Array<{ managerId: string }>;
-  },
-  settings: {
-    messageTemplate: string;
-    recipientMode: PreparationReminderRecipientMode;
-    specificManagerId: string | null;
-  },
-): Promise<boolean> {
-  const recipientIds = await resolveRecipientIds(deal, settings);
-  if (recipientIds.length === 0) {
-    console.warn(
-      "[preparation-reminders] no recipients",
-      deal.id,
-      settings.recipientMode,
-    );
-    return true;
-  }
+async function revertClaim(dealId: string, claimedNextAt: Date, previousNextAt: Date | null) {
+  await prisma.deal
+    .updateMany({
+      where: { id: dealId, stageReminderNextAt: claimedNextAt },
+      data: { stageReminderNextAt: previousNextAt },
+    })
+    .catch((revertError) => {
+      console.error("[preparation-reminders] revert failed:", dealId, revertError);
+    });
+}
 
-  const users = await prisma.user.findMany({
-    where: {
-      id: { in: recipientIds },
-      companyId: deal.companyId,
-      role: { name: { in: [ROLES.MANAGER, ROLES.ADMIN] } },
-    },
-    select: { id: true, telegramChatId: true },
-  });
-
-  if (users.length === 0) {
-    console.warn("[preparation-reminders] recipients missing in company", deal.id);
-    return true;
+async function sendStageReminder(deal: {
+  id: string;
+  companyId: string;
+  clientName: string;
+  vin: string;
+  carBrand: string | null;
+  carModel: string | null;
+  currentStage: DealStageType;
+  managerId: string | null;
+  managerAssignments: Array<{ managerId: string }>;
+}): Promise<"delivered" | "nobody" | "failed"> {
+  const managers = await loadAssignedManagers(deal);
+  if (managers.length === 0) {
+    return "nobody";
   }
 
   const labels = await getCompanyStageLabels(deal.companyId);
-  const { plain, html } = renderPreparationReminder(
-    settings.messageTemplate,
-    preparationReminderVars({
-      ...deal,
-      stageLabel: labels[deal.currentStage] ?? deal.currentStage,
-    }),
-  );
+  const dealUrl = `${getAppPublicUrl()}/deals/${deal.id}`;
+  const { plain, html } = renderStageReminderMessage({
+    clientName: deal.clientName,
+    carBrand: deal.carBrand,
+    carModel: deal.carModel,
+    stageLabel: labels[deal.currentStage] ?? deal.currentStage,
+    vin: deal.vin,
+    dealUrl,
+  });
 
   let inApp = 0;
-  for (const user of users) {
+  for (const manager of managers) {
     try {
       await createNotification({
-        userId: user.id,
+        userId: manager.id,
         dealId: deal.id,
-        title: "Напишите клиенту статус авто",
+        title: "Напоминание по клиенту",
         message: plain,
         type: NotificationType.TELEGRAM,
       });
       inApp += 1;
     } catch (error) {
-      console.error("[preparation-reminders] in-app notification failed:", user.id, error);
+      console.error("[preparation-reminders] in-app notification failed:", manager.id, error);
     }
   }
 
-  const chatIds = users
-    .map((user) => user.telegramChatId?.trim() || "")
+  const chatIds = managers
+    .map((manager) => manager.telegramChatId?.trim() || "")
     .filter((chatId) => chatId.length > 0);
 
   let telegramOk = 0;
@@ -331,36 +347,9 @@ async function sendPreparationReminder(
   } else {
     console.warn(
       "[preparation-reminders] Telegram skipped: managers have no chat ID",
-      users.map((user) => user.id),
+      managers.map((manager) => manager.id),
     );
   }
 
-  return inApp > 0 || telegramOk > 0;
-}
-
-async function resolveRecipientIds(
-  deal: {
-    companyId: string;
-    managerId: string | null;
-    managerAssignments: Array<{ managerId: string }>;
-  },
-  settings: {
-    recipientMode: PreparationReminderRecipientMode;
-    specificManagerId: string | null;
-  },
-): Promise<string[]> {
-  if (settings.recipientMode === PreparationReminderRecipientMode.SPECIFIC) {
-    if (!settings.specificManagerId) return [];
-    const manager = await prisma.user.findFirst({
-      where: {
-        id: settings.specificManagerId,
-        companyId: deal.companyId,
-        role: { name: ROLES.MANAGER },
-      },
-      select: { id: true },
-    });
-    return manager ? [manager.id] : [];
-  }
-
-  return getDealManagerIds(deal);
+  return inApp > 0 || telegramOk > 0 ? "delivered" : "failed";
 }

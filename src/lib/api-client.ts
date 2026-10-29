@@ -17,7 +17,7 @@ import {
   MediaItem,
   NotificationItem,
   Paginated,
-  PreparationReminderSettings,
+  DealStageReminderSettings,
   ReminderItem,
   Role,
   ImportProcessEntry,
@@ -387,6 +387,16 @@ export const api = {
       request<{ importProcessEnabled: boolean }>(`/api/deals/${dealId}/import-process`, {
         method: "PATCH",
         body: JSON.stringify({ enabled }),
+      }),
+    getStageReminder: (dealId: string) =>
+      request<DealStageReminderSettings>(`/api/deals/${dealId}/stage-reminders`),
+    saveStageReminder: (
+      dealId: string,
+      data: { enabled: boolean; intervalDays: number },
+    ) =>
+      request<DealStageReminderSettings>(`/api/deals/${dealId}/stage-reminders`, {
+        method: "PUT",
+        body: JSON.stringify(data),
       }),
   },
 
@@ -1024,13 +1034,6 @@ export const api = {
     disconnectBot: () =>
       request<CompanyTelegramBotSettings>("/api/telegram/bot-settings", {
         method: "DELETE",
-      }),
-    getPreparationReminders: () =>
-      request<PreparationReminderSettings>("/api/telegram/preparation-reminders"),
-    savePreparationReminders: (data: PreparationReminderSettings) =>
-      request<PreparationReminderSettings>("/api/telegram/preparation-reminders", {
-        method: "PUT",
-        body: JSON.stringify(data),
       }),
     listTemplates: () => request<TelegramTemplateItem[]>("/api/telegram/templates"),
     updateTemplate: (key: string, data: { textBody: string }) =>

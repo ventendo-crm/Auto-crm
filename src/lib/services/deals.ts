@@ -18,8 +18,7 @@ import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-
 import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { notifyStageChange } from "@/lib/services/notifications";
-import { isStageReminderStage } from "@/lib/preparation-reminders/message";
-import { deliverPreparationReminder } from "@/lib/services/preparation-reminders";
+import { computeStageReminderNextAt } from "@/lib/preparation-reminders/message";
 import "@/lib/preparation-reminders/bootstrap";
 import { recordStageChange } from "@/lib/services/stage-history";
 import { z } from "zod";
@@ -316,14 +315,6 @@ export async function createDeal(user: AuthUser, input: CreateDealInput) {
     },
   });
 
-  if (isStageReminderStage(deal.currentStage)) {
-    try {
-      await deliverPreparationReminder(deal.id);
-    } catch (error) {
-      console.error("[deals] preparation reminder failed after create:", error);
-    }
-  }
-
   return deal;
 }
 
@@ -435,7 +426,12 @@ export async function changeDealStage(user: AuthUser, id: string, toStage: DealS
       data: {
         currentStage: toStage,
         stageEnteredAt: now,
-        preparationReminderSentAt: null,
+        stageReminderNextAt: computeStageReminderNextAt({
+          enabled: existing.stageReminderEnabled,
+          intervalDays: existing.stageReminderIntervalDays,
+          stage: toStage,
+          now,
+        }),
       },
       include: dealInclude,
     });
@@ -483,14 +479,6 @@ export async function changeDealStage(user: AuthUser, id: string, toStage: DealS
     });
   } catch (error) {
     console.error("[deals] notification failed after stage change:", error);
-  }
-
-  if (isStageReminderStage(toStage)) {
-    try {
-      await deliverPreparationReminder(id);
-    } catch (error) {
-      console.error("[deals] preparation reminder failed after stage change:", error);
-    }
   }
 
   return { deal, history };

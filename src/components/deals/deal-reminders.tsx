@@ -105,7 +105,7 @@ export function DealReminders({ dealId, canManage = false }: DealRemindersProps)
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base">
           <Bell className="h-4 w-4" />
-          Напоминания
+          Задачи
         </CardTitle>
         <CardDescription>Задачи и дедлайны по этой сделке</CardDescription>
       </CardHeader>

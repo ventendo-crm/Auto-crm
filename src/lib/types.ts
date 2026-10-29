@@ -50,12 +50,13 @@ export interface CompanyListItem {
   _count: { users: number; deals: number };
 }
 
-export interface PreparationReminderSettings {
+export interface DealStageReminderSettings {
   enabled: boolean;
-  intervalHours: number;
-  messageTemplate: string;
-  recipientMode: "ASSIGNED" | "SPECIFIC";
-  specificManagerId: string | null;
+  intervalDays: number;
+  nextAt: string | null;
+  activeOnStage: boolean;
+  managersMissingTelegram: Array<{ id: string; name: string }>;
+  hasManager: boolean;
 }
 
 export interface CompanyTelegramBotSettings {

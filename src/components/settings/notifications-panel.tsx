@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, CheckCheck } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -82,6 +83,11 @@ export function NotificationsPanel() {
                     {!n.read && <Badge variant="brand" className="text-[10px]">Новое</Badge>}
                   </div>
                   <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{n.message}</p>
+                  {n.dealId && (
+                    <Link href={`/deals/${n.dealId}`} className="mt-1 inline-block text-sm text-brand hover:underline">
+                      Открыть сделку
+                    </Link>
+                  )}
                   <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(n.createdAt)}</p>
                 </div>
                 {!n.read && (

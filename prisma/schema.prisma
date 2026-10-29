@@ -36,7 +36,6 @@ model Company {
   catalogVehicles        CatalogVehicle[]
   catalogSelections      CatalogSelection[]
   catalogSections        CatalogSection[]
-  preparationReminderSettings CompanyPreparationReminderSettings?
 
   @@map("companies")
 }
@@ -90,7 +89,6 @@ model User {
   createdCatalogVehicleShareTokens CatalogVehicleShareToken[] @relation("CatalogVehicleShareTokenCreatedBy")
   createdCatalogEstimates CatalogVehicleCustomsEstimate[] @relation("CatalogEstimateCreatedBy")
   createdCatalogSections CatalogSection[] @relation("CatalogSectionCreatedBy")
-  preparationReminderSettings CompanyPreparationReminderSettings[] @relation("PreparationReminderManager")
 
   @@unique([companyId, email])
   @@index([roleId])
@@ -118,7 +116,9 @@ model Deal {
   clientUserId       String?        @unique
   currentStage       DealStageType
   stageEnteredAt     DateTime
-  preparationReminderSentAt DateTime?
+  stageReminderEnabled Boolean @default(false)
+  stageReminderIntervalDays Int @default(1)
+  stageReminderNextAt DateTime?
   expectedArrival    DateTime?
   actualArrival      DateTime?
   priority           Int            @default(1)
@@ -156,6 +156,7 @@ model Deal {
   @@index([currentStage])
   @@index([vin])
   @@index([stageEnteredAt])
+  @@index([stageReminderNextAt])
   @@index([expectedArrival])
   @@map("deals")
 }
@@ -894,25 +895,4 @@ enum NotificationType {
   EMAIL
   TELEGRAM
   PUSH
-}
-
-enum PreparationReminderRecipientMode {
-  ASSIGNED
-  SPECIFIC
-}
-
-/// Повторные Telegram-напоминания менеджеру, пока сделка на этапе «Подготовка».
-model CompanyPreparationReminderSettings {
-  companyId         String                             @id
-  enabled           Boolean                            @default(false)
-  intervalHours     Int                                @default(24)
-  messageTemplate   String
-  recipientMode     PreparationReminderRecipientMode   @default(ASSIGNED)
-  specificManagerId String?
-  updatedAt         DateTime                           @updatedAt
-  company           Company                            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  specificManager   User?                              @relation("PreparationReminderManager", fields: [specificManagerId], references: [id], onDelete: SetNull)
-
-  @@index([specificManagerId])
-  @@map("company_preparation_reminder_settings")
 }

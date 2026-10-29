@@ -1,5 +1,4 @@
 import { DealStageType } from "@prisma/client";
-import { renderTemplateString } from "@/lib/email/render";
 
 export const STAGE_REMINDER_STAGES = [
   DealStageType.PREPARATION,
@@ -7,55 +6,60 @@ export const STAGE_REMINDER_STAGES = [
   DealStageType.TRANSPORT,
 ] as const;
 
+/** Часовой пояс CRM, тот же, что у Google Календаря. */
+export const STAGE_REMINDER_TIMEZONE = "Europe/Moscow";
+
+export const STAGE_REMINDER_MIN_DAYS = 1;
+export const STAGE_REMINDER_MAX_DAYS = 365;
+export const STAGE_REMINDER_INTERVAL_PRESETS = [1, 2, 3, 5, 7] as const;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export function isStageReminderStage(stage: string): stage is (typeof STAGE_REMINDER_STAGES)[number] {
   return (STAGE_REMINDER_STAGES as readonly string[]).includes(stage);
 }
 
-export const PREPARATION_REMINDER_MIN_HOURS = 1;
-export const PREPARATION_REMINDER_MAX_HOURS = 168;
-export const PREPARATION_REMINDER_TEMPLATE_MAX = 2000;
-
-export const PREPARATION_REMINDER_INTERVAL_PRESETS = [1, 6, 12, 24, 48, 72] as const;
-
-export const DEFAULT_PREPARATION_REMINDER_TEMPLATE = `Напоминание: нужно написать клиенту статус его авто.
-
-Клиент: {{clientName}}
-Авто: {{carLabel}}
-VIN: {{vin}}
-Этап: {{stageLabel}}
-На этапе с {{onStageSince}}.`;
-
-export const PREPARATION_REMINDER_PLACEHOLDERS = [
-  "clientName",
-  "vin",
-  "carBrand",
-  "carModel",
-  "carLabel",
-  "stageLabel",
-  "onStageSince",
-] as const;
-
-const TELEGRAM_TEXT_LIMIT = 4000;
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+export function addReminderDays(from: Date, days: number): Date {
+  return new Date(from.getTime() + days * DAY_MS);
 }
 
-export function isPreparationReminderDue(
-  lastSentAt: Date | null,
-  intervalHours: number,
-  now: Date,
-): boolean {
-  if (!lastSentAt) return true;
-  const elapsedMs = now.getTime() - lastSentAt.getTime();
-  return elapsedMs >= intervalHours * 60 * 60 * 1000;
+export function isStageReminderDue(nextAt: Date | null, now: Date): boolean {
+  return nextAt != null && nextAt.getTime() <= now.getTime();
+}
+
+/**
+ * Следующая отправка.
+ * Выключено или этап вне Подготовки, Таможни и Транспортировки — напоминание не планируется.
+ * Включение и смена периодичности отсчитывают новый срок от текущего момента.
+ */
+export function computeStageReminderNextAt(input: {
+  enabled: boolean;
+  intervalDays: number;
+  stage: string;
+  now: Date;
+  previous?: {
+    enabled: boolean;
+    intervalDays: number;
+    nextAt: Date | null;
+  };
+}): Date | null {
+  if (!input.enabled || !isStageReminderStage(input.stage)) {
+    return null;
+  }
+
+  const previous = input.previous;
+  const turnedOn = !previous?.enabled;
+  const intervalChanged = !previous || previous.intervalDays !== input.intervalDays;
+  if (!previous || turnedOn || intervalChanged || !previous.nextAt) {
+    return addReminderDays(input.now, input.intervalDays);
+  }
+
+  return previous.nextAt;
 }
 
 export function formatReminderMoment(date: Date): string {
   return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: STAGE_REMINDER_TIMEZONE,
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -64,40 +68,62 @@ export function formatReminderMoment(date: Date): string {
   }).format(date);
 }
 
-export function preparationReminderVars(input: {
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+export function carReminderLabel(carBrand?: string | null, carModel?: string | null): string {
+  const label = [carBrand?.trim(), carModel?.trim()].filter(Boolean).join(" ");
+  return label || "не указан";
+}
+
+export function renderStageReminderMessage(input: {
   clientName: string;
-  vin: string;
   carBrand?: string | null;
   carModel?: string | null;
   stageLabel: string;
-  stageEnteredAt: Date;
-}): Record<string, string> {
-  const carBrand = input.carBrand?.trim() || "";
-  const carModel = input.carModel?.trim() || "";
-  const carLabel = [carBrand, carModel].filter(Boolean).join(" ") || "не указано";
+  vin?: string | null;
+  dealUrl: string;
+}): { plain: string; html: string } {
+  const clientName = input.clientName.trim() || "не указан";
+  const carLabel = carReminderLabel(input.carBrand, input.carModel);
+  const stageLabel = input.stageLabel.trim() || "не указан";
+  const vin = input.vin?.trim() || "";
+  const dealUrl = input.dealUrl.trim();
+
+  const plainLines = [
+    `Напоминание по клиенту: ${clientName}.`,
+    "",
+    `Автомобиль: ${carLabel}.`,
+    "",
+    `Текущий этап: ${stageLabel}.`,
+    "",
+    "Сделка находится на этом этапе. Проверьте актуальный статус оформления и при необходимости обновите информацию в CRM.",
+  ];
+  if (vin) {
+    plainLines.push("", `VIN: ${vin}.`);
+  }
+  plainLines.push("", `Открыть карточку: ${dealUrl}`);
+
+  const htmlLines = [
+    `Напоминание по клиенту: <b>${escapeHtml(clientName)}</b>.`,
+    "",
+    `Автомобиль: <b>${escapeHtml(carLabel)}</b>.`,
+    "",
+    `Текущий этап: <b>${escapeHtml(stageLabel)}</b>.`,
+    "",
+    "Сделка находится на этом этапе. Проверьте актуальный статус оформления и при необходимости обновите информацию в CRM.",
+  ];
+  if (vin) {
+    htmlLines.push("", `VIN: <code>${escapeHtml(vin)}</code>.`);
+  }
+  htmlLines.push("", `<a href="${escapeHtml(dealUrl)}">Открыть карточку клиента</a>`);
 
   return {
-    clientName: input.clientName.trim() || "не указан",
-    vin: input.vin.trim() || "не указан",
-    carBrand: carBrand || "не указана",
-    carModel: carModel || "не указана",
-    carLabel,
-    stageLabel: input.stageLabel.trim() || "не указан",
-    onStageSince: formatReminderMoment(input.stageEnteredAt),
+    plain: plainLines.join("\n"),
+    html: htmlLines.join("\n"),
   };
-}
-
-export function renderPreparationReminder(
-  template: string,
-  vars: Record<string, string>,
-): { plain: string; html: string } {
-  const plain = renderTemplateString(template, vars).trim();
-  const html = renderTemplateString(
-    escapeHtml(template),
-    Object.fromEntries(Object.entries(vars).map(([key, value]) => [key, escapeHtml(value)])),
-  )
-    .trim()
-    .slice(0, TELEGRAM_TEXT_LIMIT);
-
-  return { plain, html };
 }

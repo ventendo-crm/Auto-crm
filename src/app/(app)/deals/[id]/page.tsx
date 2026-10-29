@@ -13,6 +13,7 @@ import { DealDocuments } from "@/components/deals/deal-documents";
 import { DealExpenses } from "@/components/deals/deal-expenses";
 import { DealFinancialSummaryCard } from "@/components/deals/deal-financial-summary";
 import { DealReminders } from "@/components/deals/deal-reminders";
+import { DealStageReminders } from "@/components/deals/deal-stage-reminders";
 import { DealHeader } from "@/components/deals/deal-header";
 import { DealInfo } from "@/components/deals/deal-info";
 import { DealImportProcess } from "@/components/deals/deal-import-process";
@@ -208,6 +209,11 @@ export default function DealPage() {
                 onUpdated={refreshDeal}
                 canEdit={canManageDeal}
                 canViewFinances={canViewFinances}
+              />
+              <DealStageReminders
+                dealId={deal.id}
+                currentStage={deal.currentStage}
+                canManage={canManageDeal}
               />
               {settings.dealTabs.importProcess && (
                 <DealImportProcessToggle
