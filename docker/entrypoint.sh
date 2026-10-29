@@ -82,9 +82,9 @@ if command -v npx >/dev/null 2>&1; then
 fi
 
 echo "[auto-crm] Ensuring deal stage reminder columns..."
-if [ -f ./prisma/ensure-stage-reminders.sql ]; then
-  run_as_nextjs npx prisma db execute --file ./prisma/ensure-stage-reminders.sql --schema ./prisma/schema.prisma \
-    || echo "[auto-crm] Stage reminder columns ensure failed — continuing"
+if [ -f ./scripts/ensure-stage-reminders.cjs ]; then
+  run_as_nextjs node ./scripts/ensure-stage-reminders.cjs \
+    || echo "[auto-crm] Stage reminder columns ensure failed — app will retry on the first deal query"
 fi
 
 echo "[auto-crm] Ensuring default roles..."
