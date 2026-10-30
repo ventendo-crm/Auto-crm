@@ -19,6 +19,7 @@ interface ExpenseRow {
 interface DealExpensesProps {
   dealId: string;
   canEdit: boolean;
+  onChanged?: () => void;
 }
 
 function createEmptyRow(): ExpenseRow {
@@ -81,7 +82,7 @@ function mergeRowsAfterSave(current: ExpenseRow[], saved: DealExpenseItem[]): Ex
   return [...savedRows, ...emptyDrafts];
 }
 
-export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
+export function DealExpenses({ dealId, canEdit, onChanged }: DealExpensesProps) {
   const [rows, setRows] = useState<ExpenseRow[]>([createEmptyRow()]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -132,6 +133,7 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
         const saved = await api.deals.expenses.save(dealId, payload);
         lastSavedPayloadRef.current = serialized;
         setRows((current) => mergeRowsAfterSave(current, saved));
+        onChanged?.();
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Не удалось сохранить расходы");
       } finally {
@@ -139,7 +141,7 @@ export function DealExpenses({ dealId, canEdit }: DealExpensesProps) {
         setSaving(false);
       }
     },
-    [canEdit, dealId],
+    [canEdit, dealId, onChanged],
   );
 
   const saveIfChanged = useCallback(async () => {

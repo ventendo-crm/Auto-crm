@@ -46,6 +46,7 @@ export default function DealPage() {
   const [activity, setActivity] = useState<DealActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [financeTick, setFinanceTick] = useState(0);
 
   useScrollToTabPanel(activeTab);
 
@@ -71,6 +72,9 @@ export default function DealPage() {
   const canDeleteDeal = canManageDeal;
 
   const canUploadMedia = canManageDeal;
+  const deliveryTabVisible = Boolean(
+    settings.dealTabs.importProcess && deal?.importProcessEnabled,
+  );
 
   const refreshDeal = useCallback(async () => {
     if (!params.id) return;
@@ -226,14 +230,13 @@ export default function DealPage() {
             </div>
 
             <div className="space-y-4">
-              {canViewFinances && <DealFinancialSummaryCard deal={deal} />}
               {canManageReminders && <DealReminders dealId={deal.id} canManage />}
               <DealClientAccount
                 deal={deal}
                 canManage={canManageDeal}
                 onUpdated={refreshDeal}
               />
-              {settings.dealTabs.logistics && (
+              {settings.dealTabs.logistics && !deliveryTabVisible && (
                 <DealLogistics
                   dealId={deal.id}
                   shipment={deal.shipment}
@@ -295,13 +298,31 @@ export default function DealPage() {
           )}
 
           {canViewExpenses && (
-            <TabsContent value="expenses">
-              <DealExpenses dealId={deal.id} canEdit={canViewExpenses} />
+            <TabsContent value="expenses" className="space-y-4">
+              {canViewFinances && (
+                <DealFinancialSummaryCard deal={deal} reloadToken={financeTick} />
+              )}
+              <DealExpenses
+                dealId={deal.id}
+                canEdit={canViewExpenses}
+                onChanged={() => {
+                  void refreshDeal();
+                  setFinanceTick((tick) => tick + 1);
+                }}
+              />
             </TabsContent>
           )}
 
           {settings.dealTabs.importProcess && deal.importProcessEnabled && (
-            <TabsContent value="import-process">
+            <TabsContent value="import-process" className="space-y-4">
+              {settings.dealTabs.logistics && (
+                <DealLogistics
+                  dealId={deal.id}
+                  shipment={deal.shipment}
+                  canEdit={canManageDeal}
+                  onUpdated={refreshDeal}
+                />
+              )}
               <DealImportProcess dealId={deal.id} canEdit={canManageDeal} />
             </TabsContent>
           )}
