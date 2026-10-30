@@ -5,9 +5,12 @@ import { prisma } from "@/lib/prisma";
 import {
   advanceStageReminderSchedule,
   computeStageReminderNextAt,
+  computeTaskReminderNotifyAt,
+  formatTaskDueDate,
   isStageReminderDue,
   isStageReminderStage,
   renderStageReminderMessage,
+  renderTaskReminderMessage,
   STAGE_REMINDER_STAGES,
 } from "@/lib/preparation-reminders/message";
 import { getCompanyStageLabels } from "@/lib/services/company-workspace";
@@ -194,6 +197,7 @@ export async function runPreparationReminders(): Promise<void> {
     do {
       rerunRequested = false;
       await dispatchDueStageReminders();
+      await dispatchDueTaskReminders();
     } while (rerunRequested);
   } finally {
     batchRunning = false;
@@ -302,6 +306,76 @@ async function revertClaim(dealId: string, claimedNextAt: Date, previousNextAt: 
     });
 }
 
+async function notifyAssignedManagers(input: {
+  deal: {
+    id: string;
+    companyId: string;
+    managerId: string | null;
+    managerAssignments: Array<{ managerId: string }>;
+  };
+  title: string;
+  plain: string;
+  html: string;
+  logLabel: string;
+}): Promise<"delivered" | "nobody" | "failed"> {
+  const managers = await loadAssignedManagers(input.deal);
+  if (managers.length === 0) {
+    return "nobody";
+  }
+
+  let inApp = 0;
+  for (const manager of managers) {
+    try {
+      await createNotification({
+        userId: manager.id,
+        dealId: input.deal.id,
+        title: input.title,
+        message: input.plain,
+        type: NotificationType.TELEGRAM,
+      });
+      inApp += 1;
+    } catch (error) {
+      console.error(`[${input.logLabel}] in-app notification failed:`, manager.id, error);
+    }
+  }
+
+  const chatIds = managers
+    .map((manager) => manager.telegramChatId?.trim() || "")
+    .filter((chatId) => chatId.length > 0);
+
+  let telegramOk = 0;
+  if (chatIds.length > 0) {
+    const config = await getCompanyTelegramConfig(input.deal.companyId);
+    if (!isCompanyTelegramConfigured(config) || !config.token) {
+      console.warn(
+        `[${input.logLabel}] Telegram skipped: company bot token is not set`,
+        input.deal.companyId,
+      );
+    } else {
+      const results = await sendCompanyTelegramMessages({
+        token: config.token,
+        chatIds,
+        text: input.html,
+      });
+      telegramOk = results.filter((result) => result.ok).length;
+      const failed = results.filter((result) => !result.ok);
+      if (failed.length > 0) {
+        console.error(
+          `[${input.logLabel}] Telegram delivery failed:`,
+          failed.map((result) => `${result.chatId}: ${result.error}`).join("; "),
+        );
+      }
+    }
+  } else {
+    console.warn(
+      `[${input.logLabel}] Telegram skipped: managers have no chat ID`,
+      managers.map((manager) => manager.id),
+    );
+  }
+
+  return inApp > 0 || telegramOk > 0 ? "delivered" : "failed";
+}
+
 async function sendStageReminder(deal: {
   id: string;
   companyId: string;
@@ -313,11 +387,6 @@ async function sendStageReminder(deal: {
   managerId: string | null;
   managerAssignments: Array<{ managerId: string }>;
 }): Promise<"delivered" | "nobody" | "failed"> {
-  const managers = await loadAssignedManagers(deal);
-  if (managers.length === 0) {
-    return "nobody";
-  }
-
   const labels = await getCompanyStageLabels(deal.companyId);
   const dealUrl = `${getAppPublicUrl()}/deals/${deal.id}`;
   const { plain, html } = renderStageReminderMessage({
@@ -329,55 +398,132 @@ async function sendStageReminder(deal: {
     dealUrl,
   });
 
-  let inApp = 0;
-  for (const manager of managers) {
+  return notifyAssignedManagers({
+    deal,
+    title: "Напоминание по клиенту",
+    plain,
+    html,
+    logLabel: "preparation-reminders",
+  });
+}
+
+async function dispatchDueTaskReminders(): Promise<void> {
+  const horizon = new Date(Date.now() + 36 * 60 * 60 * 1000);
+  const reminders = await prisma.reminder.findMany({
+    where: {
+      completed: false,
+      notifiedAt: null,
+      dueDate: { lte: horizon },
+    },
+    select: { id: true },
+    orderBy: { dueDate: "asc" },
+    take: 100,
+  });
+
+  for (const reminder of reminders) {
     try {
-      await createNotification({
-        userId: manager.id,
-        dealId: deal.id,
-        title: "Напоминание по клиенту",
-        message: plain,
-        type: NotificationType.TELEGRAM,
-      });
-      inApp += 1;
+      await deliverTaskReminder(reminder.id);
     } catch (error) {
-      console.error("[preparation-reminders] in-app notification failed:", manager.id, error);
+      console.error("[task-reminders] reminder failed:", reminder.id, error);
     }
   }
+}
 
-  const chatIds = managers
-    .map((manager) => manager.telegramChatId?.trim() || "")
-    .filter((chatId) => chatId.length > 0);
+export function scheduleTaskReminderDelivery(reminderId: string): void {
+  void deliverTaskReminder(reminderId).catch((error) => {
+    console.error("[task-reminders] scheduled delivery failed:", reminderId, error);
+  });
+}
 
-  let telegramOk = 0;
-  if (chatIds.length > 0) {
-    const config = await getCompanyTelegramConfig(deal.companyId);
-    if (!isCompanyTelegramConfigured(config) || !config.token) {
-      console.warn(
-        "[preparation-reminders] Telegram skipped: company bot token is not set",
-        deal.companyId,
-      );
-    } else {
-      const results = await sendCompanyTelegramMessages({
-        token: config.token,
-        chatIds,
-        text: html,
-      });
-      telegramOk = results.filter((result) => result.ok).length;
-      const failed = results.filter((result) => !result.ok);
-      if (failed.length > 0) {
-        console.error(
-          "[preparation-reminders] Telegram delivery failed:",
-          failed.map((result) => `${result.chatId}: ${result.error}`).join("; "),
-        );
-      }
-    }
-  } else {
-    console.warn(
-      "[preparation-reminders] Telegram skipped: managers have no chat ID",
-      managers.map((manager) => manager.id),
-    );
+export async function deliverTaskReminder(
+  reminderId: string,
+): Promise<"sent" | "skipped" | "failed"> {
+  const reminder = await prisma.reminder.findUnique({
+    where: { id: reminderId },
+    select: {
+      id: true,
+      title: true,
+      dueDate: true,
+      completed: true,
+      notifiedAt: true,
+      deal: {
+        select: {
+          id: true,
+          companyId: true,
+          clientName: true,
+          vin: true,
+          carBrand: true,
+          carModel: true,
+          stageReminderSendTime: true,
+          stageReminderTimeZone: true,
+          managerId: true,
+          managerAssignments: { select: { managerId: true } },
+        },
+      },
+    },
+  });
+
+  if (!reminder || reminder.completed || reminder.notifiedAt) {
+    return "skipped";
   }
 
-  return inApp > 0 || telegramOk > 0 ? "delivered" : "failed";
+  const now = new Date();
+  const notifyAt = computeTaskReminderNotifyAt(
+    reminder.dueDate,
+    reminder.deal.stageReminderSendTime,
+    reminder.deal.stageReminderTimeZone,
+  );
+  if (notifyAt.getTime() > now.getTime()) {
+    return "skipped";
+  }
+
+  const claimed = await prisma.reminder.updateMany({
+    where: { id: reminder.id, completed: false, notifiedAt: null },
+    data: { notifiedAt: now },
+  });
+  if (claimed.count !== 1) {
+    return "skipped";
+  }
+
+  try {
+    const dealUrl = `${getAppPublicUrl()}/deals/${reminder.deal.id}`;
+    const { plain, html } = renderTaskReminderMessage({
+      clientName: reminder.deal.clientName,
+      title: reminder.title,
+      dueDateLabel: formatTaskDueDate(reminder.dueDate),
+      carBrand: reminder.deal.carBrand,
+      carModel: reminder.deal.carModel,
+      vin: reminder.deal.vin,
+      dealUrl,
+    });
+    const result = await notifyAssignedManagers({
+      deal: reminder.deal,
+      title: "Задача по клиенту",
+      plain,
+      html,
+      logLabel: "task-reminders",
+    });
+    if (result === "failed") {
+      await revertTaskClaim(reminder.id, now);
+      return "failed";
+    }
+    if (result === "nobody") {
+      console.warn("[task-reminders] no assigned manager, reminder skipped", reminder.id);
+    }
+    return result === "delivered" ? "sent" : "skipped";
+  } catch (error) {
+    await revertTaskClaim(reminder.id, now);
+    throw error;
+  }
+}
+
+async function revertTaskClaim(reminderId: string, claimedAt: Date) {
+  await prisma.reminder
+    .updateMany({
+      where: { id: reminderId, notifiedAt: claimedAt },
+      data: { notifiedAt: null },
+    })
+    .catch((revertError) => {
+      console.error("[task-reminders] revert failed:", reminderId, revertError);
+    });
 }

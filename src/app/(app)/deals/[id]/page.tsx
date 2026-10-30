@@ -12,8 +12,7 @@ import { DealComments } from "@/components/deals/deal-comments";
 import { DealDocuments } from "@/components/deals/deal-documents";
 import { DealExpenses } from "@/components/deals/deal-expenses";
 import { DealFinancialSummaryCard } from "@/components/deals/deal-financial-summary";
-import { DealReminders } from "@/components/deals/deal-reminders";
-import { DealStageReminders } from "@/components/deals/deal-stage-reminders";
+import { DealTasksAndReminders } from "@/components/deals/deal-tasks-and-reminders";
 import { DealHeader } from "@/components/deals/deal-header";
 import { DealInfo } from "@/components/deals/deal-info";
 import { DealImportProcess } from "@/components/deals/deal-import-process";
@@ -214,11 +213,6 @@ export default function DealPage() {
                 canEdit={canManageDeal}
                 canViewFinances={canViewFinances}
               />
-              <DealStageReminders
-                dealId={deal.id}
-                currentStage={deal.currentStage}
-                canManage={canManageDeal}
-              />
               {settings.dealTabs.importProcess && (
                 <DealImportProcessToggle
                   dealId={deal.id}
@@ -230,7 +224,6 @@ export default function DealPage() {
             </div>
 
             <div className="space-y-4">
-              {canManageReminders && <DealReminders dealId={deal.id} canManage />}
               <DealClientAccount
                 deal={deal}
                 canManage={canManageDeal}
@@ -246,6 +239,13 @@ export default function DealPage() {
               )}
             </div>
             </div>
+
+            <DealTasksAndReminders
+              dealId={deal.id}
+              currentStage={deal.currentStage}
+              canManageSettings={canManageDeal}
+              canManageTasks={canManageReminders}
+            />
           </TabsContent>
 
           <TabsContent value="documents" className="space-y-4">

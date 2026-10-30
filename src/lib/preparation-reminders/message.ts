@@ -236,6 +236,86 @@ export function carReminderLabel(carBrand?: string | null, carModel?: string | n
   return label || "не указан";
 }
 
+/**
+ * Момент отправки задачи: календарный день срока (UTC-дата dueDate) + время/пояс сделки.
+ */
+export function computeTaskReminderNotifyAt(
+  dueDate: Date,
+  sendTime: string,
+  timeZone: string,
+): Date {
+  const { hour, minute, timeZone: zone } = resolveSchedule(sendTime, timeZone);
+  return zonedTimeToUtc(
+    {
+      year: dueDate.getUTCFullYear(),
+      month: dueDate.getUTCMonth() + 1,
+      day: dueDate.getUTCDate(),
+    },
+    hour,
+    minute,
+    zone,
+  );
+}
+
+export function formatTaskDueDate(dueDate: Date): string {
+  return new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "UTC",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(dueDate);
+}
+
+export function renderTaskReminderMessage(input: {
+  clientName: string;
+  title: string;
+  dueDateLabel: string;
+  carBrand?: string | null;
+  carModel?: string | null;
+  vin?: string | null;
+  dealUrl: string;
+}): { plain: string; html: string } {
+  const clientName = input.clientName.trim() || "не указан";
+  const title = input.title.trim() || "без названия";
+  const dueDateLabel = input.dueDateLabel.trim() || "не указан";
+  const carLabel = carReminderLabel(input.carBrand, input.carModel);
+  const vin = input.vin?.trim() || "";
+  const dealUrl = input.dealUrl.trim();
+
+  const plainLines = [
+    `Задача по клиенту: ${clientName}.`,
+    "",
+    `Что сделать: ${title}.`,
+    "",
+    `Срок: ${dueDateLabel}.`,
+    "",
+    `Автомобиль: ${carLabel}.`,
+  ];
+  if (vin) {
+    plainLines.push("", `VIN: ${vin}.`);
+  }
+  plainLines.push("", `Открыть карточку: ${dealUrl}`);
+
+  const htmlLines = [
+    `Задача по клиенту: <b>${escapeHtml(clientName)}</b>.`,
+    "",
+    `Что сделать: <b>${escapeHtml(title)}</b>.`,
+    "",
+    `Срок: <b>${escapeHtml(dueDateLabel)}</b>.`,
+    "",
+    `Автомобиль: <b>${escapeHtml(carLabel)}</b>.`,
+  ];
+  if (vin) {
+    htmlLines.push("", `VIN: <code>${escapeHtml(vin)}</code>.`);
+  }
+  htmlLines.push("", `<a href="${escapeHtml(dealUrl)}">Открыть карточку клиента</a>`);
+
+  return {
+    plain: plainLines.join("\n"),
+    html: htmlLines.join("\n"),
+  };
+}
+
 export function renderStageReminderMessage(input: {
   clientName: string;
   carBrand?: string | null;

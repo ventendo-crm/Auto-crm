@@ -4,8 +4,11 @@ import { DealStageType } from "@prisma/client";
 import {
   advanceStageReminderSchedule,
   computeStageReminderNextAt,
+  computeTaskReminderNotifyAt,
+  formatTaskDueDate,
   isStageReminderDue,
   renderStageReminderMessage,
+  renderTaskReminderMessage,
   scheduleStageReminderAt,
 } from "@/lib/preparation-reminders/message";
 
@@ -200,4 +203,40 @@ test("без VIN строка VIN не попадает в уведомлени�
     dealUrl: "https://importcrm.ru/deals/deal-1",
   });
   assert.equal(plain.includes("VIN"), false);
+});
+
+test("задача на 1 ноября в 10:00 по Москве — 07:00 UTC", () => {
+  const notifyAt = computeTaskReminderNotifyAt(
+    new Date("2026-11-01T00:00:00.000Z"),
+    "10:00",
+    "Europe/Moscow",
+  );
+  assert.equal(notifyAt.toISOString(), "2026-11-01T07:00:00.000Z");
+  assert.equal(formatTaskDueDate(new Date("2026-11-01T00:00:00.000Z")), "01.11.2026");
+});
+
+test("задача в Самаре на час раньше по UTC, чем в Москве", () => {
+  const notifyAt = computeTaskReminderNotifyAt(
+    new Date("2026-11-01T00:00:00.000Z"),
+    "10:00",
+    "Europe/Samara",
+  );
+  assert.equal(notifyAt.toISOString(), "2026-11-01T06:00:00.000Z");
+});
+
+test("текст задачи содержит срок, заголовок и ссылку", () => {
+  const { plain, html } = renderTaskReminderMessage({
+    clientName: "Иван Иванов",
+    title: "Позвонить по оплате",
+    dueDateLabel: "01.11.2026",
+    carBrand: "Volkswagen",
+    carModel: "Tharu XR",
+    vin: "WVWZZZ1KZAW123456",
+    dealUrl: "https://importcrm.ru/deals/deal-1",
+  });
+  assert.match(plain, /Задача по клиенту: Иван Иванов/);
+  assert.match(plain, /Что сделать: Позвонить по оплате/);
+  assert.match(plain, /Срок: 01\.11\.2026/);
+  assert.match(plain, /VIN: WVWZZZ1KZAW123456/);
+  assert.match(html, /<a href="https:\/\/importcrm\.ru\/deals\/deal-1">Открыть карточку клиента<\/a>/);
 });
