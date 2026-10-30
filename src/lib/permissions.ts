@@ -1,4 +1,8 @@
-import { DealWithManagerAssignments, getDealManagerIds, normalizeManagerIds } from "@/lib/deal-managers";
+import {
+  DealWithManagerAssignments,
+  getDealManagerIds,
+  normalizeManagerIds,
+} from "@/lib/deal-manager-list";
 
 export const ROLES = {
   ADMIN: "ADMIN",

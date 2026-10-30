@@ -9,7 +9,7 @@ import { SidebarToggle } from "@/components/layout/sidebar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CollapsiblePanel, CollapsibleTrigger } from "@/components/ui/collapsible-panel";
-import { formatDealManagersLabel } from "@/lib/deal-managers";
+import { formatDealManagersLabel } from "@/lib/deal-manager-list";
 import { STAGE_COLORS } from "@/lib/constants";
 import { DealDetail } from "@/lib/types";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";

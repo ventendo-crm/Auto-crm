@@ -1,29 +1,10 @@
 import { renderTemplateString } from "@/lib/email/render";
 import { STAGE_LABELS } from "@/lib/constants";
 import { getCompanyStageLabels } from "@/lib/services/company-workspace";
+import type { TelegramTemplateKey } from "@/lib/telegram/placeholders";
 import { getTelegramTemplateRecord } from "@/lib/telegram/template-store";
 
-export const TELEGRAM_TEMPLATE_PLACEHOLDERS = {
-  STAGE_CHANGE: [
-    "clientName",
-    "vin",
-    "fromStage",
-    "toStage",
-    "managerName",
-    "changedByName",
-    "date",
-  ],
-  CLIENT_STAGE: ["stageLabel", "body", "carLine", "vinLine"],
-  COMMENT: ["clientName", "vin", "authorName", "authorRole", "commentText"],
-  TRACKING_POINT: [
-    "pointTitle",
-    "pointDescription",
-    "recordedAt",
-  ],
-  TEST: ["userName"],
-} as const;
-
-export type TelegramTemplateKey = keyof typeof TELEGRAM_TEMPLATE_PLACEHOLDERS;
+export { TELEGRAM_TEMPLATE_PLACEHOLDERS, type TelegramTemplateKey } from "@/lib/telegram/placeholders";
 
 export function formatStageLabel(stage: string, labels?: Record<string, string>): string {
   return labels?.[stage] ?? STAGE_LABELS[stage as keyof typeof STAGE_LABELS] ?? stage;

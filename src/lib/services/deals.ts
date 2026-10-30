@@ -18,6 +18,8 @@ import { getCompanyCalculatorSettings } from "@/lib/services/company-calculator-
 import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { buildManagerDealsWhere } from "@/lib/services/deal-access";
 import { notifyStageChange } from "@/lib/services/notifications";
+import { computeStageReminderNextAt } from "@/lib/preparation-reminders/message";
+import "@/lib/preparation-reminders/bootstrap";
 import { recordStageChange } from "@/lib/services/stage-history";
 import { z } from "zod";
 import { createDealSchema, listDealsSchema, updateDealSchema } from "@/lib/validators/deal";
@@ -424,6 +426,14 @@ export async function changeDealStage(user: AuthUser, id: string, toStage: DealS
       data: {
         currentStage: toStage,
         stageEnteredAt: now,
+        stageReminderNextAt: computeStageReminderNextAt({
+          enabled: existing.stageReminderEnabled,
+          intervalDays: existing.stageReminderIntervalDays,
+          sendTime: existing.stageReminderSendTime,
+          timeZone: existing.stageReminderTimeZone,
+          stage: toStage,
+          now,
+        }),
       },
       include: dealInclude,
     });

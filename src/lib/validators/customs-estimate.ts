@@ -27,6 +27,7 @@ export const customsEstimateInputSchema = z.object({
   deliveryUsd: z.number().nonnegative().optional(),
   escortRub: z.number().nonnegative().optional(),
   kyrgyzstanCustomsCleared: z.boolean().optional(),
+  recyclingFeeYear: z.enum(["2026", "2027"]).optional(),
   customsPrice: z.number().positive().optional(),
   extraExpenses: z
     .array(

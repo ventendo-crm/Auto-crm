@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { TelegramTemplateKey } from "@/lib/telegram/templates";
+import type { TelegramTemplateKey } from "@/lib/telegram/placeholders";
 
 export interface TelegramTemplateRecord {
   key: TelegramTemplateKey;

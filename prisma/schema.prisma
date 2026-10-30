@@ -116,6 +116,11 @@ model Deal {
   clientUserId       String?        @unique
   currentStage       DealStageType
   stageEnteredAt     DateTime
+  stageReminderEnabled Boolean @default(false)
+  stageReminderIntervalDays Int @default(1)
+  stageReminderSendTime String @default("10:00")
+  stageReminderTimeZone String @default("Europe/Moscow")
+  stageReminderNextAt DateTime?
   expectedArrival    DateTime?
   actualArrival      DateTime?
   priority           Int            @default(1)
@@ -153,6 +158,7 @@ model Deal {
   @@index([currentStage])
   @@index([vin])
   @@index([stageEnteredAt])
+  @@index([stageReminderNextAt])
   @@index([expectedArrival])
   @@map("deals")
 }
@@ -503,17 +509,19 @@ model Shipment {
 }
 
 model Reminder {
-  id        String   @id @default(cuid())
-  dealId    String
-  title     String
-  dueDate   DateTime
-  completed Boolean  @default(false)
-  createdAt DateTime @default(now())
-  deal      Deal     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  id         String    @id @default(cuid())
+  dealId     String
+  title      String
+  dueDate    DateTime
+  completed  Boolean   @default(false)
+  notifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+  deal       Deal      @relation(fields: [dealId], references: [id], onDelete: Cascade)
 
   @@index([dealId])
   @@index([dueDate])
   @@index([completed])
+  @@index([completed, notifiedAt])
   @@map("reminders")
 }
 
