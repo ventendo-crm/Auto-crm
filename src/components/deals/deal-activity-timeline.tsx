@@ -17,7 +17,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
-import { DealActivityItem } from "@/lib/services/deal-activity";
+import type { DealActivityItem } from "@/lib/services/deal-activity";
 import { cn, formatDateTime } from "@/lib/utils";
 
 const categoryIcons = {

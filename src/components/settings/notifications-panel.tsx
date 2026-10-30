@@ -1,6 +1,7 @@
 "use client";
 
 import { Bell, CheckCheck } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -53,18 +54,18 @@ export function NotificationsPanel() {
   };
 
   return (
-    <Card className="border-0 shadow-card">
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle className="flex items-center gap-2 text-base">
-          <Bell className="h-4 w-4" />
+    <Card className="min-w-0 overflow-hidden border-0 shadow-card">
+      <CardHeader className="flex flex-col gap-3 space-y-0 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+        <CardTitle className="flex min-w-0 items-center gap-2 text-base">
+          <Bell className="h-4 w-4 shrink-0" />
           Уведомления
         </CardTitle>
-        <Button variant="outline" size="sm" onClick={markAllRead}>
+        <Button variant="outline" size="sm" className="w-full shrink-0 sm:w-auto" onClick={markAllRead}>
           <CheckCheck className="h-4 w-4" />
           Прочитать все
         </Button>
       </CardHeader>
-      <CardContent className="space-y-2">
+      <CardContent className="min-w-0 space-y-2 p-4 pt-0 sm:p-6 sm:pt-0">
         {loading &&
           Array.from({ length: 4 }).map((_, i) => (
             <Skeleton key={i} className="h-16 w-full" />
@@ -73,22 +74,41 @@ export function NotificationsPanel() {
           notifications.map((n) => (
             <div
               key={n.id}
-              className={`rounded-lg border p-3 ${!n.read ? "bg-brand-muted/40 border-brand/20" : ""}`}
+              className={`min-w-0 overflow-hidden rounded-lg border p-3 ${!n.read ? "bg-brand-muted/40 border-brand/20" : ""}`}
             >
-              <div className="flex items-start justify-between gap-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium">{n.title}</p>
-                    {!n.read && <Badge variant="brand" className="text-[10px]">Новое</Badge>}
+              <div className="flex min-w-0 flex-col gap-2">
+                <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                    <p className="break-words text-sm font-medium">{n.title}</p>
+                    {!n.read && (
+                      <Badge variant="brand" className="shrink-0 text-[10px]">
+                        Новое
+                      </Badge>
+                    )}
                   </div>
-                  <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">{n.message}</p>
-                  <p className="mt-1 text-xs text-muted-foreground">{formatDateTime(n.createdAt)}</p>
+                  {!n.read && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 shrink-0 px-2 sm:px-3"
+                      onClick={() => markRead(n.id)}
+                    >
+                      Прочитано
+                    </Button>
+                  )}
                 </div>
-                {!n.read && (
-                  <Button variant="ghost" size="sm" onClick={() => markRead(n.id)}>
-                    Прочитано
-                  </Button>
+                <p className="whitespace-pre-line break-words text-sm text-muted-foreground [overflow-wrap:anywhere]">
+                  {n.message}
+                </p>
+                {n.dealId && (
+                  <Link
+                    href={`/deals/${n.dealId}`}
+                    className="inline-block text-sm text-brand hover:underline"
+                  >
+                    Открыть сделку
+                  </Link>
                 )}
+                <p className="text-xs text-muted-foreground">{formatDateTime(n.createdAt)}</p>
               </div>
             </div>
           ))}

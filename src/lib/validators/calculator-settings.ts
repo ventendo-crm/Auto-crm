@@ -30,6 +30,7 @@ export const calculatorPresetSchema = z.object({
   deliveryUsd: z.string().max(32),
   escortRub: z.string().max(32),
   kyrgyzstanCustomsCleared: z.boolean().optional(),
+  recyclingFee2027: z.boolean().optional(),
   rates: exchangeRatesSchema.optional(),
 });
 

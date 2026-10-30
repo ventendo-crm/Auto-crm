@@ -119,6 +119,8 @@ type CalculatorPersistedState = {
   escortRub: string;
   /** Киргизия: автомобиль растаможен (пошлина не считается) */
   kyrgyzstanCustomsCleared: boolean;
+  /** Утильсбор по коэффициентам 2027 года. Выключено — ставки 2026. */
+  recyclingFee2027: boolean;
   rates: ExchangeRates;
   ratesUpdatedAt: string | null;
   submitted: boolean;
@@ -152,6 +154,7 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   deliveryUsd: String(KAZAKHSTAN_DELIVERY_USD),
   escortRub: String(DEFAULT_ESCORT_RUB),
   kyrgyzstanCustomsCleared: true,
+  recyclingFee2027: false,
   rates: DEFAULT_EXCHANGE_RATES,
   ratesUpdatedAt: null,
   submitted: false,
@@ -253,6 +256,7 @@ function loadPersistedState(): CalculatorPersistedState {
         typeof parsed.kyrgyzstanCustomsCleared === "boolean"
           ? parsed.kyrgyzstanCustomsCleared
           : DEFAULT_STATE.kyrgyzstanCustomsCleared,
+      recyclingFee2027: parsed.recyclingFee2027 === true,
       rates,
       ratesUpdatedAt:
         typeof parsed.ratesUpdatedAt === "string" ? parsed.ratesUpdatedAt : DEFAULT_STATE.ratesUpdatedAt,
@@ -343,6 +347,9 @@ function loadUserPresets(): UserPreset[] {
             typeof item.kyrgyzstanCustomsCleared === "boolean"
               ? item.kyrgyzstanCustomsCleared
               : DEFAULT_STATE.kyrgyzstanCustomsCleared,
+          ...(typeof item.recyclingFee2027 === "boolean"
+            ? { recyclingFee2027: item.recyclingFee2027 }
+            : {}),
         } satisfies UserPreset;
       })
       .slice(0, MAX_USER_PRESETS);
@@ -451,6 +458,7 @@ function inputToCalculatorState(input: CustomsCalculatorInput): CalculatorPersis
     escortRub: numberToInputString(input.escortRub, DEFAULT_STATE.escortRub),
     kyrgyzstanCustomsCleared:
       originCountry === "kyrgyzstan" ? input.kyrgyzstanCustomsCleared !== false : true,
+    recyclingFee2027: input.recyclingFeeYear === "2027",
     rates: roundExchangeRates({
       ...DEFAULT_EXCHANGE_RATES,
       ...(input.rates ?? {}),
@@ -677,6 +685,7 @@ export function CustomsCalculator({
   const [kyrgyzstanCustomsCleared, setKyrgyzstanCustomsCleared] = useState(
     DEFAULT_STATE.kyrgyzstanCustomsCleared,
   );
+  const [recyclingFee2027, setRecyclingFee2027] = useState(DEFAULT_STATE.recyclingFee2027);
   const [expenseTemplate, setExpenseTemplate] = useState<CalculatorExpenseItem[]>(
     getDefaultCompanyCalculatorExpenses,
   );
@@ -734,6 +743,7 @@ export function CustomsCalculator({
     setDeliveryUsd(source.deliveryUsd);
     setEscortRub(source.escortRub);
     setKyrgyzstanCustomsCleared(source.kyrgyzstanCustomsCleared);
+    setRecyclingFee2027(source.recyclingFee2027);
     setRates(source.rates);
     setRatesUpdatedAt(source.ratesUpdatedAt);
     setSubmitted(source.submitted);
@@ -886,6 +896,7 @@ export function CustomsCalculator({
       deliveryUsd,
       escortRub,
       kyrgyzstanCustomsCleared,
+      recyclingFee2027,
       rates,
       ratesUpdatedAt,
       submitted,
@@ -911,6 +922,7 @@ export function CustomsCalculator({
     deliveryUsd,
     escortRub,
     kyrgyzstanCustomsCleared,
+    recyclingFee2027,
     rates,
     ratesUpdatedAt,
     submitted,
@@ -946,6 +958,7 @@ export function CustomsCalculator({
       kyrgyzstanCustomsCleared: isKyrgyzstanOrigin(originCountry)
         ? kyrgyzstanCustomsCleared
         : undefined,
+      recyclingFeeYear: recyclingFee2027 ? "2027" : "2026",
       extraExpenses: extraExpenseItems.map((item) => ({
         id: item.id,
         label: item.label,
@@ -977,6 +990,7 @@ export function CustomsCalculator({
     deliveryUsd,
     escortRub,
     kyrgyzstanCustomsCleared,
+    recyclingFee2027,
     expenseRoles,
     extraExpenseItems,
     extraAmounts,
@@ -1043,6 +1057,7 @@ export function CustomsCalculator({
       deliveryUsd,
       escortRub,
       kyrgyzstanCustomsCleared,
+      recyclingFee2027,
       totalWithCar: result.totalWithCar,
     });
 
@@ -1072,6 +1087,7 @@ export function CustomsCalculator({
       deliveryUsd,
       escortRub,
       kyrgyzstanCustomsCleared,
+      recyclingFee2027,
       rates,
       ratesUpdatedAt,
       submitted: true,
@@ -1105,6 +1121,7 @@ export function CustomsCalculator({
     deliveryUsd,
     escortRub,
     kyrgyzstanCustomsCleared,
+    recyclingFee2027,
     rates,
     ratesUpdatedAt,
   ]);
@@ -1296,10 +1313,15 @@ export function CustomsCalculator({
     if (scenario.kyrgyzstanCustomsCleared !== undefined) {
       setKyrgyzstanCustomsCleared(scenario.kyrgyzstanCustomsCleared);
     }
+    if (scenario.recyclingFee2027 !== undefined) {
+      setRecyclingFee2027(scenario.recyclingFee2027);
+    }
   };
 
   const applyHistoryItem = (item: CalculatorHistoryItem) => {
     applyScenario(item);
+    // Расчёты до галочки не хранили год и считались по ставкам 2026.
+    setRecyclingFee2027(item.recyclingFee2027 === true);
     setRates(item.rates);
     setRatesUpdatedAt(item.ratesUpdatedAt);
     setSubmitted(true);
@@ -1366,6 +1388,7 @@ export function CustomsCalculator({
       deliveryUsd,
       escortRub,
       kyrgyzstanCustomsCleared,
+      recyclingFee2027,
     };
 
     const next = [preset, ...userPresets.filter((item) => item.name !== preset.name)].slice(
@@ -1569,6 +1592,7 @@ export function CustomsCalculator({
     deliveryUsd: amountOrZero(Boolean(expenseRoles.deliveryUsd), deliveryUsd),
     escortRub: amountOrZero(Boolean(expenseRoles.escort), escortRub),
     kyrgyzstanCustomsCleared: isKyrgyzstan ? kyrgyzstanCustomsCleared : undefined,
+    recyclingFeeYear: recyclingFee2027 ? "2027" : "2026",
     extraExpenses: extraExpenseItems.map((item) => ({
       id: item.id,
       label: item.label,
@@ -1591,7 +1615,8 @@ export function CustomsCalculator({
             Калькулятор растаможки
           </CardTitle>
           <p className="text-sm text-muted-foreground">
-            Расчёт по ставкам 2026 года: таможенный сбор, пошлина, акциз, НДС и утильсбор.
+            Таможенный сбор, пошлина, акциз и НДС — по ставкам 2026 года. Утильсбор —{" "}
+            {recyclingFee2027 ? "по ставкам 2027 года" : "по ставкам 2026 года"}.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -1851,6 +1876,26 @@ export function CustomsCalculator({
                 />
               </div>
             </div>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+              <input
+                id="recycling-fee-2027"
+                type="checkbox"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
+                checked={recyclingFee2027}
+                onChange={(event) => setRecyclingFee2027(event.target.checked)}
+              />
+              <span className="min-w-0 flex-1">
+                <span className="text-sm font-medium leading-snug">По ставкам 2027 года</span>
+                <FieldHint>
+                  {recyclingFee2027
+                    ? "Коммерческий утильсбор считается по коэффициентам с 1 января 2027 года."
+                    : "Сейчас утильсбор по ставкам 2026 года. Включите, чтобы посчитать коммерческий сбор по коэффициентам 2027 года."}{" "}
+                  Льготный сбор для физлица не меняется: 3 400 ₽ для нового авто и до 3 лет, 5 200 ₽
+                  для старше. Пошлина, акциз, НДС и таможенный сбор остаются по ставкам 2026 года.
+                </FieldHint>
+              </span>
+            </label>
 
             {isKyrgyzstan && (
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">

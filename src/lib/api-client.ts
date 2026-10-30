@@ -1,4 +1,4 @@
-import { DealStageType } from "@prisma/client";
+import type { DealStageType } from "@prisma/client";
 import {
   ApiResponse,
   AuthProfile,
@@ -17,6 +17,7 @@ import {
   MediaItem,
   NotificationItem,
   Paginated,
+  DealStageReminderSettings,
   ReminderItem,
   Role,
   ImportProcessEntry,
@@ -30,9 +31,9 @@ import {
   StageHistoryItem,
   User,
 } from "@/lib/types";
-import { DealActivityItem } from "@/lib/services/deal-activity";
-import { AdditionalOptionGroupState } from "@/lib/services/additional-options";
-import { DealExpenseItem } from "@/lib/services/deal-expenses";
+import type { DealActivityItem } from "@/lib/services/deal-activity";
+import type { AdditionalOptionGroupState } from "@/lib/services/additional-options";
+import type { DealExpenseItem } from "@/lib/services/deal-expenses";
 
 export class ApiRequestError extends Error {
   constructor(
@@ -386,6 +387,16 @@ export const api = {
       request<{ importProcessEnabled: boolean }>(`/api/deals/${dealId}/import-process`, {
         method: "PATCH",
         body: JSON.stringify({ enabled }),
+      }),
+    getStageReminder: (dealId: string) =>
+      request<DealStageReminderSettings>(`/api/deals/${dealId}/stage-reminders`),
+    saveStageReminder: (
+      dealId: string,
+      data: { enabled: boolean; intervalDays: number; sendTime: string; timeZone: string },
+    ) =>
+      request<DealStageReminderSettings>(`/api/deals/${dealId}/stage-reminders`, {
+        method: "PUT",
+        body: JSON.stringify(data),
       }),
   },
 

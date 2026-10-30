@@ -50,6 +50,17 @@ export interface CompanyListItem {
   _count: { users: number; deals: number };
 }
 
+export interface DealStageReminderSettings {
+  enabled: boolean;
+  intervalDays: number;
+  sendTime: string;
+  timeZone: string;
+  nextAt: string | null;
+  activeOnStage: boolean;
+  managersMissingTelegram: Array<{ id: string; name: string }>;
+  hasManager: boolean;
+}
+
 export interface CompanyTelegramBotSettings {
   companyId: string;
   companyName: string;
