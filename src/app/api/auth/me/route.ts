@@ -1,3 +1,4 @@
+import "@/lib/preparation-reminders/bootstrap";
 import { assertFound, withAuth } from "@/lib/api-handler";
 import { ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";

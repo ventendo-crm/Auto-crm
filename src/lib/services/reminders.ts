@@ -1,4 +1,5 @@
 import { Prisma } from "@prisma/client";
+import "@/lib/preparation-reminders/bootstrap";
 import { prisma } from "@/lib/prisma";
 import { AuthUser, ROLES, canUpdateDeal, canViewDeal } from "@/lib/permissions";
 import { dealAccessSelect } from "@/lib/deal-managers";
@@ -9,6 +10,7 @@ import {
   scheduleReminderRemoval,
   scheduleReminderSync,
 } from "@/lib/google-calendar/sync";
+import { scheduleTaskReminderDelivery } from "@/lib/services/preparation-reminders";
 import { z } from "zod";
 
 type CreateInput = z.infer<typeof createReminderSchema>;
@@ -148,6 +150,7 @@ export async function createReminder(
   });
 
   scheduleReminderSync(reminder.id);
+  scheduleTaskReminderDelivery(reminder.id);
 
   return reminder;
 }
@@ -172,7 +175,9 @@ export async function updateReminder(
     where: { id: reminderId },
     data: {
       ...(input.title !== undefined ? { title: input.title.trim() } : {}),
-      ...(input.dueDate !== undefined ? { dueDate: parseDueDate(input.dueDate) } : {}),
+      ...(input.dueDate !== undefined
+        ? { dueDate: parseDueDate(input.dueDate), notifiedAt: null }
+        : {}),
       ...(input.completed !== undefined ? { completed: input.completed } : {}),
     },
     include: reminderInclude,
@@ -187,6 +192,9 @@ export async function updateReminder(
   });
 
   scheduleReminderSync(reminder.id);
+  if (!reminder.completed) {
+    scheduleTaskReminderDelivery(reminder.id);
+  }
 
   return reminder;
 }

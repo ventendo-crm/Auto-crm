@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
-import { TELEGRAM_TEMPLATE_PLACEHOLDERS } from "@/lib/telegram/templates";
+import { TELEGRAM_TEMPLATE_PLACEHOLDERS } from "@/lib/telegram/placeholders";
 import { TelegramTemplateItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 

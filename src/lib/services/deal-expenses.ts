@@ -70,7 +70,3 @@ export async function replaceDealExpenses(
 
   return created.map(serializeExpense);
 }
-
-export function sumDealExpenses(expenses: DealExpenseItem[]): number {
-  return expenses.reduce((total, item) => total + item.amount, 0);
-}
