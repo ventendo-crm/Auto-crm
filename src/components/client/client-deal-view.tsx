@@ -36,7 +36,7 @@ import { api } from "@/lib/api-client";
 import { STAGE_COLORS } from "@/lib/constants";
 import { getMediaDownloadUrl } from "@/lib/media-urls";
 import { ClientPortalDeal, MediaItem } from "@/lib/types";
-import { DealActivityItem } from "@/lib/services/deal-activity";
+import type { DealActivityItem } from "@/lib/services/deal-activity";
 import { cn, formatDate, formatFileSize } from "@/lib/utils";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { enabledCustomDealFields, parseCustomFieldValues } from "@/lib/company-workspace/helpers";

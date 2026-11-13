@@ -21,7 +21,7 @@ import {
   canCreateCustomAdditionalOption,
   getClientRoleName,
 } from "@/lib/permissions";
-import {
+import type {
   AdditionalOptionGroupState,
   AdditionalOptionState,
 } from "@/lib/services/additional-options";

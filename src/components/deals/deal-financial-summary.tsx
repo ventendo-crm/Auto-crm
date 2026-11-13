@@ -11,6 +11,7 @@ import { cn, formatCurrency } from "@/lib/utils";
 
 interface DealFinancialSummaryProps {
   deal: DealDetail;
+  reloadToken?: number;
 }
 
 function SummaryRow({
@@ -43,7 +44,7 @@ function SummaryRow({
   );
 }
 
-export function DealFinancialSummaryCard({ deal }: DealFinancialSummaryProps) {
+export function DealFinancialSummaryCard({ deal, reloadToken = 0 }: DealFinancialSummaryProps) {
   const [summary, setSummary] = useState<DealFinancialSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -61,7 +62,7 @@ export function DealFinancialSummaryCard({ deal }: DealFinancialSummaryProps) {
 
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, reloadToken]);
 
   return (
     <Card className="border-0 shadow-card">

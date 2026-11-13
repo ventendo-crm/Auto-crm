@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { EmailTemplateKey } from "@/lib/email/templates";
+import type { EmailTemplateKey } from "@/lib/email/placeholders";
 
 export interface EmailTemplateRecord {
   key: EmailTemplateKey;

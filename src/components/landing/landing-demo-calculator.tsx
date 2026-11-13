@@ -9,6 +9,7 @@ import {
 } from "@/lib/customs-calculator/calculate";
 import {
   CarAge,
+  convertPowerInputValue,
   CurrencyCode,
   DEFAULT_EXCHANGE_RATES,
   DEFAULT_KOREA_BROKER_FEE_RUB,
@@ -16,6 +17,8 @@ import {
   EngineType,
   ImporterType,
   OriginCountry,
+  powerInputToHp,
+  type PowerInputUnit,
 } from "@/lib/customs-calculator/rates";
 import styles from "@/components/landing/landing.module.css";
 
@@ -114,6 +117,7 @@ export function LandingDemoCalculator() {
   const [customsPrice, setCustomsPrice] = useState("");
   const [volumeLiters, setVolumeLiters] = useState("2.0");
   const [powerHp, setPowerHp] = useState("150");
+  const [powerUnit, setPowerUnit] = useState<PowerInputUnit>("hp");
 
   const country = COUNTRIES.find((item) => item.id === countryId) ?? COUNTRIES[0];
   const isElectric = engine === "electric";
@@ -127,7 +131,7 @@ export function LandingDemoCalculator() {
       importer,
       age,
       engine,
-      powerHp: parseAmount(powerHp),
+      powerHp: powerInputToHp(parseAmount(powerHp), powerUnit),
       volumeCc,
       price: parseAmount(price),
       customsPrice: showCustomsPrice && customsAmount > 0 ? customsAmount : undefined,
@@ -147,6 +151,7 @@ export function LandingDemoCalculator() {
     importer,
     isElectric,
     powerHp,
+    powerUnit,
     price,
     showCustomsPrice,
     volumeLiters,
@@ -291,15 +296,35 @@ export function LandingDemoCalculator() {
               </select>
             </label>
             <label className="block">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
-                Мощность, л.с.
+              <span className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
+                {powerUnit === "kw" ? "Мощность, кВт" : "Мощность, л.с."}
+                <span className="inline-flex rounded border border-[var(--landing-line)] p-0.5 font-semibold normal-case tracking-normal">
+                  {(["hp", "kw"] as const).map((unit) => (
+                    <button
+                      key={unit}
+                      type="button"
+                      className={`rounded px-1.5 py-0.5 text-[10px] ${
+                        powerUnit === unit
+                          ? "bg-[var(--landing-surface)] text-[var(--landing-ink)]"
+                          : "text-[var(--landing-muted)]"
+                      }`}
+                      onClick={() => {
+                        if (unit === powerUnit) return;
+                        setPowerHp((current) => convertPowerInputValue(current, powerUnit, unit));
+                        setPowerUnit(unit);
+                      }}
+                    >
+                      {unit === "hp" ? "л.с." : "кВт"}
+                    </button>
+                  ))}
+                </span>
               </span>
               <input
                 className={styles.demoInput}
                 inputMode="decimal"
                 value={powerHp}
                 onChange={(event) => setPowerHp(event.target.value)}
-                aria-label="Мощность в лошадиных силах"
+                aria-label={powerUnit === "kw" ? "Мощность в киловаттах" : "Мощность в лошадиных силах"}
               />
             </label>
           </div>

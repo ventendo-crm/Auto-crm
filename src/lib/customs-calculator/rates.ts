@@ -118,9 +118,45 @@ export const PREFERENTIAL_MAX_VOLUME_CC = 3000;
 /** @deprecated используйте RECYCLING_BASE_PASSENGER */
 export const RECYCLING_BASE_PERSONAL = RECYCLING_BASE_PASSENGER;
 
-/** 1 метрическая л.с. ≈ 0.73549875 кВт */
+/** 1 метрическая л.с. = 0.73549875 кВт (ГОСТ / DIN 66000). */
+export const METRIC_HP_TO_KW = 0.73549875;
+
+export type PowerInputUnit = "hp" | "kw";
+
+export function isPowerInputUnit(value: unknown): value is PowerInputUnit {
+  return value === "hp" || value === "kw";
+}
+
 export function hpToKw(hp: number): number {
-  return hp * 0.73549875;
+  return hp * METRIC_HP_TO_KW;
+}
+
+export function kwToHp(kw: number): number {
+  return kw / METRIC_HP_TO_KW;
+}
+
+/** Переводит введённую мощность в л.с. для расчёта. */
+export function powerInputToHp(value: number, unit: PowerInputUnit): number {
+  if (!Number.isFinite(value)) return value;
+  return unit === "kw" ? kwToHp(value) : value;
+}
+
+export function formatPowerInputValue(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) return "";
+  const rounded = Math.round(value * 10) / 10;
+  return String(rounded);
+}
+
+export function convertPowerInputValue(
+  raw: string,
+  from: PowerInputUnit,
+  to: PowerInputUnit,
+): string {
+  if (from === to) return raw;
+  const parsed = Number(String(raw).replace(",", "."));
+  if (!Number.isFinite(parsed) || parsed <= 0) return raw;
+  const hp = powerInputToHp(parsed, from);
+  return formatPowerInputValue(to === "kw" ? hpToKw(hp) : hp);
 }
 
 export function isYoungerThan3(age: CarAge): boolean {
