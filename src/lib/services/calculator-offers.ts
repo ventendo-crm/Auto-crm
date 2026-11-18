@@ -4,38 +4,33 @@ import { mkdir, readdir, readFile, rm, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
 import {
+  assertSafeOfferFileName,
+  normalizeOfferMeta,
+  type OfferItemMeta,
+  type OfferMetaV2,
+} from "@/lib/calculator/offer-meta";
+import {
   OFFER_DESCRIPTION_MAX,
-  OFFER_VEHICLE_TITLE_MAX,
+  OFFER_MAX_ITEMS,
   OFFER_MAX_PHOTO_BYTES,
   OFFER_MAX_PHOTOS,
   OFFER_MAX_TOTAL_BYTES,
+  OFFER_SELECTION_TITLE_MAX,
   OFFER_TTL_MS,
+  OFFER_VEHICLE_TITLE_MAX,
   isOfferShareToken,
   publicOfferFilePath,
   sanitizeOfferHttpUrl,
   type PublicCalculatorOffer,
+  type PublicCalculatorOfferItem,
 } from "@/lib/calculator/offer-share";
 import type { AuthUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { guessUploadContentType, localUploadsDir, uploadContentDisposition } from "@/lib/storage/local-uploads";
 
 const ALLOWED_PHOTO_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-const SAFE_OFFER_FILE = /^(photo-\d{2}|estimate)\.(jpe?g|png|webp|gif)$/;
 
-type OfferMetaV1 = {
-  version: 1;
-  companyId: string;
-  companyName: string;
-  createdByUserId: string;
-  createdAt: string;
-  expiresAt: string;
-  description: string;
-  vehicleTitle?: string | null;
-  sourceUrl: string | null;
-  totalLabel: string | null;
-  photos: string[];
-  estimateFile: string | null;
-};
+export { assertSafeOfferFileName, normalizeOfferMeta };
 
 export function createOfferToken(): string {
   return randomBytes(24).toString("hex");
@@ -53,14 +48,6 @@ function offerDirForToken(token: string): string {
   return path.join(offersRootDir(), hashOfferToken(token));
 }
 
-export function assertSafeOfferFileName(fileName: string): string {
-  const decoded = decodeURIComponent(fileName).trim();
-  if (!SAFE_OFFER_FILE.test(decoded) || decoded.includes("/") || decoded.includes("\\")) {
-    throw new Error("Not found");
-  }
-  return decoded;
-}
-
 function extensionForMime(mime: string, fallback = "jpg"): string {
   if (mime === "image/png") return "png";
   if (mime === "image/webp") return "webp";
@@ -69,13 +56,25 @@ function extensionForMime(mime: string, fallback = "jpg"): string {
   return fallback;
 }
 
-async function readOfferMeta(dir: string): Promise<OfferMetaV1> {
+async function readOfferMeta(dir: string): Promise<OfferMetaV2> {
   const raw = await readFile(path.join(dir, "meta.json"), "utf8");
-  const parsed = JSON.parse(raw) as OfferMetaV1;
-  if (!parsed || parsed.version !== 1 || !Array.isArray(parsed.photos)) {
-    throw new Error("NOT_FOUND");
-  }
-  return parsed;
+  return normalizeOfferMeta(JSON.parse(raw));
+}
+
+function itemHasContent(item: {
+  vehicleTitle?: string | null;
+  description: string;
+  sourceUrl: string | null;
+  photos: unknown[];
+  estimate: unknown;
+}) {
+  return Boolean(
+    item.vehicleTitle?.trim() ||
+      item.description.trim() ||
+      item.sourceUrl ||
+      item.photos.length > 0 ||
+      item.estimate,
+  );
 }
 
 async function pruneExpiredOffers() {
@@ -105,35 +104,76 @@ async function pruneExpiredOffers() {
   }
 }
 
-export async function createCalculatorOffer(
-  user: AuthUser,
-  formData: FormData,
-): Promise<{ token: string; expiresAt: string }> {
-  const description = String(formData.get("description") ?? "")
-    .trim()
-    .slice(0, OFFER_DESCRIPTION_MAX);
-  const vehicleTitle = String(formData.get("vehicleTitle") ?? "")
-    .trim()
-    .slice(0, OFFER_VEHICLE_TITLE_MAX);
-  const sourceUrl = sanitizeOfferHttpUrl(String(formData.get("sourceUrl") ?? ""));
-  const totalLabelRaw = String(formData.get("totalLabel") ?? "").trim();
-  const totalLabel = totalLabelRaw ? totalLabelRaw.slice(0, 80) : null;
+type ParsedOfferItem = {
+  vehicleTitle: string;
+  description: string;
+  sourceUrl: string | null;
+  totalLabel: string | null;
+  photos: File[];
+  estimate: File | null;
+};
 
-  const photos = formData.getAll("photos").filter((item): item is File => item instanceof File);
-  const estimateRaw = formData.get("estimate");
-  const estimate = estimateRaw instanceof File && estimateRaw.size > 0 ? estimateRaw : null;
+function fileFromFormValue(value: FormDataEntryValue | null): File | null {
+  return value instanceof File && value.size > 0 ? value : null;
+}
 
-  if (photos.length > OFFER_MAX_PHOTOS) {
-    throw new Error(`Не больше ${OFFER_MAX_PHOTOS} фото`);
+function parseIndexedOfferItems(formData: FormData): ParsedOfferItem[] | null {
+  const indices = new Set<number>();
+  for (const key of formData.keys()) {
+    const match = /^(?:photos|estimate|vehicleTitle|description|sourceUrl|totalLabel)-(\d+)$/.exec(key);
+    if (match) indices.add(Number(match[1]));
+  }
+  if (indices.size === 0) return null;
+  if (indices.size > OFFER_MAX_ITEMS) {
+    throw new Error(`Не больше ${OFFER_MAX_ITEMS} авто в одной подборке`);
   }
 
-  if (!vehicleTitle && !description && !sourceUrl && photos.length === 0 && !estimate) {
-    throw new Error("Добавьте марку, описание, фото или расчёт");
-  }
+  return [...indices]
+    .sort((a, b) => a - b)
+    .map((index) => {
+      const photos = formData
+        .getAll(`photos-${index}`)
+        .filter((item): item is File => item instanceof File && item.size > 0);
+      return {
+        vehicleTitle: String(formData.get(`vehicleTitle-${index}`) ?? "")
+          .trim()
+          .slice(0, OFFER_VEHICLE_TITLE_MAX),
+        description: String(formData.get(`description-${index}`) ?? "")
+          .trim()
+          .slice(0, OFFER_DESCRIPTION_MAX),
+        sourceUrl: sanitizeOfferHttpUrl(String(formData.get(`sourceUrl-${index}`) ?? "")),
+        totalLabel: String(formData.get(`totalLabel-${index}`) ?? "")
+          .trim()
+          .slice(0, 80) || null,
+        photos,
+        estimate: fileFromFormValue(formData.get(`estimate-${index}`)),
+      };
+    });
+}
 
+function parseLegacyOfferItem(formData: FormData): ParsedOfferItem {
+  const photos = formData.getAll("photos").filter((item): item is File => item instanceof File && item.size > 0);
+  return {
+    vehicleTitle: String(formData.get("vehicleTitle") ?? "")
+      .trim()
+      .slice(0, OFFER_VEHICLE_TITLE_MAX),
+    description: String(formData.get("description") ?? "")
+      .trim()
+      .slice(0, OFFER_DESCRIPTION_MAX),
+    sourceUrl: sanitizeOfferHttpUrl(String(formData.get("sourceUrl") ?? "")),
+    totalLabel: String(formData.get("totalLabel") ?? "").trim().slice(0, 80) || null,
+    photos,
+    estimate: fileFromFormValue(formData.get("estimate")),
+  };
+}
+
+function validateOfferItemFiles(item: ParsedOfferItem) {
+  if (item.photos.length > OFFER_MAX_PHOTOS) {
+    throw new Error(`Не больше ${OFFER_MAX_PHOTOS} фото у одного авто`);
+  }
   let totalBytes = 0;
-  for (const photo of photos) {
-    if (photo.size <= 0 || photo.size > OFFER_MAX_PHOTO_BYTES) {
+  for (const photo of item.photos) {
+    if (photo.size > OFFER_MAX_PHOTO_BYTES) {
       throw new Error("Каждое фото должно быть до 8 МБ");
     }
     const mime = photo.type || guessUploadContentType(photo.name);
@@ -142,18 +182,48 @@ export async function createCalculatorOffer(
     }
     totalBytes += photo.size;
   }
-
-  if (estimate) {
-    if (estimate.size <= 0 || estimate.size > OFFER_MAX_PHOTO_BYTES) {
+  if (item.estimate) {
+    if (item.estimate.size > OFFER_MAX_PHOTO_BYTES) {
       throw new Error("Картинка расчёта должна быть до 8 МБ");
     }
-    const mime = estimate.type || guessUploadContentType(estimate.name);
+    const mime = item.estimate.type || guessUploadContentType(item.estimate.name);
     if (mime !== "image/jpeg" && mime !== "image/png") {
       throw new Error("Расчёт нужно отправить картинкой JPEG");
     }
-    totalBytes += estimate.size;
+    totalBytes += item.estimate.size;
+  }
+  return totalBytes;
+}
+
+function allowedFilesFromMeta(meta: OfferMetaV2): Set<string> {
+  const allowed = new Set<string>();
+  for (const item of meta.items) {
+    for (const fileName of item.photos) allowed.add(fileName);
+    if (item.estimateFile) allowed.add(item.estimateFile);
+  }
+  return allowed;
+}
+
+export async function createCalculatorOffer(
+  user: AuthUser,
+  formData: FormData,
+): Promise<{ token: string; expiresAt: string }> {
+  const selectionTitle = String(formData.get("selectionTitle") ?? "")
+    .trim()
+    .slice(0, OFFER_SELECTION_TITLE_MAX);
+  const parsedItems = parseIndexedOfferItems(formData) ?? [parseLegacyOfferItem(formData)];
+  const items = parsedItems.filter(itemHasContent);
+  if (items.length === 0) {
+    throw new Error("Добавьте марку, описание, фото или расчёт");
+  }
+  if (items.length > OFFER_MAX_ITEMS) {
+    throw new Error(`Не больше ${OFFER_MAX_ITEMS} авто в одной подборке`);
   }
 
+  let totalBytes = 0;
+  for (const item of items) {
+    totalBytes += validateOfferItemFiles(item);
+  }
   if (totalBytes > OFFER_MAX_TOTAL_BYTES) {
     throw new Error("Слишком большой набор файлов — уберите часть фото");
   }
@@ -170,36 +240,47 @@ export async function createCalculatorOffer(
   const dir = offerDirForToken(token);
   await mkdir(dir, { recursive: true });
 
-  const savedPhotos: string[] = [];
-  for (const [index, photo] of photos.entries()) {
-    const mime = photo.type || guessUploadContentType(photo.name);
-    const ext = extensionForMime(mime);
-    const fileName = `photo-${String(index + 1).padStart(2, "0")}.${ext}`;
-    await writeFile(path.join(dir, fileName), Buffer.from(await photo.arrayBuffer()));
-    savedPhotos.push(fileName);
-  }
+  const savedItems: OfferItemMeta[] = [];
+  for (const [itemIndex, item] of items.entries()) {
+    const prefix = `i${String(itemIndex + 1).padStart(2, "0")}-`;
+    const savedPhotos: string[] = [];
+    for (const [photoIndex, photo] of item.photos.entries()) {
+      const mime = photo.type || guessUploadContentType(photo.name);
+      const ext = extensionForMime(mime);
+      const fileName = `${prefix}photo-${String(photoIndex + 1).padStart(2, "0")}.${ext}`;
+      assertSafeOfferFileName(fileName);
+      await writeFile(path.join(dir, fileName), Buffer.from(await photo.arrayBuffer()));
+      savedPhotos.push(fileName);
+    }
 
-  let estimateFile: string | null = null;
-  if (estimate) {
-    estimateFile = "estimate.jpg";
-    await writeFile(path.join(dir, estimateFile), Buffer.from(await estimate.arrayBuffer()));
+    let estimateFile: string | null = null;
+    if (item.estimate) {
+      estimateFile = `${prefix}estimate.jpg`;
+      assertSafeOfferFileName(estimateFile);
+      await writeFile(path.join(dir, estimateFile), Buffer.from(await item.estimate.arrayBuffer()));
+    }
+
+    savedItems.push({
+      vehicleTitle: item.vehicleTitle || null,
+      description: item.description,
+      sourceUrl: item.sourceUrl,
+      totalLabel: item.totalLabel,
+      photos: savedPhotos,
+      estimateFile,
+    });
   }
 
   const createdAt = new Date();
   const expiresAt = new Date(createdAt.getTime() + OFFER_TTL_MS);
-  const meta: OfferMetaV1 = {
-    version: 1,
+  const meta: OfferMetaV2 = {
+    version: 2,
     companyId: user.companyId,
     companyName: company.name,
     createdByUserId: user.id,
     createdAt: createdAt.toISOString(),
     expiresAt: expiresAt.toISOString(),
-    description,
-    vehicleTitle: vehicleTitle || null,
-    sourceUrl,
-    totalLabel,
-    photos: savedPhotos,
-    estimateFile,
+    selectionTitle: selectionTitle || null,
+    items: savedItems,
   };
   await writeFile(path.join(dir, "meta.json"), JSON.stringify(meta), "utf8");
 
@@ -214,7 +295,7 @@ export async function getPublicCalculatorOffer(token: string): Promise<PublicCal
   }
 
   const dir = offerDirForToken(token);
-  let meta: OfferMetaV1;
+  let meta: OfferMetaV2;
   try {
     meta = await readOfferMeta(dir);
   } catch {
@@ -225,14 +306,19 @@ export async function getPublicCalculatorOffer(token: string): Promise<PublicCal
     throw new Error("EXPIRED");
   }
 
+  const items: PublicCalculatorOfferItem[] = meta.items.map((item) => ({
+    vehicleTitle: item.vehicleTitle?.trim() ? item.vehicleTitle.trim() : null,
+    description: item.description,
+    sourceUrl: item.sourceUrl,
+    totalLabel: item.totalLabel,
+    photoUrls: item.photos.map((fileName) => publicOfferFilePath(token, fileName)),
+    estimateUrl: item.estimateFile ? publicOfferFilePath(token, item.estimateFile) : null,
+  }));
+
   return {
     companyName: meta.companyName,
-    vehicleTitle: meta.vehicleTitle?.trim() ? meta.vehicleTitle.trim() : null,
-    description: meta.description,
-    sourceUrl: meta.sourceUrl,
-    totalLabel: meta.totalLabel,
-    photoUrls: meta.photos.map((fileName) => publicOfferFilePath(token, fileName)),
-    estimateUrl: meta.estimateFile ? publicOfferFilePath(token, meta.estimateFile) : null,
+    selectionTitle: meta.selectionTitle?.trim() ? meta.selectionTitle.trim() : null,
+    items,
     expiresAt: meta.expiresAt,
   };
 }
@@ -253,7 +339,7 @@ export async function openPublicOfferFile(
 
   const safeName = assertSafeOfferFileName(fileName);
   const dir = offerDirForToken(token);
-  let meta: OfferMetaV1;
+  let meta: OfferMetaV2;
   try {
     meta = await readOfferMeta(dir);
   } catch {
@@ -264,8 +350,7 @@ export async function openPublicOfferFile(
     throw new Error("EXPIRED");
   }
 
-  const allowed = new Set(meta.photos);
-  if (meta.estimateFile) allowed.add(meta.estimateFile);
+  const allowed = allowedFilesFromMeta(meta);
   if (!allowed.has(safeName)) {
     throw new Error("NOT_FOUND");
   }

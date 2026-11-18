@@ -639,22 +639,28 @@ export const api = {
 
   calculatorOffers: {
     create: async (input: {
-      vehicleTitle?: string;
-      description: string;
-      sourceUrl: string;
-      totalLabel?: string | null;
-      photos: File[];
-      estimate?: File | null;
+      selectionTitle?: string;
+      items: Array<{
+        vehicleTitle?: string;
+        description: string;
+        sourceUrl: string;
+        totalLabel?: string | null;
+        photos: File[];
+        estimate?: File | null;
+      }>;
     }) => {
       const formData = new FormData();
-      if (input.vehicleTitle) formData.append("vehicleTitle", input.vehicleTitle);
-      formData.append("description", input.description);
-      formData.append("sourceUrl", input.sourceUrl);
-      if (input.totalLabel) formData.append("totalLabel", input.totalLabel);
-      for (const photo of input.photos) {
-        formData.append("photos", photo);
-      }
-      if (input.estimate) formData.append("estimate", input.estimate);
+      if (input.selectionTitle) formData.append("selectionTitle", input.selectionTitle);
+      input.items.forEach((item, index) => {
+        if (item.vehicleTitle) formData.append(`vehicleTitle-${index}`, item.vehicleTitle);
+        formData.append(`description-${index}`, item.description);
+        formData.append(`sourceUrl-${index}`, item.sourceUrl);
+        if (item.totalLabel) formData.append(`totalLabel-${index}`, item.totalLabel);
+        for (const photo of item.photos) {
+          formData.append(`photos-${index}`, photo);
+        }
+        if (item.estimate) formData.append(`estimate-${index}`, item.estimate);
+      });
 
       const response = await fetch("/api/calculator/offers", {
         method: "POST",

@@ -196,8 +196,8 @@ export function CompanyWorkspacePanel() {
         <CardHeader>
           <CardTitle className="text-base">Подбор: текст ссылки</CardTitle>
           <CardDescription>
-            Подпись, которая копируется вместе со ссылкой расчёта. Плейсхолдер {"{марка}"} заменяется
-            на поле «Марка, модель».
+            Подпись, которая копируется вместе со ссылкой на одно авто. Плейсхолдер {"{марка}"} заменяется
+            на поле «Марка, модель». Для нескольких авто копируется «Подборка».
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">

@@ -773,6 +773,7 @@ export type CalculatorCaptureApi = {
   canCapture: () => boolean;
   captureJpeg: () => Promise<File>;
   totalWithCar: () => number | null;
+  currentInput: () => CustomsCalculatorInput | null;
 };
 
 interface CustomsCalculatorProps {
@@ -1169,6 +1170,7 @@ export function CustomsCalculator({
     captureApiRef.current = {
       canCapture: () => Boolean(submitted && result && exportRef.current),
       totalWithCar: () => result?.totalWithCar ?? null,
+      currentInput: () => lastCalcInputRef.current,
       captureJpeg: async () => {
         const wasDetailsOpen = detailsOpen;
         if (!wasDetailsOpen) {

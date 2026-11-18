@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ImagePlus, Link2, Loader2, Share2, X } from "lucide-react";
+import { Copy, ImagePlus, Link2, Loader2, Plus, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -14,23 +14,27 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
 import {
-  buildOfferLinkCaption,
-  buildOfferLinkClipboard,
+  buildSelectionLinkCaption,
+  buildSelectionLinkClipboard,
   buildTelegramShareUrl,
+  OFFER_DESCRIPTION_MAX,
+  OFFER_MAX_ITEMS,
+  OFFER_MAX_PHOTOS,
   OFFER_MAX_TOTAL_BYTES,
+  OFFER_SELECTION_TITLE_MAX,
   OFFER_VEHICLE_TITLE_MAX,
   resolvePublicOfferAbsoluteUrl,
 } from "@/lib/calculator/offer-share";
 import { isPhoneFileShare, buildOfferShareText, shareOfferPackage } from "@/lib/calculator/share-export";
+import type { CustomsCalculatorInput } from "@/lib/customs-calculator";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
-import { formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency } from "@/lib/utils";
 
-const MAX_PHOTOS = 15;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
-const DESCRIPTION_MAX = 4000;
 const STORAGE_DESCRIPTION = "crm-offer-description";
 const STORAGE_TITLE = "crm-offer-vehicle-title";
 const STORAGE_LINK = "crm-offer-link";
+const STORAGE_SELECTION = "crm-offer-selection-title";
 
 type OfferPhoto = {
   id: string;
@@ -38,8 +42,54 @@ type OfferPhoto = {
   previewUrl: string;
 };
 
+type OfferVariant = {
+  id: string;
+  vehicleTitle: string;
+  description: string;
+  sourceUrl: string;
+  photos: OfferPhoto[];
+  calcInput: CustomsCalculatorInput | null;
+  estimateFile: File | null;
+  totalLabel: string | null;
+};
+
 function isImageFile(file: File) {
   return file.type.startsWith("image/");
+}
+
+function createVariantId() {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function createVariant(overrides: Partial<OfferVariant> = {}): OfferVariant {
+  return {
+    id: createVariantId(),
+    vehicleTitle: "",
+    description: "",
+    sourceUrl: "",
+    photos: [],
+    calcInput: null,
+    estimateFile: null,
+    totalLabel: null,
+    ...overrides,
+  };
+}
+
+function variantHasContent(variant: OfferVariant, isActive: boolean, captureApi: CalculatorCaptureApi | null) {
+  return Boolean(
+    variant.vehicleTitle.trim() ||
+      variant.description.trim() ||
+      variant.sourceUrl.trim() ||
+      variant.photos.length > 0 ||
+      variant.estimateFile ||
+      (isActive && captureApi?.canCapture()),
+  );
+}
+
+function variantChipLabel(variant: OfferVariant, index: number) {
+  const title = variant.vehicleTitle.trim();
+  if (!title) return `Вариант ${index + 1}`;
+  return title.length > 18 ? `${title.slice(0, 17)}…` : title;
 }
 
 export function CalculatorOfferWorkspace() {
@@ -47,20 +97,44 @@ export function CalculatorOfferWorkspace() {
   const captionTemplate = settings.offerLinkCaptionTemplate;
   const captureApiRef = useRef<CalculatorCaptureApi | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
-  const [vehicleTitle, setVehicleTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [sourceUrl, setSourceUrl] = useState("");
-  const [photos, setPhotos] = useState<OfferPhoto[]>([]);
+  const [selectionTitle, setSelectionTitle] = useState("");
+  const [variants, setVariants] = useState<OfferVariant[]>(() => [createVariant()]);
+  const [activeId, setActiveId] = useState(() => variants[0]!.id);
   const [sharing, setSharing] = useState(false);
   const [creatingLink, setCreatingLink] = useState(false);
+  const [switching, setSwitching] = useState(false);
   const [createdLink, setCreatedLink] = useState<string | null>(null);
-  const busy = sharing || creatingLink;
+  const busy = sharing || creatingLink || switching;
+  const activeIdRef = useRef(activeId);
+  activeIdRef.current = activeId;
+  const variantsRef = useRef(variants);
+  variantsRef.current = variants;
+
+  const active = variants.find((variant) => variant.id === activeId) ?? variants[0]!;
+  const filledCount = variants.filter((variant) =>
+    variantHasContent(variant, variant.id === active.id, captureApiRef.current),
+  ).length;
 
   useEffect(() => {
     try {
-      setVehicleTitle(sessionStorage.getItem(STORAGE_TITLE) ?? "");
-      setDescription(sessionStorage.getItem(STORAGE_DESCRIPTION) ?? "");
-      setSourceUrl(sessionStorage.getItem(STORAGE_LINK) ?? "");
+      const storedTitle = sessionStorage.getItem(STORAGE_TITLE) ?? "";
+      const storedDescription = sessionStorage.getItem(STORAGE_DESCRIPTION) ?? "";
+      const storedLink = sessionStorage.getItem(STORAGE_LINK) ?? "";
+      setSelectionTitle(sessionStorage.getItem(STORAGE_SELECTION) ?? "");
+      if (storedTitle || storedDescription || storedLink) {
+        setVariants((current) =>
+          current.map((variant, index) =>
+            index === 0
+              ? {
+                  ...variant,
+                  vehicleTitle: storedTitle,
+                  description: storedDescription,
+                  sourceUrl: storedLink,
+                }
+              : variant,
+          ),
+        );
+      }
     } catch {
       // sessionStorage может быть недоступен
     }
@@ -68,21 +142,52 @@ export function CalculatorOfferWorkspace() {
 
   useEffect(() => {
     try {
-      sessionStorage.setItem(STORAGE_TITLE, vehicleTitle);
-      sessionStorage.setItem(STORAGE_DESCRIPTION, description);
-      sessionStorage.setItem(STORAGE_LINK, sourceUrl);
+      const first = variants[0];
+      sessionStorage.setItem(STORAGE_SELECTION, selectionTitle);
+      sessionStorage.setItem(STORAGE_TITLE, first?.vehicleTitle ?? "");
+      sessionStorage.setItem(STORAGE_DESCRIPTION, first?.description ?? "");
+      sessionStorage.setItem(STORAGE_LINK, first?.sourceUrl ?? "");
     } catch {
       // ignore quota
     }
-  }, [vehicleTitle, description, sourceUrl]);
+  }, [selectionTitle, variants]);
 
-  const photosRef = useRef(photos);
-  photosRef.current = photos;
   useEffect(() => {
     return () => {
-      photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+      variantsRef.current.forEach((variant) => {
+        variant.photos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+      });
     };
   }, []);
+
+  const updateActive = (patch: Partial<OfferVariant>) => {
+    const id = activeIdRef.current;
+    setVariants((current) => current.map((variant) => (variant.id === id ? { ...variant, ...patch } : variant)));
+  };
+
+  const snapshotActive = async (list: OfferVariant[] = variantsRef.current): Promise<OfferVariant[]> => {
+    const id = activeIdRef.current;
+    const captureApi = captureApiRef.current;
+    let estimateFile: File | null | undefined;
+    if (captureApi?.canCapture()) {
+      try {
+        estimateFile = await captureApi.captureJpeg();
+      } catch {
+        estimateFile = undefined;
+      }
+    }
+    const total = captureApi?.totalWithCar() ?? null;
+    const calcInput = captureApi?.currentInput() ?? null;
+    return list.map((variant) => {
+      if (variant.id !== id) return variant;
+      return {
+        ...variant,
+        calcInput: calcInput ?? variant.calcInput,
+        estimateFile: estimateFile ?? variant.estimateFile,
+        totalLabel: total != null ? formatCurrency(total) : variant.totalLabel,
+      };
+    });
+  };
 
   const addPhotos = (fileList: FileList | File[]) => {
     const incoming = Array.from(fileList).filter(isImageFile);
@@ -91,9 +196,9 @@ export function CalculatorOfferWorkspace() {
       return;
     }
 
-    const room = MAX_PHOTOS - photos.length;
+    const room = OFFER_MAX_PHOTOS - active.photos.length;
     if (room <= 0) {
-      toast.error(`Не больше ${MAX_PHOTOS} фото`);
+      toast.error(`Не больше ${OFFER_MAX_PHOTOS} фото`);
       return;
     }
 
@@ -111,127 +216,175 @@ export function CalculatorOfferWorkspace() {
     }
 
     if (incoming.length > room) {
-      toast.error(`Добавлены первые ${room} фото, лимит ${MAX_PHOTOS}`);
+      toast.error(`Добавлены первые ${room} фото, лимит ${OFFER_MAX_PHOTOS}`);
     }
     if (accepted.length > 0) {
-      setPhotos((current) => [...current, ...accepted]);
+      updateActive({ photos: [...active.photos, ...accepted] });
     }
   };
 
   const removePhoto = (id: string) => {
-    setPhotos((current) => {
-      const next = current.filter((photo) => photo.id !== id);
-      const removed = current.find((photo) => photo.id === id);
-      if (removed) URL.revokeObjectURL(removed.previewUrl);
-      return next;
-    });
+    const next = active.photos.filter((photo) => photo.id !== id);
+    const removed = active.photos.find((photo) => photo.id === id);
+    if (removed) URL.revokeObjectURL(removed.previewUrl);
+    updateActive({ photos: next });
   };
 
-  const collectSharePayload = async () => {
-    const totalLabel =
-      captureApiRef.current?.totalWithCar() != null
-        ? formatCurrency(captureApiRef.current.totalWithCar())
-        : null;
-    const text = buildOfferShareText({ vehicleTitle, description, sourceUrl, totalLabel });
-    const photoFiles = photos.map((photo) => photo.file);
-    const estimate = captureApiRef.current?.canCapture()
-      ? await captureApiRef.current.captureJpeg()
-      : null;
-    const files = estimate ? [...photoFiles, estimate] : photoFiles;
-    return { text, files, photoFiles, estimate, totalLabel };
+  const handleAddVariant = async () => {
+    if (variants.length >= OFFER_MAX_ITEMS) {
+      toast.error(`Не больше ${OFFER_MAX_ITEMS} авто в одной подборке`);
+      return;
+    }
+    setSwitching(true);
+    try {
+      const nextList = await snapshotActive();
+      const created = createVariant();
+      setVariants([...nextList, created]);
+      setActiveId(created.id);
+      setCreatedLink(null);
+    } finally {
+      setSwitching(false);
+    }
   };
 
-  const publishOfferLink = async (
-    photoFiles: File[],
-    estimate: File | null,
-    totalLabel: string | null,
-  ) => {
-    const files = estimate ? [...photoFiles, estimate] : photoFiles;
+  const handleSelectVariant = async (id: string) => {
+    if (id === activeId) return;
+    setSwitching(true);
+    try {
+      const nextList = await snapshotActive();
+      setVariants(nextList);
+      setActiveId(id);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const handleRemoveVariant = async (id: string) => {
+    if (variants.length <= 1) return;
+    setSwitching(true);
+    try {
+      const snapped = id === activeId ? variants : await snapshotActive();
+      const removedIndex = snapped.findIndex((variant) => variant.id === id);
+      const removed = snapped[removedIndex];
+      removed?.photos.forEach((photo) => URL.revokeObjectURL(photo.previewUrl));
+      const next = snapped.filter((variant) => variant.id !== id);
+      setVariants(next);
+      if (activeId === id) {
+        setActiveId(next[Math.max(0, removedIndex - 1)]?.id ?? next[0]!.id);
+      }
+      setCreatedLink(null);
+    } finally {
+      setSwitching(false);
+    }
+  };
+
+  const collectFilledItems = (list: OfferVariant[]) =>
+    list.filter((variant) =>
+      variantHasContent(variant, variant.id === activeIdRef.current, captureApiRef.current),
+    );
+
+  const publishOfferLink = async (list: OfferVariant[]) => {
+    const items = collectFilledItems(list);
+    if (items.length === 0) {
+      throw new Error("Добавьте марку, описание, ссылку, фото или расчёт");
+    }
+
+    const files = items.flatMap((item) => [
+      ...item.photos.map((photo) => photo.file),
+      ...(item.estimateFile ? [item.estimateFile] : []),
+    ]);
     const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
     if (totalBytes > OFFER_MAX_TOTAL_BYTES) {
       throw new Error("Слишком большой набор файлов — уберите часть фото");
     }
 
     const created = await api.calculatorOffers.create({
-      vehicleTitle,
-      description,
-      sourceUrl,
-      totalLabel,
-      photos: photoFiles,
-      estimate,
+      selectionTitle,
+      items: items.map((item) => ({
+        vehicleTitle: item.vehicleTitle,
+        description: item.description,
+        sourceUrl: item.sourceUrl,
+        totalLabel: item.totalLabel,
+        photos: item.photos.map((photo) => photo.file),
+        estimate: item.estimateFile,
+      })),
     });
     const url = resolvePublicOfferAbsoluteUrl(created.token);
+    const clipboard = buildSelectionLinkClipboard(url, {
+      selectionTitle,
+      itemCount: items.length,
+      firstVehicleTitle: items[0]?.vehicleTitle,
+      template: captionTemplate,
+    });
     try {
-      await navigator.clipboard.writeText(buildOfferLinkClipboard(url, vehicleTitle, captionTemplate));
+      await navigator.clipboard.writeText(clipboard);
     } catch {
       // ссылку всё равно покажем на экране
     }
     setCreatedLink(url);
-    return url;
+    return { url, items };
   };
 
   const handleShare = async () => {
-    if (
-      !vehicleTitle.trim() &&
-      !description.trim() &&
-      !sourceUrl.trim() &&
-      photos.length === 0 &&
-      !captureApiRef.current?.canCapture()
-    ) {
-      toast.error("Добавьте марку, описание, ссылку, фото или расчёт");
-      return;
-    }
-
-    const previewText = buildOfferShareText({
-      vehicleTitle,
-      description,
-      sourceUrl,
-      totalLabel:
-        captureApiRef.current?.totalWithCar() != null
-          ? formatCurrency(captureApiRef.current.totalWithCar())
-          : null,
-    });
-    if (previewText) {
-      try {
-        await navigator.clipboard.writeText(previewText);
-      } catch {
-        // на части телефонов буфер недоступен до шаринга
-      }
-    }
-
     setSharing(true);
     try {
-      const { text, files, photoFiles, estimate, totalLabel } = await collectSharePayload();
+      const list = await snapshotActive();
+      setVariants(list);
+      const items = collectFilledItems(list);
+      if (items.length === 0) {
+        toast.error("Добавьте марку, описание, ссылку, фото или расчёт");
+        return;
+      }
 
-      if (isPhoneFileShare() && files.length > 0) {
-        try {
-          await shareOfferPackage({
-            title: text || "Авто из ImportCRM",
-            text,
-            files,
-          });
-          if (text) {
-            toast.success("Текст скопирован", {
-              description: "Вставьте его в сообщение — Telegram и Max сами подпись не подставляют.",
-              duration: 8000,
-            });
+      if (items.length === 1 && isPhoneFileShare()) {
+        const only = items[0]!;
+        const previewText = buildOfferShareText({
+          vehicleTitle: only.vehicleTitle,
+          description: only.description,
+          sourceUrl: only.sourceUrl,
+          totalLabel: only.totalLabel,
+        });
+        if (previewText) {
+          try {
+            await navigator.clipboard.writeText(previewText);
+          } catch {
+            // на части телефонов буфер недоступен до шаринга
           }
-          return;
-        } catch (shareError) {
-          if (shareError instanceof DOMException && shareError.name === "AbortError") return;
-          if (
-            !(shareError instanceof Error) ||
-            (shareError.message !== "SHARE_TEXT_ONLY" &&
-              shareError.message !== "SHARE_UNAVAILABLE" &&
-              shareError.message !== "SHARE_FILES_UNSUPPORTED")
-          ) {
-            throw shareError;
+        }
+        const files = [
+          ...only.photos.map((photo) => photo.file),
+          ...(only.estimateFile ? [only.estimateFile] : []),
+        ];
+        if (files.length > 0) {
+          try {
+            await shareOfferPackage({
+              title: previewText || "Авто из ImportCRM",
+              text: previewText,
+              files,
+            });
+            if (previewText) {
+              toast.success("Текст скопирован", {
+                description: "Вставьте его в сообщение — Telegram и Max сами подпись не подставляют.",
+                duration: 8000,
+              });
+            }
+            return;
+          } catch (shareError) {
+            if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+            if (
+              !(shareError instanceof Error) ||
+              (shareError.message !== "SHARE_TEXT_ONLY" &&
+                shareError.message !== "SHARE_UNAVAILABLE" &&
+                shareError.message !== "SHARE_FILES_UNSUPPORTED")
+            ) {
+              throw shareError;
+            }
           }
         }
       }
 
-      await publishOfferLink(photoFiles, estimate, totalLabel);
-      toastCreatedLink();
+      await publishOfferLink(list);
+      toastCreatedLink(items.length);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
     } finally {
@@ -239,8 +392,8 @@ export function CalculatorOfferWorkspace() {
     }
   };
 
-  const toastCreatedLink = () => {
-    toast.success("Ссылка создана", {
+  const toastCreatedLink = (itemCount = filledCount) => {
+    toast.success(itemCount > 1 ? "Ссылка на подборку создана" : "Ссылка создана", {
       description: "Скопирована в буфер, действует 30 дней.",
       duration: 6000,
     });
@@ -250,27 +403,24 @@ export function CalculatorOfferWorkspace() {
   };
 
   const handleCreateLink = async () => {
-    if (
-      !vehicleTitle.trim() &&
-      !description.trim() &&
-      !sourceUrl.trim() &&
-      photos.length === 0 &&
-      !captureApiRef.current?.canCapture()
-    ) {
-      toast.error("Добавьте марку, описание, ссылку, фото или расчёт");
-      return;
-    }
-
     setCreatingLink(true);
     try {
-      const { text, photoFiles, estimate, totalLabel } = await collectSharePayload();
-      await publishOfferLink(photoFiles, estimate, totalLabel);
-      toastCreatedLink();
+      const list = await snapshotActive();
+      setVariants(list);
+      const { items } = await publishOfferLink(list);
+      toastCreatedLink(items.length);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
     } finally {
       setCreatingLink(false);
     }
+  };
+
+  const captionInput = {
+    selectionTitle,
+    itemCount: Math.max(filledCount, 1),
+    firstVehicleTitle: collectFilledItems(variants)[0]?.vehicleTitle ?? active.vehicleTitle,
+    template: captionTemplate,
   };
 
   return (
@@ -279,12 +429,67 @@ export function CalculatorOfferWorkspace() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Подбор авто</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Фото, описание, ссылка и расчёт. На телефоне — сразу в мессенджер, на компьютере — ссылка для клиента.
+            Одно или несколько авто: фото, описание и расчёт. Клиенту уходит одна ссылка на 30 дней.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            {variants.map((variant, index) => {
+              const selected = variant.id === active.id;
+              return (
+                <div key={variant.id} className="flex items-center">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleSelectVariant(variant.id)}
+                    className={cn(
+                      "rounded-full border px-3 py-1.5 text-sm transition-colors",
+                      selected
+                        ? "border-brand bg-brand text-brand-foreground"
+                        : "bg-background hover:bg-muted/40",
+                    )}
+                  >
+                    {variantChipLabel(variant, index)}
+                  </button>
+                  {variants.length > 1 && selected && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      className="-ml-1 rounded-full p-1 text-muted-foreground hover:text-foreground"
+                      onClick={() => void handleRemoveVariant(variant.id)}
+                      aria-label="Удалить вариант"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {variants.length < OFFER_MAX_ITEMS && (
+              <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => void handleAddVariant()}>
+                <Plus className="h-3.5 w-3.5" />
+                Добавить авто
+              </Button>
+            )}
+          </div>
+
+          {variants.length > 1 && (
+            <div className="space-y-2">
+              <Label htmlFor="offer-selection-title">Название подборки</Label>
+              <Input
+                id="offer-selection-title"
+                value={selectionTitle}
+                onChange={(event) => setSelectionTitle(event.target.value.slice(0, OFFER_SELECTION_TITLE_MAX))}
+                placeholder="Для Ивана, до 2 млн…"
+                maxLength={OFFER_SELECTION_TITLE_MAX}
+              />
+            </div>
+          )}
+
           <div className="space-y-2">
-            <Label htmlFor="offer-photos">Фото ({photos.length}/{MAX_PHOTOS})</Label>
+            <Label htmlFor="offer-photos">
+              Фото ({active.photos.length}/{OFFER_MAX_PHOTOS})
+            </Label>
             <input
               ref={photoInputRef}
               id="offer-photos"
@@ -298,7 +503,7 @@ export function CalculatorOfferWorkspace() {
               }}
             />
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-              {photos.map((photo) => (
+              {active.photos.map((photo) => (
                 <div key={photo.id} className="relative aspect-square overflow-hidden rounded-lg border bg-muted">
                   <img src={photo.previewUrl} alt="" className="h-full w-full object-cover" />
                   <button
@@ -311,7 +516,7 @@ export function CalculatorOfferWorkspace() {
                   </button>
                 </div>
               ))}
-              {photos.length < MAX_PHOTOS && (
+              {active.photos.length < OFFER_MAX_PHOTOS && (
                 <button
                   type="button"
                   onClick={() => photoInputRef.current?.click()}
@@ -328,8 +533,8 @@ export function CalculatorOfferWorkspace() {
             <Label htmlFor="offer-vehicle-title">Марка, модель</Label>
             <Input
               id="offer-vehicle-title"
-              value={vehicleTitle}
-              onChange={(event) => setVehicleTitle(event.target.value.slice(0, OFFER_VEHICLE_TITLE_MAX))}
+              value={active.vehicleTitle}
+              onChange={(event) => updateActive({ vehicleTitle: event.target.value.slice(0, OFFER_VEHICLE_TITLE_MAX) })}
               placeholder="Toyota Camry, Li L7…"
               maxLength={OFFER_VEHICLE_TITLE_MAX}
             />
@@ -339,13 +544,15 @@ export function CalculatorOfferWorkspace() {
             <Label htmlFor="offer-description">Описание</Label>
             <Textarea
               id="offer-description"
-              value={description}
-              onChange={(event) => setDescription(event.target.value.slice(0, DESCRIPTION_MAX))}
+              value={active.description}
+              onChange={(event) => updateActive({ description: event.target.value.slice(0, OFFER_DESCRIPTION_MAX) })}
               placeholder="Комплектация, состояние, что важно клиенту…"
               rows={6}
-              maxLength={DESCRIPTION_MAX}
+              maxLength={OFFER_DESCRIPTION_MAX}
             />
-            <p className="text-xs text-muted-foreground">{description.length}/{DESCRIPTION_MAX}</p>
+            <p className="text-xs text-muted-foreground">
+              {active.description.length}/{OFFER_DESCRIPTION_MAX}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -354,15 +561,31 @@ export function CalculatorOfferWorkspace() {
               id="offer-link"
               type="url"
               inputMode="url"
-              value={sourceUrl}
-              onChange={(event) => setSourceUrl(event.target.value)}
+              value={active.sourceUrl}
+              onChange={(event) => updateActive({ sourceUrl: event.target.value })}
               placeholder="https://…"
             />
           </div>
         </CardContent>
       </Card>
 
-      <CustomsCalculator captureApiRef={captureApiRef} embedded />
+      <CustomsCalculator
+        key={active.id}
+        captureApiRef={captureApiRef}
+        embedded
+        persistLocal={active.id === variants[0]?.id}
+        initialInput={active.calcInput}
+        onCalculated={(input, result) => {
+          const id = activeIdRef.current;
+          setVariants((current) =>
+            current.map((variant) =>
+              variant.id === id
+                ? { ...variant, calcInput: input, totalLabel: formatCurrency(result.totalWithCar) }
+                : variant,
+            ),
+          );
+        }}
+      />
 
       <div className="sticky bottom-3 z-30 space-y-3">
         {createdLink && (
@@ -375,7 +598,7 @@ export function CalculatorOfferWorkspace() {
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  void navigator.clipboard.writeText(buildOfferLinkClipboard(createdLink, vehicleTitle, captionTemplate));
+                  void navigator.clipboard.writeText(buildSelectionLinkClipboard(createdLink, captionInput));
                   toast.success("Ссылка скопирована");
                 }}
               >
@@ -383,7 +606,11 @@ export function CalculatorOfferWorkspace() {
                 Копировать ссылку
               </Button>
               <Button type="button" size="sm" variant="brand" asChild>
-                <a href={buildTelegramShareUrl(createdLink, buildOfferLinkCaption(vehicleTitle, captionTemplate))} target="_blank" rel="noreferrer">
+                <a
+                  href={buildTelegramShareUrl(createdLink, buildSelectionLinkCaption(captionInput))}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Открыть в Telegram
                 </a>
               </Button>
