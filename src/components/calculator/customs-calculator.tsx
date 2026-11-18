@@ -2141,26 +2141,15 @@ export function CustomsCalculator({
               </div>
             )}
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border p-3">
               <input
                 id="recycling-fee-2027"
                 type="checkbox"
-                className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
+                className="h-4 w-4 shrink-0 rounded border-input accent-primary"
                 checked={recyclingFee2027}
                 onChange={(event) => setRecyclingFee2027(event.target.checked)}
               />
-              <span className="min-w-0 flex-1">
-                <span className="text-sm font-medium leading-snug">По ставкам 2027 года</span>
-                <FieldHint>
-                  {recyclingFee2027
-                    ? "Коммерческий утильсбор считается по коэффициентам с 1 января 2027 года."
-                    : "Сейчас утильсбор по ставкам 2026 года. Включите, чтобы посчитать коммерческий сбор по коэффициентам 2027 года."}{" "}
-                  {isN1g
-                    ? "Для N1G льготы физлица нет: утильсбор считается по полной массе."
-                    : "Льготный сбор для физлица не меняется: 3 400 ₽ для нового авто и до 3 лет, 5 200 ₽ для старше."}{" "}
-                  Пошлина, акциз, НДС и таможенный сбор остаются по ставкам 2026 года.
-                </FieldHint>
-              </span>
+              <span className="text-sm font-medium leading-snug">По ставкам 2027 года</span>
             </label>
 
             {isKyrgyzstan && (
