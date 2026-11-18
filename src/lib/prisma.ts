@@ -2,7 +2,7 @@ import "server-only";
 import { PrismaClient } from "@prisma/client";
 
 // Увеличивайте при изменении prisma/schema.prisma, чтобы dev-сервер подхватил новый клиент.
-const PRISMA_SCHEMA_VERSION = 14;
+const PRISMA_SCHEMA_VERSION = 15;
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -41,6 +41,25 @@ function ensureStageReminderColumns(client: PrismaClient): Promise<void> {
   return state.stageReminderColumns;
 }
 
+function ensureOfferEquipmentGroupsColumn(client: PrismaClient): Promise<void> {
+  const state = globalForPrisma as typeof globalForPrisma & {
+    offerEquipmentGroupsColumn?: Promise<void>;
+  };
+  if (!state.offerEquipmentGroupsColumn) {
+    state.offerEquipmentGroupsColumn = client
+      .$executeRawUnsafe(
+        `ALTER TABLE "company_workspace_settings" ADD COLUMN IF NOT EXISTS "offerEquipmentGroups" JSONB NOT NULL DEFAULT '[]'::jsonb`,
+      )
+      .then(() => undefined)
+      .catch((error) => {
+        state.offerEquipmentGroupsColumn = undefined;
+        console.error("[auto-crm] failed to add offer equipment groups column:", error);
+        throw error;
+      });
+  }
+  return state.offerEquipmentGroupsColumn;
+}
+
 function ensureTaskReminderNotifyColumn(client: PrismaClient): Promise<void> {
   const state = globalForPrisma as typeof globalForPrisma & {
     taskReminderNotifyColumn?: Promise<void>;
@@ -76,6 +95,12 @@ function createPrismaClient() {
       reminder: {
         async $allOperations({ args, query }) {
           await ensureTaskReminderNotifyColumn(base);
+          return query(args);
+        },
+      },
+      companyWorkspaceSettings: {
+        async $allOperations({ args, query }) {
+          await ensureOfferEquipmentGroupsColumn(base);
           return query(args);
         },
       },

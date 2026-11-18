@@ -423,6 +423,7 @@ model CompanyWorkspaceSettings {
   customDealFields        Json     @default("[]")
   documentTypes           Json     @default("[]")
   additionalOptionGroups  Json     @default("[]")
+  offerEquipmentGroups    Json     @default("[]")
   modules                 Json     @default("{}")
   offerLinkCaptionTemplate String?
   updatedAt               DateTime @updatedAt

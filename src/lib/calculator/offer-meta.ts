@@ -1,9 +1,14 @@
+import type { OfferEquipmentItem } from "@/lib/calculator/offer-equipment";
+import { parseOfferMileageKm } from "@/lib/calculator/offer-share";
+
 export const SAFE_OFFER_FILE =
   /^(?:i\d{2}-)?(?:photo-\d{2}|estimate)\.(jpe?g|png|webp|gif)$/;
 
 export type OfferItemMeta = {
   vehicleTitle: string | null;
+  mileageKm: number | null;
   description: string;
+  equipment: OfferEquipmentItem[];
   sourceUrl: string | null;
   totalLabel: string | null;
   photos: string[];
@@ -46,14 +51,37 @@ export function assertSafeOfferFileName(fileName: string): string {
   return decoded;
 }
 
+function isOfferEquipmentItem(value: unknown): value is OfferEquipmentItem {
+  if (!value || typeof value !== "object") return false;
+  const item = value as OfferEquipmentItem;
+  return typeof item.key === "string" && typeof item.label === "string";
+}
+
 function isOfferItemMeta(value: unknown): value is OfferItemMeta {
   if (!value || typeof value !== "object") return false;
   const item = value as OfferItemMeta;
-  return (
-    typeof item.description === "string" &&
-    Array.isArray(item.photos) &&
-    item.photos.every((name) => typeof name === "string")
-  );
+  if (typeof item.description !== "string" || !Array.isArray(item.photos)) return false;
+  if (!item.photos.every((name) => typeof name === "string")) return false;
+  if (item.equipment !== undefined) {
+    if (!Array.isArray(item.equipment) || !item.equipment.every(isOfferEquipmentItem)) return false;
+  }
+  if (item.mileageKm !== undefined && item.mileageKm !== null && typeof item.mileageKm !== "number") {
+    return false;
+  }
+  return true;
+}
+
+function normalizeOfferItem(item: OfferItemMeta): OfferItemMeta {
+  const equipment = Array.isArray(item.equipment)
+    ? item.equipment
+        .filter(isOfferEquipmentItem)
+        .map((entry) => ({
+          key: entry.key.trim().slice(0, 63),
+          label: entry.label.trim().slice(0, 200),
+        }))
+        .filter((entry) => entry.key && entry.label)
+    : [];
+  return { ...item, equipment, mileageKm: parseOfferMileageKm(item.mileageKm) };
 }
 
 export function normalizeOfferMeta(parsed: unknown): OfferMetaV2 {
@@ -62,7 +90,7 @@ export function normalizeOfferMeta(parsed: unknown): OfferMetaV2 {
   }
   const raw = parsed as OfferMeta;
   if (raw.version === 2 && Array.isArray(raw.items) && raw.items.every(isOfferItemMeta)) {
-    return raw;
+    return { ...raw, items: raw.items.map(normalizeOfferItem) };
   }
   if (raw.version === 1 && Array.isArray(raw.photos)) {
     const v1 = raw as OfferMetaV1;
@@ -77,7 +105,9 @@ export function normalizeOfferMeta(parsed: unknown): OfferMetaV2 {
       items: [
         {
           vehicleTitle: v1.vehicleTitle?.trim() ? v1.vehicleTitle.trim() : null,
+          mileageKm: null,
           description: v1.description,
+          equipment: [],
           sourceUrl: v1.sourceUrl,
           totalLabel: v1.totalLabel,
           photos: v1.photos,

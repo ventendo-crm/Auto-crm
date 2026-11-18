@@ -642,7 +642,9 @@ export const api = {
       selectionTitle?: string;
       items: Array<{
         vehicleTitle?: string;
+        mileageKm?: number | null;
         description: string;
+        equipmentKeys?: string[];
         sourceUrl: string;
         totalLabel?: string | null;
         photos: File[];
@@ -653,7 +655,11 @@ export const api = {
       if (input.selectionTitle) formData.append("selectionTitle", input.selectionTitle);
       input.items.forEach((item, index) => {
         if (item.vehicleTitle) formData.append(`vehicleTitle-${index}`, item.vehicleTitle);
+        if (item.mileageKm != null) formData.append(`mileageKm-${index}`, String(item.mileageKm));
         formData.append(`description-${index}`, item.description);
+        if (item.equipmentKeys?.length) {
+          formData.append(`equipment-${index}`, JSON.stringify(item.equipmentKeys));
+        }
         formData.append(`sourceUrl-${index}`, item.sourceUrl);
         if (item.totalLabel) formData.append(`totalLabel-${index}`, item.totalLabel);
         for (const photo of item.photos) {
@@ -677,6 +683,11 @@ export const api = {
       }
       return json.data;
     },
+    sendToTelegram: (token: string) =>
+      request<{ delivered: boolean }>("/api/calculator/offers/telegram", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      }),
   },
 
   calculatorExpenseTemplate: {

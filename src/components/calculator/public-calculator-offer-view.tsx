@@ -10,7 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { PublicCalculatorOffer, PublicCalculatorOfferItem } from "@/lib/calculator/offer-share";
+import {
+  formatOfferMileageKm,
+  type PublicCalculatorOffer,
+  type PublicCalculatorOfferItem,
+} from "@/lib/calculator/offer-share";
 
 function formatExpiry(iso: string) {
   try {
@@ -26,6 +30,16 @@ function formatExpiry(iso: string) {
 
 function BlockDivider() {
   return <div className="h-px bg-border" role="separator" />;
+}
+
+function MileageLine({ km, className }: { km: number | null | undefined; className?: string }) {
+  const label = formatOfferMileageKm(km);
+  if (!label) return null;
+  return (
+    <p className={className ?? "mt-3 text-xl font-semibold tabular-nums tracking-wide sm:text-2xl"}>
+      {label}
+    </p>
+  );
 }
 
 function SourceListingLink({ href }: { href: string }) {
@@ -59,10 +73,19 @@ function OfferItemBlocks({
         item.photoUrls.length > 0 ? (
           <SwipeGallery key="photos" images={item.photoUrls} labels={photoLabels} />
         ) : null,
-        item.description ? (
-          <section key="description" className="space-y-2">
+        (item.equipment ?? []).length > 0 || item.description ? (
+          <section key="description" className="space-y-3">
             <h2 className="text-base font-semibold">Комплектация</h2>
-            <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{item.description}</div>
+            {(item.equipment ?? []).length > 0 ? (
+              <ul className="list-disc space-y-1 pl-5 text-[15px] leading-relaxed">
+                {(item.equipment ?? []).map((entry) => (
+                  <li key={entry.key}>{entry.label}</li>
+                ))}
+              </ul>
+            ) : null}
+            {item.description ? (
+              <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{item.description}</div>
+            ) : null}
           </section>
         ) : null,
         item.estimateUrl ? (
@@ -165,6 +188,7 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
           {data.companyName && <p className="text-sm text-muted-foreground">{data.companyName}</p>}
           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{heading}</h1>
+          {!isSelection && <MileageLine km={first.mileageKm} />}
           {!isSelection && first.totalLabel && (
             <p className="mt-3 text-lg font-semibold">Итого: {first.totalLabel}</p>
           )}
@@ -179,6 +203,7 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
                 <div>
                   <p className="text-sm text-muted-foreground">Вариант {index + 1}</p>
                   <h2 className="mt-1 text-xl font-semibold">{item.vehicleTitle || `Вариант ${index + 1}`}</h2>
+                  <MileageLine km={item.mileageKm} className="mt-2 text-xl font-semibold tabular-nums tracking-wide sm:text-2xl" />
                   {item.totalLabel && (
                     <p className="mt-2 text-lg font-semibold">Итого: {item.totalLabel}</p>
                   )}

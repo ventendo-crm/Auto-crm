@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS "company_workspace_settings" (
   "customDealFields" JSONB NOT NULL DEFAULT '[]'::jsonb,
   "documentTypes" JSONB NOT NULL DEFAULT '[]'::jsonb,
   "additionalOptionGroups" JSONB NOT NULL DEFAULT '[]'::jsonb,
+  "offerEquipmentGroups" JSONB NOT NULL DEFAULT '[]'::jsonb,
   "modules" JSONB NOT NULL DEFAULT '{}'::jsonb,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT "company_workspace_settings_pkey" PRIMARY KEY ("companyId")
@@ -33,6 +34,9 @@ CREATE TABLE IF NOT EXISTS "company_workspace_settings" (
 
 ALTER TABLE "company_workspace_settings"
   ADD COLUMN IF NOT EXISTS "offerLinkCaptionTemplate" TEXT;
+
+ALTER TABLE "company_workspace_settings"
+  ADD COLUMN IF NOT EXISTS "offerEquipmentGroups" JSONB NOT NULL DEFAULT '[]'::jsonb;
 
 DO $$
 BEGIN

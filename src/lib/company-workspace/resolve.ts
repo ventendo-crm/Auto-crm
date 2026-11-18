@@ -164,22 +164,23 @@ function resolveDocumentTypes(raw: unknown): CompanyDocumentType[] {
   return parsed.length > 0 ? parsed : defaults;
 }
 
-function resolveAdditionalOptionGroups(raw: unknown): AdditionalOptionGroupDefinition[] {
-  if (raw === undefined || raw === null) {
-    return getDefaultCompanyWorkspace().additionalOptionGroups;
+function parseOptionGroups(
+  raw: unknown,
+  fallback: AdditionalOptionGroupDefinition[],
+  emptyMeans: "empty" | "defaults",
+): AdditionalOptionGroupDefinition[] {
+  if (raw === undefined || raw === null || !Array.isArray(raw)) {
+    return fallback;
   }
-  if (!Array.isArray(raw)) {
-    return getDefaultCompanyWorkspace().additionalOptionGroups;
+  if (raw.length === 0) {
+    return emptyMeans === "empty" ? [] : fallback;
   }
-  if (raw.length === 0) return [];
-
-  const items = raw;
 
   const groups: AdditionalOptionGroupDefinition[] = [];
   const groupIds = new Set<string>();
   const optionKeys = new Set<string>();
 
-  for (const item of items) {
+  for (const item of raw) {
     const record = asRecord(item);
     const id = typeof record.id === "string" ? record.id.trim() : "";
     const title = typeof record.title === "string" ? record.title.trim() : "";
@@ -203,7 +204,15 @@ function resolveAdditionalOptionGroups(raw: unknown): AdditionalOptionGroupDefin
     if (groups.length >= 20) break;
   }
 
-  return groups.length > 0 ? groups : getDefaultCompanyWorkspace().additionalOptionGroups;
+  return groups.length > 0 ? groups : fallback;
+}
+
+function resolveAdditionalOptionGroups(raw: unknown): AdditionalOptionGroupDefinition[] {
+  return parseOptionGroups(raw, getDefaultCompanyWorkspace().additionalOptionGroups, "empty");
+}
+
+function resolveOfferEquipmentGroups(raw: unknown): AdditionalOptionGroupDefinition[] {
+  return parseOptionGroups(raw, getDefaultCompanyWorkspace().offerEquipmentGroups, "defaults");
 }
 
 function resolveModules(raw: unknown): CompanyModules {
@@ -232,6 +241,7 @@ export interface CompanyWorkspaceRaw {
   customDealFields?: unknown;
   documentTypes?: unknown;
   additionalOptionGroups?: unknown;
+  offerEquipmentGroups?: unknown;
   modules?: unknown;
   offerLinkCaptionTemplate?: unknown;
 }
@@ -246,6 +256,7 @@ export function resolveCompanyWorkspace(raw?: CompanyWorkspaceRaw | null): Resol
     customDealFields: resolveCustomDealFields(raw.customDealFields),
     documentTypes: resolveDocumentTypes(raw.documentTypes),
     additionalOptionGroups: resolveAdditionalOptionGroups(raw.additionalOptionGroups),
+    offerEquipmentGroups: resolveOfferEquipmentGroups(raw.offerEquipmentGroups),
     modules: resolveModules(raw.modules),
     offerLinkCaptionTemplate: resolveOfferLinkCaptionTemplate(raw.offerLinkCaptionTemplate),
   };

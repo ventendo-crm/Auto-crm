@@ -4,6 +4,9 @@ import {
   buildOfferLinkCaption,
   buildSelectionLinkCaption,
   DEFAULT_OFFER_LINK_CAPTION_TEMPLATE,
+  formatOfferMileageInput,
+  formatOfferMileageKm,
+  parseOfferMileageKm,
 } from "@/lib/calculator/offer-share";
 
 describe("offer link captions", () => {
@@ -28,6 +31,15 @@ describe("offer link captions", () => {
       }),
       'Подборка "Для Ивана"',
     );
+  });
+
+  it("formats mileage with grouped thousands and км", () => {
+    assert.equal(parseOfferMileageKm("49000"), 49000);
+    assert.equal(parseOfferMileageKm("49 000"), 49000);
+    assert.equal(formatOfferMileageKm(49000)?.replace(/\u00a0/g, " "), "49 000 км");
+    assert.equal(formatOfferMileageInput(49000), "49 000");
+    assert.equal(parseOfferMileageKm(""), null);
+    assert.equal(formatOfferMileageKm(null), null);
   });
 
   it("falls back to the car count without a selection title", () => {

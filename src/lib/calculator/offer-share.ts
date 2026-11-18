@@ -6,13 +6,16 @@ export const OFFER_MAX_ITEMS = 8;
 export const OFFER_DESCRIPTION_MAX = 4000;
 export const OFFER_VEHICLE_TITLE_MAX = 120;
 export const OFFER_SELECTION_TITLE_MAX = 120;
+export const OFFER_MILEAGE_MAX_KM = 9_999_999;
 export const OFFER_TOKEN_PATTERN = /^[a-f0-9]{48}$/;
 export const DEFAULT_OFFER_LINK_CAPTION_TEMPLATE = 'Расчет автомобиля "{марка}"';
 export const OFFER_LINK_CAPTION_TEMPLATE_MAX = 200;
 
 export type PublicCalculatorOfferItem = {
   vehicleTitle: string | null;
+  mileageKm: number | null;
   description: string;
+  equipment: Array<{ key: string; label: string }>;
   sourceUrl: string | null;
   totalLabel: string | null;
   photoUrls: string[];
@@ -30,6 +33,37 @@ export type CreatedCalculatorOffer = {
   token: string;
   expiresAt: string;
 };
+
+export function parseOfferMileageKm(raw: unknown): number | null {
+  if (typeof raw === "number" && Number.isFinite(raw)) {
+    const n = Math.round(raw);
+    if (n < 0 || n > OFFER_MILEAGE_MAX_KM) return null;
+    return n;
+  }
+  if (typeof raw !== "string") return null;
+  const digits = raw.replace(/\D/g, "").slice(0, String(OFFER_MILEAGE_MAX_KM).length);
+  if (!digits) return null;
+  const n = Number(digits);
+  if (!Number.isFinite(n) || n < 0 || n > OFFER_MILEAGE_MAX_KM) return null;
+  return n;
+}
+
+function groupThousands(value: number): string {
+  return String(value).replace(/\B(?=(\d{3})+(?!\d))/g, "\u00a0");
+}
+
+/** 49000 → «49 000 км» */
+export function formatOfferMileageKm(km: number | null | undefined): string | null {
+  const parsed = parseOfferMileageKm(km);
+  if (parsed == null) return null;
+  return `${groupThousands(parsed)}\u00a0км`;
+}
+
+export function formatOfferMileageInput(km: number | null | undefined): string {
+  const parsed = parseOfferMileageKm(km);
+  if (parsed == null) return "";
+  return String(parsed).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+}
 
 export function isOfferShareToken(token: string): boolean {
   return OFFER_TOKEN_PATTERN.test(token.trim());
