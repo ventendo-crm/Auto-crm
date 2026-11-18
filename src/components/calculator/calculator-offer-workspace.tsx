@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ImagePlus, Link2, Loader2, Plus, RotateCcw, Share2, X } from "lucide-react";
+import { Copy, ImagePlus, Link2, Loader2, Plus, RotateCcw, Send, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -16,7 +16,6 @@ import { api } from "@/lib/api-client";
 import {
   buildSelectionLinkCaption,
   buildSelectionLinkClipboard,
-  buildTelegramShareUrl,
   OFFER_DESCRIPTION_MAX,
   OFFER_MAX_ITEMS,
   OFFER_MAX_PHOTOS,
@@ -31,6 +30,7 @@ import type { AdditionalOptionGroupDefinition } from "@/lib/additional-options";
 import { snapshotOfferEquipment } from "@/lib/calculator/offer-equipment";
 import { isPhoneFileShare, buildOfferShareText, shareOfferPackage } from "@/lib/calculator/share-export";
 import type { CustomsCalculatorInput } from "@/lib/customs-calculator";
+import { useAuth } from "@/hooks/use-auth";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { cn, formatCurrency } from "@/lib/utils";
 
@@ -173,6 +173,7 @@ function copyOfferCalcCharacteristics(
 }
 
 export function CalculatorOfferWorkspace() {
+  const { user } = useAuth();
   const { settings } = useCompanyWorkspace();
   const captionTemplate = settings.offerLinkCaptionTemplate;
   const equipmentGroups = settings.offerEquipmentGroups ?? [];
@@ -185,6 +186,8 @@ export function CalculatorOfferWorkspace() {
   const [creatingLink, setCreatingLink] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [createdLink, setCreatedLink] = useState<string | null>(null);
+  const [createdToken, setCreatedToken] = useState<string | null>(null);
+  const [sendingTelegram, setSendingTelegram] = useState(false);
   const busy = sharing || creatingLink || switching;
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
@@ -376,6 +379,7 @@ export function CalculatorOfferWorkspace() {
       setVariants([...nextList, created]);
       setActiveId(created.id);
       setCreatedLink(null);
+      setCreatedToken(null);
     } finally {
       setSwitching(false);
     }
@@ -407,6 +411,7 @@ export function CalculatorOfferWorkspace() {
         setActiveId(next[Math.max(0, removedIndex - 1)]?.id ?? next[0]!.id);
       }
       setCreatedLink(null);
+      setCreatedToken(null);
     } finally {
       setSwitching(false);
     }
@@ -458,6 +463,7 @@ export function CalculatorOfferWorkspace() {
       // ссылку всё равно покажем на экране
     }
     setCreatedLink(url);
+    setCreatedToken(created.token);
     return { url, items };
   };
 
@@ -527,6 +533,29 @@ export function CalculatorOfferWorkspace() {
       toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
     } finally {
       setSharing(false);
+    }
+  };
+
+  const handleSendToTelegram = async () => {
+    if (!createdToken) {
+      toast.error("Сначала создайте ссылку");
+      return;
+    }
+    if (!user?.telegramChatId) {
+      toast.error("Сначала привяжите Chat ID в Настройки → Профиль");
+      return;
+    }
+    setSendingTelegram(true);
+    try {
+      await api.calculatorOffers.sendToTelegram(createdToken);
+      toast.success("Отправлено в Telegram", {
+        description: "Сообщение пришло в бот уведомлений. Перешлите его клиенту из чата с ботом.",
+        duration: 7000,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось отправить в Telegram");
+    } finally {
+      setSendingTelegram(false);
     }
   };
 
@@ -810,14 +839,19 @@ export function CalculatorOfferWorkspace() {
                 <Copy className="h-3.5 w-3.5" />
                 Копировать ссылку
               </Button>
-              <Button type="button" size="sm" variant="brand" asChild>
-                <a
-                  href={buildTelegramShareUrl(createdLink, buildSelectionLinkCaption(captionInput))}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Открыть в Telegram
-                </a>
+              <Button
+                type="button"
+                size="sm"
+                variant="brand"
+                disabled={sendingTelegram}
+                onClick={() => void handleSendToTelegram()}
+              >
+                {sendingTelegram ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+                Отправить в Telegram
               </Button>
             </div>
           </div>

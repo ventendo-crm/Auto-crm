@@ -683,6 +683,11 @@ export const api = {
       }
       return json.data;
     },
+    sendToTelegram: (token: string) =>
+      request<{ delivered: boolean }>("/api/calculator/offers/telegram", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      }),
   },
 
   calculatorExpenseTemplate: {

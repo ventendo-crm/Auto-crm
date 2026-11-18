@@ -19,9 +19,11 @@ import {
   OFFER_SELECTION_TITLE_MAX,
   OFFER_TTL_MS,
   OFFER_VEHICLE_TITLE_MAX,
+  buildSelectionLinkCaption,
   isOfferShareToken,
   parseOfferMileageKm,
   publicOfferFilePath,
+  publicOfferPath,
   sanitizeOfferHttpUrl,
   type PublicCalculatorOffer,
   type PublicCalculatorOfferItem,
@@ -30,6 +32,12 @@ import type { AuthUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { guessUploadContentType, localUploadsDir, uploadContentDisposition } from "@/lib/storage/local-uploads";
+import {
+  getAppPublicUrl,
+  getCompanyTelegramConfig,
+  isCompanyTelegramConfigured,
+  sendTelegramMessageWithToken,
+} from "@/lib/telegram/bot";
 
 const ALLOWED_PHOTO_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -395,6 +403,61 @@ export async function openPublicOfferFile(
     size: fileStat.size,
     downloadName: safeName,
   };
+}
+
+function escapeTelegramHtml(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export async function sendCalculatorOfferToManagerTelegram(user: AuthUser, token: string) {
+  if (!isOfferShareToken(token)) {
+    throw new Error("Подбор недоступен");
+  }
+
+  const dir = offerDirForToken(token);
+  let meta: OfferMetaV2;
+  try {
+    meta = await readOfferMeta(dir);
+  } catch {
+    throw new Error("Подбор недоступен");
+  }
+
+  if (meta.companyId !== user.companyId) {
+    throw new Error("Подбор недоступен");
+  }
+  if (new Date(meta.expiresAt).getTime() <= Date.now()) {
+    throw new Error("Ссылка истекла");
+  }
+
+  const config = await getCompanyTelegramConfig(user.companyId);
+  if (!config.token || !isCompanyTelegramConfigured(config)) {
+    throw new Error("Telegram не настроен: привяжите бота компании в Настройки → Telegram");
+  }
+
+  const account = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { telegramChatId: true },
+  });
+  const chatId = account?.telegramChatId?.trim();
+  if (!chatId) {
+    throw new Error("Сначала привяжите Chat ID в Настройки → Профиль");
+  }
+
+  const workspace = await getCompanyWorkspaceSettings(user.companyId);
+  const caption = buildSelectionLinkCaption({
+    selectionTitle: meta.selectionTitle,
+    itemCount: meta.items.length,
+    firstVehicleTitle: meta.items[0]?.vehicleTitle,
+    template: workspace.offerLinkCaptionTemplate,
+  });
+  const url = `${getAppPublicUrl()}${publicOfferPath(token)}`;
+  const text = `${escapeTelegramHtml(caption)}\n\n${url}`;
+  const delivered = await sendTelegramMessageWithToken(config.token, chatId, text, {
+    disableWebPagePreview: false,
+  });
+  if (!delivered) {
+    throw new Error("Не удалось отправить сообщение в Telegram");
+  }
 }
 
 export { uploadContentDisposition };
