@@ -81,8 +81,11 @@ import {
   convertPowerInputValue,
   formatPowerInputValue,
   isPowerInputUnit,
+  isVehicleCategory,
   powerInputToHp,
   type PowerInputUnit,
+  type VehicleCategory,
+  N1G_MAX_GVW_KG,
   exchangeRateDecimals,
   roundExchangeRate,
   roundExchangeRates,
@@ -107,6 +110,8 @@ type CalculatorPersistedState = {
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
+  vehicleCategory: VehicleCategory;
+  gvwKg: string;
   powerHp: string;
   /** Единица поля мощности. Само значение `powerHp` хранится в этой единице. */
   powerUnit: PowerInputUnit;
@@ -146,6 +151,8 @@ const DEFAULT_STATE: CalculatorPersistedState = {
   importer: "personal",
   age: "under3",
   engine: "petrol",
+  vehicleCategory: "m1",
+  gvwKg: "3000",
   powerHp: "150",
   powerUnit: "hp",
   volumeCc: "2000",
@@ -187,8 +194,12 @@ function isEngine(value: unknown): value is EngineType {
 }
 
 function normalizeEngine(value: EngineType): EngineType {
-  // Бензин и дизель объединены в одну кнопку UI
+  // Для M1 бензин и дизель объединены в одну кнопку UI
   return value === "diesel" ? "petrol" : value;
+}
+
+function engineForCategory(engine: EngineType, category: VehicleCategory): EngineType {
+  return category === "n1g" ? engine : normalizeEngine(engine);
 }
 
 function isCurrency(value: unknown): value is CurrencyCode {
@@ -227,7 +238,18 @@ function loadPersistedState(): CalculatorPersistedState {
         : DEFAULT_STATE.originCountry,
       importer: isImporter(parsed.importer) ? parsed.importer : DEFAULT_STATE.importer,
       age: isAge(parsed.age) ? parsed.age : DEFAULT_STATE.age,
-      engine: isEngine(parsed.engine) ? normalizeEngine(parsed.engine) : DEFAULT_STATE.engine,
+      vehicleCategory: isVehicleCategory(parsed.vehicleCategory)
+        ? parsed.vehicleCategory
+        : DEFAULT_STATE.vehicleCategory,
+      engine: isEngine(parsed.engine)
+        ? engineForCategory(
+            parsed.engine,
+            isVehicleCategory(parsed.vehicleCategory)
+              ? parsed.vehicleCategory
+              : DEFAULT_STATE.vehicleCategory,
+          )
+        : DEFAULT_STATE.engine,
+      gvwKg: typeof parsed.gvwKg === "string" ? parsed.gvwKg : DEFAULT_STATE.gvwKg,
       powerHp: typeof parsed.powerHp === "string" ? parsed.powerHp : DEFAULT_STATE.powerHp,
       powerUnit: isPowerInputUnit(parsed.powerUnit) ? parsed.powerUnit : DEFAULT_STATE.powerUnit,
       volumeCc: typeof parsed.volumeCc === "string" ? parsed.volumeCc : DEFAULT_STATE.volumeCc,
@@ -321,7 +343,18 @@ function loadUserPresets(): UserPreset[] {
             : DEFAULT_STATE.originCountry,
           importer: isImporter(item.importer) ? item.importer : DEFAULT_STATE.importer,
           age: isAge(item.age) ? item.age : DEFAULT_STATE.age,
-          engine: isEngine(item.engine) ? normalizeEngine(item.engine) : DEFAULT_STATE.engine,
+          vehicleCategory: isVehicleCategory(item.vehicleCategory)
+            ? item.vehicleCategory
+            : DEFAULT_STATE.vehicleCategory,
+          engine: isEngine(item.engine)
+            ? engineForCategory(
+                item.engine,
+                isVehicleCategory(item.vehicleCategory)
+                  ? item.vehicleCategory
+                  : DEFAULT_STATE.vehicleCategory,
+              )
+            : DEFAULT_STATE.engine,
+          gvwKg: typeof item.gvwKg === "string" ? item.gvwKg : DEFAULT_STATE.gvwKg,
           powerHp: typeof item.powerHp === "string" ? item.powerHp : DEFAULT_STATE.powerHp,
           powerUnit: isPowerInputUnit(item.powerUnit) ? item.powerUnit : DEFAULT_STATE.powerUnit,
           volumeCc: typeof item.volumeCc === "string" ? item.volumeCc : DEFAULT_STATE.volumeCc,
@@ -395,6 +428,17 @@ const ENGINE_OPTIONS: Array<{ value: EngineType; label: string }> = [
   { value: "electric", label: "Электро и последовательный гибрид" },
 ];
 
+const N1G_ENGINE_OPTIONS: Array<{ value: EngineType; label: string }> = [
+  { value: "petrol", label: "Бензин" },
+  { value: "diesel", label: "Дизель" },
+  { value: "electric", label: "Электро и последовательный гибрид" },
+];
+
+const VEHICLE_CATEGORY_OPTIONS: Array<{ value: VehicleCategory; label: string }> = [
+  { value: "m1", label: "M1" },
+  { value: "n1g", label: "N1G (пикап)" },
+];
+
 const CURRENCY_OPTIONS: Array<{ value: CurrencyCode; label: string }> = [
   { value: "RUB", label: "Рубль" },
   { value: "USD", label: "Доллар США" },
@@ -406,6 +450,42 @@ const POWER_UNIT_OPTIONS: Array<{ value: PowerInputUnit; label: string }> = [
   { value: "hp", label: "л.с." },
   { value: "kw", label: "кВт" },
 ];
+
+function VehicleCategoryToggle({
+  value,
+  onChange,
+}: {
+  value: VehicleCategory;
+  onChange: (category: VehicleCategory) => void;
+}) {
+  return (
+    <div
+      className="inline-flex rounded-md border bg-muted/40 p-0.5"
+      role="group"
+      aria-label="Категория автомобиля"
+    >
+      {VEHICLE_CATEGORY_OPTIONS.map((option) => {
+        const active = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "rounded px-2 py-0.5 text-xs leading-5 transition-colors",
+              active
+                ? "bg-card font-medium text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function PowerUnitToggle({
   value,
@@ -461,7 +541,12 @@ function inputToCalculatorState(input: CustomsCalculatorInput): CalculatorPersis
   const originCountry = isOriginCountry(input.originCountry)
     ? input.originCountry
     : DEFAULT_STATE.originCountry;
-  const engine = isEngine(input.engine) ? normalizeEngine(input.engine) : DEFAULT_STATE.engine;
+  const vehicleCategory = isVehicleCategory(input.vehicleCategory)
+    ? input.vehicleCategory
+    : DEFAULT_STATE.vehicleCategory;
+  const engine = isEngine(input.engine)
+    ? engineForCategory(input.engine, vehicleCategory)
+    : DEFAULT_STATE.engine;
   const age = isAge(input.age) ? input.age : DEFAULT_STATE.age;
   const deliveryRoute = isDeliveryRoute(input.deliveryRoute)
     ? input.deliveryRoute
@@ -473,7 +558,9 @@ function inputToCalculatorState(input: CustomsCalculatorInput): CalculatorPersis
     originCountry,
     importer: isImporter(input.importer) ? input.importer : DEFAULT_STATE.importer,
     age,
+    vehicleCategory,
     engine,
+    gvwKg: numberToInputString(input.gvwKg, DEFAULT_STATE.gvwKg),
     powerHp: numberToInputString(input.powerHp, DEFAULT_STATE.powerHp),
     powerUnit: "hp",
     volumeCc: numberToInputString(input.volumeCc, DEFAULT_STATE.volumeCc),
@@ -718,6 +805,10 @@ export function CustomsCalculator({
   const [importer, setImporter] = useState<ImporterType>(DEFAULT_STATE.importer);
   const [age, setAge] = useState<CarAge>(DEFAULT_STATE.age);
   const [engine, setEngine] = useState<EngineType>(DEFAULT_STATE.engine);
+  const [vehicleCategory, setVehicleCategory] = useState<VehicleCategory>(
+    DEFAULT_STATE.vehicleCategory,
+  );
+  const [gvwKg, setGvwKg] = useState(DEFAULT_STATE.gvwKg);
   const [powerHp, setPowerHp] = useState(DEFAULT_STATE.powerHp);
   const [powerUnit, setPowerUnit] = useState<PowerInputUnit>(DEFAULT_STATE.powerUnit);
   const [volumeCc, setVolumeCc] = useState(DEFAULT_STATE.volumeCc);
@@ -781,6 +872,8 @@ export function CustomsCalculator({
     setImporter(source.importer);
     setAge(source.age);
     setEngine(source.engine);
+    setVehicleCategory(source.vehicleCategory);
+    setGvwKg(source.gvwKg);
     setPowerHp(source.powerHp);
     setPowerUnit(source.powerUnit);
     setVolumeCc(source.volumeCc);
@@ -935,6 +1028,8 @@ export function CustomsCalculator({
       importer,
       age,
       engine,
+      vehicleCategory,
+      gvwKg,
       powerHp,
       powerUnit,
       volumeCc,
@@ -962,6 +1057,8 @@ export function CustomsCalculator({
     importer,
     age,
     engine,
+    vehicleCategory,
+    gvwKg,
     powerHp,
     powerUnit,
     volumeCc,
@@ -993,6 +1090,11 @@ export function CustomsCalculator({
       importer,
       age,
       engine,
+      vehicleCategory,
+      gvwKg:
+        vehicleCategory === "n1g"
+          ? Number(gvwKg.replace(",", "."))
+          : undefined,
       powerHp: powerInputToHp(Number(powerHp.replace(",", ".")), powerUnit),
       volumeCc: Number(volumeCc.replace(",", ".")),
       price: Number(price.replace(",", ".")),
@@ -1030,6 +1132,8 @@ export function CustomsCalculator({
     importer,
     age,
     engine,
+    vehicleCategory,
+    gvwKg,
     powerHp,
     powerUnit,
     volumeCc,
@@ -1099,6 +1203,8 @@ export function CustomsCalculator({
       importer,
       age,
       engine,
+      vehicleCategory,
+      gvwKg,
       powerHp,
       powerUnit,
       volumeCc,
@@ -1130,6 +1236,8 @@ export function CustomsCalculator({
       importer,
       age,
       engine,
+      vehicleCategory,
+      gvwKg,
       powerHp,
       powerUnit,
       volumeCc,
@@ -1165,6 +1273,8 @@ export function CustomsCalculator({
     importer,
     age,
     engine,
+    vehicleCategory,
+    gvwKg,
     powerHp,
     powerUnit,
     volumeCc,
@@ -1303,6 +1413,17 @@ export function CustomsCalculator({
     setExpensesOpen(true);
   };
 
+  const handleVehicleCategoryChange = (next: VehicleCategory) => {
+    setVehicleCategory(next);
+    setEngine(engineForCategory(engine, next));
+    if (next === "n1g") {
+      const current = Number(gvwKg.replace(",", "."));
+      if (!Number.isFinite(current) || current <= 0) {
+        setGvwKg(DEFAULT_STATE.gvwKg);
+      }
+    }
+  };
+
   const handleAgeChange = (next: CarAge) => {
     setAge(next);
     if (next !== "new") {
@@ -1353,7 +1474,16 @@ export function CustomsCalculator({
     if (scenario.originCountry) setOriginCountry(scenario.originCountry);
     if (scenario.importer) setImporter(scenario.importer);
     if (scenario.age) setAge(scenario.age);
-    if (scenario.engine) setEngine(scenario.engine);
+    if (scenario.vehicleCategory) setVehicleCategory(scenario.vehicleCategory);
+    if (scenario.gvwKg !== undefined) setGvwKg(scenario.gvwKg);
+    if (scenario.engine) {
+      setEngine(
+        engineForCategory(
+          scenario.engine,
+          scenario.vehicleCategory ?? vehicleCategory,
+        ),
+      );
+    }
     if (scenario.powerHp !== undefined) setPowerHp(scenario.powerHp);
     if (scenario.powerUnit !== undefined) {
       setPowerUnit(scenario.powerUnit);
@@ -1391,6 +1521,8 @@ export function CustomsCalculator({
 
   const applyHistoryItem = (item: CalculatorHistoryItem) => {
     applyScenario(item);
+    setVehicleCategory(item.vehicleCategory === "n1g" ? "n1g" : "m1");
+    setGvwKg(item.gvwKg ?? DEFAULT_STATE.gvwKg);
     // Расчёты до галочки не хранили год и считались по ставкам 2026.
     setRecyclingFee2027(item.recyclingFee2027 === true);
     setRates(item.rates);
@@ -1401,6 +1533,8 @@ export function CustomsCalculator({
 
   const applyUserPreset = (preset: UserPreset) => {
     applyScenario(preset);
+    setVehicleCategory(preset.vehicleCategory === "n1g" ? "n1g" : "m1");
+    setGvwKg(preset.gvwKg ?? DEFAULT_STATE.gvwKg);
     toast.success(`Шаблон «${preset.name}» применён`);
   };
 
@@ -1444,6 +1578,8 @@ export function CustomsCalculator({
       importer,
       age,
       engine,
+      vehicleCategory,
+      gvwKg,
       powerHp,
       powerUnit,
       volumeCc,
@@ -1608,7 +1744,8 @@ export function CustomsCalculator({
   const powerInputNumber = Number(powerHp.replace(",", "."));
   const powerHpNumber = powerInputToHp(powerInputNumber, powerUnit);
   const volumeCcNumber = Number(volumeCc.replace(",", "."));
-  const isElectric = normalizeEngine(engine) === "electric";
+  const isElectric = engine === "electric";
+  const isN1g = vehicleCategory === "n1g";
   const isKorea = originCountry === "korea";
   const isKyrgyzstan = originCountry === "kyrgyzstan";
   const isChina = isChinaLikeOrigin(originCountry);
@@ -1627,6 +1764,7 @@ export function CustomsCalculator({
       ? 1
       : rates[displayRateCode as keyof ExchangeRates];
   const showsCommercialRecyclingHint =
+    !isN1g &&
     importer === "personal" &&
     Number.isFinite(powerHpNumber) &&
     ((isElectric && powerHpNumber > PREFERENTIAL_MAX_HP_EV) ||
@@ -1647,6 +1785,8 @@ export function CustomsCalculator({
     importer,
     age,
     engine,
+    vehicleCategory,
+    gvwKg: isN1g ? Number(gvwKg.replace(",", ".")) : undefined,
     powerHp: powerHpNumber,
     volumeCc: Number(volumeCc.replace(",", ".")),
     price: Number(price.replace(",", ".")),
@@ -1774,6 +1914,24 @@ export function CustomsCalculator({
             </div>
 
             <div className="space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <Label>Категория ТС</Label>
+                <VehicleCategoryToggle
+                  value={vehicleCategory}
+                  onChange={handleVehicleCategoryChange}
+                />
+              </div>
+              {isN1g ? (
+                <FieldHint>
+                  Пикап N1G: пошлина по ЕТТ (8704), без акциза, НДС и утильсбор как у грузовика.
+                  Льготы физлица 3 400 ₽ нет. Полная масса не больше {N1G_MAX_GVW_KG.toLocaleString("ru-RU")} кг.
+                </FieldHint>
+              ) : (
+                <FieldHint>Легковой M1 — обычный расчёт растаможки.</FieldHint>
+              )}
+            </div>
+
+            <div className="space-y-2">
               <Label>Автомобиль ввозит</Label>
               <Select value={importer} onValueChange={(value) => setImporter(value as ImporterType)}>
                 <SelectTrigger>
@@ -1838,14 +1996,14 @@ export function CustomsCalculator({
                   </Dialog>
                 </div>
                 <Select
-                  value={normalizeEngine(engine)}
+                  value={isN1g ? engine : normalizeEngine(engine)}
                   onValueChange={(value) => setEngine(value as EngineType)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {ENGINE_OPTIONS.map((option) => (
+                    {(isN1g ? N1G_ENGINE_OPTIONS : ENGINE_OPTIONS).map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -1934,7 +2092,8 @@ export function CustomsCalculator({
                 {showsCommercialRecyclingHint && (
                   <FieldHint>Будет коммерческий утильсбор (сверх льготного порога)</FieldHint>
                 )}
-                {importer === "personal" &&
+                {!isN1g &&
+                  importer === "personal" &&
                   !showsCommercialRecyclingHint &&
                   Number.isFinite(powerHpNumber) &&
                   powerHpNumber > 0 && (
@@ -1960,6 +2119,26 @@ export function CustomsCalculator({
               </div>
             </div>
 
+            {isN1g && (
+              <div className="space-y-2">
+                <Label htmlFor="gvw-kg">Полная масса, кг</Label>
+                <Input
+                  id="gvw-kg"
+                  type="number"
+                  min={1}
+                  max={N1G_MAX_GVW_KG}
+                  step="1"
+                  inputMode="numeric"
+                  value={gvwKg}
+                  onChange={(event) => setGvwKg(event.target.value)}
+                />
+                <FieldHint>
+                  Технически допустимая максимальная масса из ОТТС / СБКТС. До 2,5 т и 2,5–3,5 т —
+                  разные коэффициенты утильсбора.
+                </FieldHint>
+              </div>
+            )}
+
             <label className="flex cursor-pointer items-start gap-3 rounded-lg border p-3">
               <input
                 id="recycling-fee-2027"
@@ -1974,8 +2153,10 @@ export function CustomsCalculator({
                   {recyclingFee2027
                     ? "Коммерческий утильсбор считается по коэффициентам с 1 января 2027 года."
                     : "Сейчас утильсбор по ставкам 2026 года. Включите, чтобы посчитать коммерческий сбор по коэффициентам 2027 года."}{" "}
-                  Льготный сбор для физлица не меняется: 3 400 ₽ для нового авто и до 3 лет, 5 200 ₽
-                  для старше. Пошлина, акциз, НДС и таможенный сбор остаются по ставкам 2026 года.
+                  {isN1g
+                    ? "Для N1G льготы физлица нет: утильсбор считается по полной массе."
+                    : "Льготный сбор для физлица не меняется: 3 400 ₽ для нового авто и до 3 лет, 5 200 ₽ для старше."}{" "}
+                  Пошлина, акциз, НДС и таможенный сбор остаются по ставкам 2026 года.
                 </FieldHint>
               </span>
             </label>
@@ -2733,9 +2914,13 @@ export function CustomsCalculator({
                             label="НДС"
                             value={result.vat}
                             note={
-                              result.customsPriceRub != null
-                                ? "20% от (стоимость для таможни + пошлина + акциз)"
-                                : "20% от (стоимость + пошлина + акциз)"
+                              isN1g
+                                ? result.customsPriceRub != null
+                                  ? "20% от (стоимость для таможни + пошлина), без акциза"
+                                  : "20% от (стоимость + пошлина), без акциза"
+                                : result.customsPriceRub != null
+                                  ? "20% от (стоимость для таможни + пошлина + акциз)"
+                                  : "20% от (стоимость + пошлина + акциз)"
                             }
                           />
                         </>

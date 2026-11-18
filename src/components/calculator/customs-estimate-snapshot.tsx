@@ -116,6 +116,9 @@ export function CustomsEstimateSnapshot({
             createdAt ? new Date(createdAt).toLocaleString("ru-RU") : null,
             createdByName,
             originLabel,
+            input.vehicleCategory === "n1g"
+              ? `N1G (пикап)${input.gvwKg ? ` · ${input.gvwKg.toLocaleString("ru-RU")} кг` : ""}`
+              : "M1",
             `Курс ${rateCode}: ${rateValue.toLocaleString("ru-RU", {
               maximumFractionDigits: exchangeRateDecimals(rateCode),
               minimumFractionDigits: exchangeRateDecimals(rateCode),
@@ -232,9 +235,13 @@ export function CustomsEstimateSnapshot({
               label="НДС"
               value={result.vat}
               note={
-                result.customsPriceRub != null
-                  ? "20% от (стоимость для таможни + пошлина + акциз)"
-                  : "20% от (стоимость + пошлина + акциз)"
+                input.vehicleCategory === "n1g"
+                  ? result.customsPriceRub != null
+                    ? "20% от (стоимость для таможни + пошлина), без акциза"
+                    : "20% от (стоимость + пошлина), без акциза"
+                  : result.customsPriceRub != null
+                    ? "20% от (стоимость для таможни + пошлина + акциз)"
+                    : "20% от (стоимость + пошлина + акциз)"
               }
             />
           </>

@@ -18,12 +18,16 @@ import {
   isKyrgyzstanOrigin,
   isYoungerThan3,
   KAZAKHSTAN_DELIVERY_USD,
+  N1G_MAX_GVW_KG,
+  N1G_RECYCLING_COEFFS,
   OriginCountry,
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
+  RECYCLING_BASE_COMMERCIAL,
   RECYCLING_BASE_PASSENGER,
   VAT_RATE,
+  VehicleCategory,
 } from "@/lib/customs-calculator/rates";
 
 export type RecyclingFeeYear = "2026" | "2027";
@@ -33,6 +37,13 @@ export interface CustomsCalculatorInput {
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
+  /**
+   * Категория ТС по ТР ТС 018/2011. Без поля и при «m1» — легковой.
+   * «n1g» — пикап (грузовой до 3,5 т повышенной проходимости).
+   */
+  vehicleCategory?: VehicleCategory;
+  /** Полная масса, кг. Нужна для утильсбора N1G. */
+  gvwKg?: number;
   powerHp: number;
   volumeCc: number;
   price: number;
@@ -86,6 +97,7 @@ export interface CustomsCalculatorInput {
 
 export interface CustomsCalculatorResult {
   originCountry: OriginCountry;
+  vehicleCategory: VehicleCategory;
   priceRub: number;
   priceEur: number;
   /** Таможенная (каталожная) стоимость в ₽, если задана и применена для new. */
@@ -262,7 +274,46 @@ function legalDieselDuty(
   return { duty, note: `20%, но не менее ${min} €/см³` };
 }
 
+function n1gDuty(input: {
+  age: CarAge;
+  engine: EngineType;
+  volumeCc: number;
+  priceRub: number;
+  eurRate: number;
+}): { duty: number; note: string } {
+  const { age, engine, volumeCc, priceRub, eurRate } = input;
+
+  if (engine === "electric") {
+    return { duty: priceRub * 0.15, note: "15% от стоимости" };
+  }
+
+  if (age === "over7") {
+    return { duty: volumeCc * 1 * eurRate, note: "1 €/см³" };
+  }
+
+  if (engine === "diesel") {
+    if (age === "from5to7" && volumeCc <= 2500) {
+      const byPercent = priceRub * 0.1;
+      const minEuro = volumeCc * 0.13 * eurRate;
+      const duty = Math.max(byPercent, minEuro);
+      return {
+        duty,
+        note: duty > byPercent ? "10%, но не менее 0,13 €/см³" : "10%",
+      };
+    }
+    return { duty: priceRub * 0.1, note: "10%" };
+  }
+
+  if (isYoungerThan3(age)) {
+    const percent = volumeCc <= 2800 ? 12.5 : 15;
+    return { duty: priceRub * (percent / 100), note: `${percent}%` };
+  }
+
+  return { duty: priceRub * 0.15, note: "15%" };
+}
+
 function calcCustomsDuty(input: {
+  vehicleCategory: VehicleCategory;
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
@@ -271,7 +322,11 @@ function calcCustomsDuty(input: {
   priceEur: number;
   eurRate: number;
 }): { duty: number; note: string } {
-  const { importer, age, engine, volumeCc, priceRub, priceEur, eurRate } = input;
+  const { vehicleCategory, importer, age, engine, volumeCc, priceRub, priceEur, eurRate } = input;
+
+  if (vehicleCategory === "n1g") {
+    return n1gDuty({ age, engine, volumeCc, priceRub, eurRate });
+  }
 
   if (engine === "electric") {
     return { duty: priceRub * 0.15, note: "15% от стоимости" };
@@ -621,18 +676,41 @@ function pickCommercialEvCoeff(
   return young ? row.young : row.old;
 }
 
+function calcN1gRecyclingFee(input: {
+  age: CarAge;
+  gvwKg: number;
+  year: RecyclingFeeYear;
+}): { fee: number; note: string } {
+  const { age, gvwKg, year } = input;
+  const young = isYoungerThan3(age);
+  const bands = N1G_RECYCLING_COEFFS[year];
+  const band = bands.find((item) => gvwKg <= item.maxKg) ?? bands[bands.length - 1];
+  const coeff = young ? band.young : band.old;
+  const massLabel = band.maxKg <= 2500 ? "до 2,5 т" : "2,5–3,5 т";
+  return {
+    fee: RECYCLING_BASE_COMMERCIAL * coeff,
+    note: `УС N1G ${year}, ${massLabel}: ${RECYCLING_BASE_COMMERCIAL.toLocaleString("ru-RU")} × ${coeff}`,
+  };
+}
+
 function calcRecyclingFee(input: {
+  vehicleCategory: VehicleCategory;
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
   powerHp: number;
   volumeCc: number;
+  gvwKg?: number;
   year: RecyclingFeeYear;
 }): { fee: number; note: string } {
-  const { importer, age, engine, powerHp, volumeCc, year } = input;
+  const { vehicleCategory, importer, age, engine, powerHp, volumeCc, gvwKg, year } = input;
   const powerKw = hpToKw(powerHp);
   const young = isYoungerThan3(age);
   const personal = importer === "personal";
+
+  if (vehicleCategory === "n1g") {
+    return calcN1gRecyclingFee({ age, gvwKg: gvwKg as number, year });
+  }
 
   // Льготный УС для физлица (личное пользование): база 20 000 × 0.17/0.26.
   // Условия: ДВС ≤160 л.с. и ≤3000 см³, либо электро ≤80 л.с. (30-мин. мощность).
@@ -681,6 +759,15 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
     return null;
   }
 
+  const vehicleCategory: VehicleCategory = input.vehicleCategory === "n1g" ? "n1g" : "m1";
+  const gvwKg = Number(input.gvwKg);
+  if (
+    vehicleCategory === "n1g" &&
+    (!Number.isFinite(gvwKg) || gvwKg <= 0 || gvwKg > N1G_MAX_GVW_KG)
+  ) {
+    return null;
+  }
+
   const priceRub = toRub(input.price, input.currency, input.rates);
   const priceEur = toEur(priceRub, input.rates);
   const eurRate = input.rates.EUR;
@@ -704,6 +791,7 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const dutyResult = skipCustomsDuty
     ? { duty: 0, note: "" }
     : calcCustomsDuty({
+        vehicleCategory,
         importer: input.importer,
         age: input.age,
         engine: input.engine,
@@ -715,22 +803,22 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const customsDuty = dutyResult.duty;
   const customsDutyNote = dutyResult.note;
 
-  const paysExciseAndVatIce = input.importer === "legal";
-  const paysExciseAndVatEv = true;
-  const paysExciseAndVat =
+  const isN1g = vehicleCategory === "n1g";
+  const paysVat =
     !isKyrgyzstan &&
-    (input.engine === "electric" ? paysExciseAndVatEv : paysExciseAndVatIce);
-
-  const excise = paysExciseAndVat ? calcExcise(input.powerHp) : 0;
-  const vat = paysExciseAndVat ? (customsBaseRub + customsDuty + excise) * VAT_RATE : 0;
+    (isN1g || input.engine === "electric" || input.importer === "legal");
+  const excise = !isN1g && paysVat ? calcExcise(input.powerHp) : 0;
+  const vat = paysVat ? (customsBaseRub + customsDuty + excise) * VAT_RATE : 0;
 
   const recyclingFeeYear: RecyclingFeeYear = input.recyclingFeeYear === "2027" ? "2027" : "2026";
   const { fee: recyclingFee, note: recyclingNote } = calcRecyclingFee({
+    vehicleCategory,
     importer: input.importer,
     age: input.age,
     engine: input.engine,
     powerHp: input.powerHp,
     volumeCc: input.engine === "electric" ? 0 : input.volumeCc,
+    gvwKg: isN1g ? gvwKg : undefined,
     year: recyclingFeeYear,
   });
 
@@ -828,6 +916,7 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
 
   return {
     originCountry,
+    vehicleCategory,
     priceRub: roundMoney(priceRub),
     priceEur: roundMoney(priceEur),
     customsPriceRub: customsPriceRub != null ? roundMoney(customsPriceRub) : null,

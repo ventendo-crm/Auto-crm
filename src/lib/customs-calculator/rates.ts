@@ -8,6 +8,15 @@ export type CarAge = "new" | "under3" | "from3to5" | "from5to7" | "over7";
 export type EngineType = "petrol" | "diesel" | "electric";
 export type CurrencyCode = "RUB" | "USD" | "CNY" | "KRW";
 export type DeliveryRoute = "ussuriysk" | "kazakhstan" | "vladivostok";
+/** M1 — легковой. N1G — грузовой пикап повышенной проходимости, полная масса ≤ 3,5 т. */
+export type VehicleCategory = "m1" | "n1g";
+
+export function isVehicleCategory(value: unknown): value is VehicleCategory {
+  return value === "m1" || value === "n1g";
+}
+
+/** Верхняя граница категории N1 / N1G, кг. */
+export const N1G_MAX_GVW_KG = 3500;
 
 /** Системные страны происхождения. */
 export const SYSTEM_ORIGIN_COUNTRIES = ["china", "korea", "kyrgyzstan"] as const;
@@ -103,10 +112,25 @@ export const VAT_RATE = 0.2;
 export const RECYCLING_BASE_PASSENGER = 20_000;
 
 /**
- * Базовая ставка для грузовых/автобусов (не используется в калькуляторе легковушек).
- * Коэффициенты «коммерческого» УС для легковых умножаются на RECYCLING_BASE_PASSENGER.
+ * Базовая ставка УС для грузовых (N1 / N1G) и автобусов.
+ * Коэффициенты коммерческого УС легковых умножаются на RECYCLING_BASE_PASSENGER.
  */
 export const RECYCLING_BASE_COMMERCIAL = 150_000;
+
+/**
+ * Коэффициенты утильсбора N1 по полной массе (ПП 1291).
+ * Сумма = RECYCLING_BASE_COMMERCIAL × коэффициент. Льготы физлица нет.
+ */
+export const N1G_RECYCLING_COEFFS = {
+  "2026": [
+    { maxKg: 2500, young: 6.13, old: 8.91 },
+    { maxKg: N1G_MAX_GVW_KG, young: 6.6, old: 9.61 },
+  ],
+  "2027": [
+    { maxKg: 2500, young: 6.74, old: 9.8 },
+    { maxKg: N1G_MAX_GVW_KG, young: 7.26, old: 10.57 },
+  ],
+} as const;
 
 /** Порог льготного УС для физлица: мощность ДВС не выше 160 л.с. (117,68 кВт). */
 export const PREFERENTIAL_MAX_HP_ICE = 160;

@@ -12,6 +12,8 @@ export const customsEstimateInputSchema = z.object({
   importer: z.enum(["personal", "resale", "legal"]),
   age: z.enum(["new", "under3", "from3to5", "from5to7", "over7"]),
   engine: z.enum(["petrol", "diesel", "electric"]),
+  vehicleCategory: z.enum(["m1", "n1g"]).optional(),
+  gvwKg: z.number().positive().max(3500).optional(),
   powerHp: z.number().positive(),
   volumeCc: z.number().nonnegative(),
   price: z.number().positive(),

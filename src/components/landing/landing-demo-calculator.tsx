@@ -19,6 +19,7 @@ import {
   OriginCountry,
   powerInputToHp,
   type PowerInputUnit,
+  type VehicleCategory,
 } from "@/lib/customs-calculator/rates";
 import styles from "@/components/landing/landing.module.css";
 
@@ -32,6 +33,11 @@ const IMPORTERS: Array<{ value: ImporterType; label: string }> = [
   { value: "personal", label: "Физлицо · личное" },
   { value: "resale", label: "Физлицо · перепродажа" },
   { value: "legal", label: "Юрлицо" },
+];
+
+const CATEGORIES: Array<{ value: VehicleCategory; label: string }> = [
+  { value: "m1", label: "M1 легковой" },
+  { value: "n1g", label: "N1G пикап" },
 ];
 
 const AGES: Array<{ value: CarAge; label: string }> = [
@@ -113,6 +119,8 @@ export function LandingDemoCalculator() {
   const [importer, setImporter] = useState<ImporterType>("personal");
   const [age, setAge] = useState<CarAge>("from3to5");
   const [engine, setEngine] = useState<EngineType>("petrol");
+  const [vehicleCategory, setVehicleCategory] = useState<VehicleCategory>("m1");
+  const [gvwKg, setGvwKg] = useState("3000");
   const [price, setPrice] = useState("148000");
   const [customsPrice, setCustomsPrice] = useState("");
   const [volumeLiters, setVolumeLiters] = useState("2.0");
@@ -121,6 +129,7 @@ export function LandingDemoCalculator() {
 
   const country = COUNTRIES.find((item) => item.id === countryId) ?? COUNTRIES[0];
   const isElectric = engine === "electric";
+  const isN1g = vehicleCategory === "n1g";
   const showCustomsPrice = age === "new";
 
   const result = useMemo(() => {
@@ -131,6 +140,8 @@ export function LandingDemoCalculator() {
       importer,
       age,
       engine,
+      vehicleCategory,
+      gvwKg: vehicleCategory === "n1g" ? parseAmount(gvwKg) : undefined,
       powerHp: powerInputToHp(parseAmount(powerHp), powerUnit),
       volumeCc,
       price: parseAmount(price),
@@ -148,12 +159,14 @@ export function LandingDemoCalculator() {
     currency,
     customsPrice,
     engine,
+    gvwKg,
     importer,
     isElectric,
     powerHp,
     powerUnit,
     price,
     showCustomsPrice,
+    vehicleCategory,
     volumeLiters,
   ]);
 
@@ -197,6 +210,22 @@ export function LandingDemoCalculator() {
       <div className="grid lg:grid-cols-2">
         <div className="space-y-4 border-b border-[var(--landing-line)] p-4 sm:p-5 lg:border-b-0 lg:border-r">
           <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
+                Категория
+              </span>
+              <select
+                className={styles.demoInput}
+                value={vehicleCategory}
+                onChange={(event) => setVehicleCategory(event.target.value as VehicleCategory)}
+              >
+                {CATEGORIES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
                 Кто ввозит
@@ -328,6 +357,21 @@ export function LandingDemoCalculator() {
               />
             </label>
           </div>
+
+          {isN1g ? (
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
+                Полная масса, кг
+              </span>
+              <input
+                className={styles.demoInput}
+                inputMode="numeric"
+                value={gvwKg}
+                onChange={(event) => setGvwKg(event.target.value)}
+                aria-label="Полная масса в килограммах"
+              />
+            </label>
+          ) : null}
 
           {!isElectric ? (
             <label className="block">
