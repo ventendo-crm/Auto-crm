@@ -49,6 +49,7 @@ type OfferVariant = {
   sourceUrl: string;
   photos: OfferPhoto[];
   calcInput: CustomsCalculatorInput | null;
+  calcEpoch: number;
   estimateFile: File | null;
   totalLabel: string | null;
 };
@@ -69,6 +70,7 @@ function createVariant(overrides: Partial<OfferVariant> = {}): OfferVariant {
     sourceUrl: "",
     photos: [],
     calcInput: null,
+    calcEpoch: 0,
     estimateFile: null,
     totalLabel: null,
     ...overrides,
@@ -92,6 +94,28 @@ function variantChipLabel(variant: OfferVariant, index: number) {
   return title.length > 18 ? `${title.slice(0, 17)}…` : title;
 }
 
+function copyOfferCalcCharacteristics(
+  from: CustomsCalculatorInput,
+  onto: CustomsCalculatorInput | null,
+): CustomsCalculatorInput {
+  return {
+    ...(onto ?? from),
+    originCountry: from.originCountry,
+    importer: from.importer,
+    age: from.age,
+    engine: from.engine,
+    vehicleCategory: from.vehicleCategory,
+    gvwKg: from.gvwKg,
+    powerHp: from.powerHp,
+    volumeCc: from.volumeCc,
+    currency: from.currency,
+    rates: { ...from.rates },
+    recyclingFeeYear: from.recyclingFeeYear,
+    price: onto?.price ?? 0,
+    customsPrice: onto?.customsPrice,
+  };
+}
+
 export function CalculatorOfferWorkspace() {
   const { settings } = useCompanyWorkspace();
   const captionTemplate = settings.offerLinkCaptionTemplate;
@@ -111,6 +135,11 @@ export function CalculatorOfferWorkspace() {
   variantsRef.current = variants;
 
   const active = variants.find((variant) => variant.id === activeId) ?? variants[0]!;
+  const activeIndex = Math.max(
+    0,
+    variants.findIndex((variant) => variant.id === active.id),
+  );
+  const previousVariant = activeIndex > 0 ? variants[activeIndex - 1]! : null;
   const filledCount = variants.filter((variant) =>
     variantHasContent(variant, variant.id === active.id, captureApiRef.current),
   ).length;
@@ -228,6 +257,23 @@ export function CalculatorOfferWorkspace() {
     const removed = active.photos.find((photo) => photo.id === id);
     if (removed) URL.revokeObjectURL(removed.previewUrl);
     updateActive({ photos: next });
+  };
+
+  const handleCopyPreviousSpecs = () => {
+    if (!previousVariant) return;
+    const from = previousVariant.calcInput;
+    if (!from) {
+      toast.error("Сначала посчитайте предыдущий вариант");
+      return;
+    }
+    const onto = captureApiRef.current?.currentInput() ?? active.calcInput;
+    updateActive({
+      calcInput: copyOfferCalcCharacteristics(from, onto),
+      calcEpoch: active.calcEpoch + 1,
+      estimateFile: null,
+      totalLabel: null,
+    });
+    toast.success("Скопированы курс, объём и мощность");
   };
 
   const handleAddVariant = async () => {
@@ -570,11 +616,26 @@ export function CalculatorOfferWorkspace() {
       </Card>
 
       <CustomsCalculator
-        key={active.id}
+        key={`${active.id}-${active.calcEpoch}`}
         captureApiRef={captureApiRef}
         embedded
         persistLocal={active.id === variants[0]?.id}
         initialInput={active.calcInput}
+        embeddedActions={
+          previousVariant ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-auto whitespace-normal py-2 text-left"
+              disabled={busy}
+              onClick={handleCopyPreviousSpecs}
+            >
+              <Copy className="h-3.5 w-3.5 shrink-0" />
+              Скопировать характеристики с предыдущего варианта
+            </Button>
+          ) : null
+        }
         onCalculated={(input, result) => {
           const id = activeIdRef.current;
           setVariants((current) =>

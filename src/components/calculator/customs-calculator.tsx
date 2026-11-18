@@ -784,6 +784,7 @@ interface CustomsCalculatorProps {
   onCalculated?: (input: CustomsCalculatorInput, result: CustomsCalculatorResult) => void;
   searchSuggestion?: QuickSearchSuggestion | null;
   onSearchSuggestionApplied?: () => void;
+  embeddedActions?: ReactNode;
 }
 
 export function CustomsCalculator({
@@ -794,6 +795,7 @@ export function CustomsCalculator({
   onCalculated,
   searchSuggestion = null,
   onSearchSuggestionApplied,
+  embeddedActions,
 }: CustomsCalculatorProps = {}) {
   const { user } = useAuth();
   const isMobile = useIsMobile();
@@ -1835,6 +1837,7 @@ export function CustomsCalculator({
             Таможенный сбор, пошлина, акциз и НДС — по ставкам 2026 года. Утильсбор —{" "}
             {recyclingFee2027 ? "по ставкам 2027 года" : "по ставкам 2026 года"}.
           </p>
+          {embeddedActions ? <div className="pt-1">{embeddedActions}</div> : null}
         </CardHeader>
         <CardContent className="space-y-4">
           <CalculatorPresetsPanel
