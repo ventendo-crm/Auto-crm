@@ -1,10 +1,12 @@
 import type { OfferEquipmentItem } from "@/lib/calculator/offer-equipment";
+import { parseOfferMileageKm } from "@/lib/calculator/offer-share";
 
 export const SAFE_OFFER_FILE =
   /^(?:i\d{2}-)?(?:photo-\d{2}|estimate)\.(jpe?g|png|webp|gif)$/;
 
 export type OfferItemMeta = {
   vehicleTitle: string | null;
+  mileageKm: number | null;
   description: string;
   equipment: OfferEquipmentItem[];
   sourceUrl: string | null;
@@ -63,6 +65,9 @@ function isOfferItemMeta(value: unknown): value is OfferItemMeta {
   if (item.equipment !== undefined) {
     if (!Array.isArray(item.equipment) || !item.equipment.every(isOfferEquipmentItem)) return false;
   }
+  if (item.mileageKm !== undefined && item.mileageKm !== null && typeof item.mileageKm !== "number") {
+    return false;
+  }
   return true;
 }
 
@@ -76,7 +81,7 @@ function normalizeOfferItem(item: OfferItemMeta): OfferItemMeta {
         }))
         .filter((entry) => entry.key && entry.label)
     : [];
-  return { ...item, equipment };
+  return { ...item, equipment, mileageKm: parseOfferMileageKm(item.mileageKm) };
 }
 
 export function normalizeOfferMeta(parsed: unknown): OfferMetaV2 {
@@ -100,6 +105,7 @@ export function normalizeOfferMeta(parsed: unknown): OfferMetaV2 {
       items: [
         {
           vehicleTitle: v1.vehicleTitle?.trim() ? v1.vehicleTitle.trim() : null,
+          mileageKm: null,
           description: v1.description,
           equipment: [],
           sourceUrl: v1.sourceUrl,

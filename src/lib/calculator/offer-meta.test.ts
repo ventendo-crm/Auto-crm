@@ -23,6 +23,7 @@ describe("calculator offer meta", () => {
     assert.equal(normalized.selectionTitle, "Li L7");
     assert.equal(normalized.items.length, 1);
     assert.equal(normalized.items[0]?.vehicleTitle, "Li L7");
+    assert.equal(normalized.items[0]?.mileageKm, null);
     assert.deepEqual(normalized.items[0]?.equipment, []);
     assert.deepEqual(normalized.items[0]?.photos, ["photo-01.jpg"]);
     assert.equal(normalized.items[0]?.estimateFile, "estimate.jpg");

@@ -23,6 +23,8 @@ import {
   OFFER_MAX_TOTAL_BYTES,
   OFFER_SELECTION_TITLE_MAX,
   OFFER_VEHICLE_TITLE_MAX,
+  formatOfferMileageInput,
+  parseOfferMileageKm,
   resolvePublicOfferAbsoluteUrl,
 } from "@/lib/calculator/offer-share";
 import type { AdditionalOptionGroupDefinition } from "@/lib/additional-options";
@@ -38,6 +40,7 @@ const STORAGE_TITLE = "crm-offer-vehicle-title";
 const STORAGE_LINK = "crm-offer-link";
 const STORAGE_SELECTION = "crm-offer-selection-title";
 const STORAGE_EQUIPMENT = "crm-offer-equipment";
+const STORAGE_MILEAGE = "crm-offer-mileage";
 
 type OfferPhoto = {
   id: string;
@@ -48,6 +51,7 @@ type OfferPhoto = {
 type OfferVariant = {
   id: string;
   vehicleTitle: string;
+  mileageKm: number | null;
   description: string;
   equipmentKeys: string[];
   sourceUrl: string;
@@ -70,6 +74,7 @@ function createVariant(overrides: Partial<OfferVariant> = {}): OfferVariant {
   return {
     id: createVariantId(),
     vehicleTitle: "",
+    mileageKm: null,
     description: "",
     equipmentKeys: [],
     sourceUrl: "",
@@ -85,6 +90,7 @@ function createVariant(overrides: Partial<OfferVariant> = {}): OfferVariant {
 function variantHasContent(variant: OfferVariant, isActive: boolean, captureApi: CalculatorCaptureApi | null) {
   return Boolean(
     variant.vehicleTitle.trim() ||
+      variant.mileageKm != null ||
       variant.description.trim() ||
       variant.equipmentKeys.length > 0 ||
       variant.sourceUrl.trim() ||
@@ -200,6 +206,7 @@ export function CalculatorOfferWorkspace() {
       const storedTitle = sessionStorage.getItem(STORAGE_TITLE) ?? "";
       const storedDescription = sessionStorage.getItem(STORAGE_DESCRIPTION) ?? "";
       const storedLink = sessionStorage.getItem(STORAGE_LINK) ?? "";
+      const storedMileage = parseOfferMileageKm(sessionStorage.getItem(STORAGE_MILEAGE));
       let storedEquipment: string[] = [];
       try {
         storedEquipment = JSON.parse(sessionStorage.getItem(STORAGE_EQUIPMENT) ?? "[]") as string[];
@@ -208,13 +215,14 @@ export function CalculatorOfferWorkspace() {
         storedEquipment = [];
       }
       setSelectionTitle(sessionStorage.getItem(STORAGE_SELECTION) ?? "");
-      if (storedTitle || storedDescription || storedLink || storedEquipment.length > 0) {
+      if (storedTitle || storedDescription || storedLink || storedEquipment.length > 0 || storedMileage != null) {
         setVariants((current) =>
           current.map((variant, index) =>
             index === 0
               ? {
                   ...variant,
                   vehicleTitle: storedTitle,
+                  mileageKm: storedMileage,
                   description: storedDescription,
                   equipmentKeys: storedEquipment.filter((key) => typeof key === "string"),
                   sourceUrl: storedLink,
@@ -233,6 +241,7 @@ export function CalculatorOfferWorkspace() {
       const first = variants[0];
       sessionStorage.setItem(STORAGE_SELECTION, selectionTitle);
       sessionStorage.setItem(STORAGE_TITLE, first?.vehicleTitle ?? "");
+      sessionStorage.setItem(STORAGE_MILEAGE, first?.mileageKm != null ? String(first.mileageKm) : "");
       sessionStorage.setItem(STORAGE_DESCRIPTION, first?.description ?? "");
       sessionStorage.setItem(STORAGE_EQUIPMENT, JSON.stringify(first?.equipmentKeys ?? []));
       sessionStorage.setItem(STORAGE_LINK, first?.sourceUrl ?? "");
@@ -427,6 +436,7 @@ export function CalculatorOfferWorkspace() {
       selectionTitle,
       items: items.map((item) => ({
         vehicleTitle: item.vehicleTitle,
+        mileageKm: item.mileageKm,
         description: item.description,
         equipmentKeys: item.equipmentKeys,
         sourceUrl: item.sourceUrl,
@@ -466,6 +476,7 @@ export function CalculatorOfferWorkspace() {
         const only = items[0]!;
         const previewText = buildOfferShareText({
           vehicleTitle: only.vehicleTitle,
+          mileageKm: only.mileageKm,
           description: only.description,
           equipment: snapshotOfferEquipment(only.equipmentKeys, equipmentGroups),
           sourceUrl: only.sourceUrl,
@@ -668,6 +679,18 @@ export function CalculatorOfferWorkspace() {
           </div>
 
           <div className="space-y-2">
+            <Label htmlFor="offer-mileage">Пробег</Label>
+            <Input
+              id="offer-mileage"
+              inputMode="numeric"
+              value={formatOfferMileageInput(active.mileageKm)}
+              onChange={(event) => updateActive({ mileageKm: parseOfferMileageKm(event.target.value) })}
+              placeholder="49 000"
+            />
+            <p className="text-xs text-muted-foreground">Клиенту покажется крупно, например 49 000 км.</p>
+          </div>
+
+          <div className="space-y-2">
             <Label>Комплектация</Label>
             <p className="text-xs text-muted-foreground">
               Что уже стоит на этом авто. Список правит администратор в{" "}
@@ -713,7 +736,7 @@ export function CalculatorOfferWorkspace() {
               id="offer-description"
               value={active.description}
               onChange={(event) => updateActive({ description: event.target.value.slice(0, OFFER_DESCRIPTION_MAX) })}
-              placeholder="Состояние, пробег, что важно клиенту…"
+              placeholder="Состояние, что важно клиенту…"
               rows={4}
               maxLength={OFFER_DESCRIPTION_MAX}
             />

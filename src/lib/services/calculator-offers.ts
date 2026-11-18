@@ -20,6 +20,7 @@ import {
   OFFER_TTL_MS,
   OFFER_VEHICLE_TITLE_MAX,
   isOfferShareToken,
+  parseOfferMileageKm,
   publicOfferFilePath,
   sanitizeOfferHttpUrl,
   type PublicCalculatorOffer,
@@ -65,6 +66,7 @@ async function readOfferMeta(dir: string): Promise<OfferMetaV2> {
 
 function itemHasContent(item: {
   vehicleTitle?: string | null;
+  mileageKm: number | null;
   description: string;
   equipmentKeys: unknown[];
   sourceUrl: string | null;
@@ -73,6 +75,7 @@ function itemHasContent(item: {
 }) {
   return Boolean(
     item.vehicleTitle?.trim() ||
+      item.mileageKm != null ||
       item.description.trim() ||
       item.equipmentKeys.length > 0 ||
       item.sourceUrl ||
@@ -110,6 +113,7 @@ async function pruneExpiredOffers() {
 
 type ParsedOfferItem = {
   vehicleTitle: string;
+  mileageKm: number | null;
   description: string;
   equipmentKeys: string[];
   sourceUrl: string | null;
@@ -125,7 +129,7 @@ function fileFromFormValue(value: FormDataEntryValue | null): File | null {
 function parseIndexedOfferItems(formData: FormData): ParsedOfferItem[] | null {
   const indices = new Set<number>();
   for (const key of formData.keys()) {
-    const match = /^(?:photos|estimate|vehicleTitle|description|sourceUrl|totalLabel|equipment)-(\d+)$/.exec(key);
+    const match = /^(?:photos|estimate|vehicleTitle|mileageKm|description|sourceUrl|totalLabel|equipment)-(\d+)$/.exec(key);
     if (match) indices.add(Number(match[1]));
   }
   if (indices.size === 0) return null;
@@ -143,6 +147,7 @@ function parseIndexedOfferItems(formData: FormData): ParsedOfferItem[] | null {
         vehicleTitle: String(formData.get(`vehicleTitle-${index}`) ?? "")
           .trim()
           .slice(0, OFFER_VEHICLE_TITLE_MAX),
+        mileageKm: parseOfferMileageKm(formData.get(`mileageKm-${index}`)),
         description: String(formData.get(`description-${index}`) ?? "")
           .trim()
           .slice(0, OFFER_DESCRIPTION_MAX),
@@ -163,6 +168,7 @@ function parseLegacyOfferItem(formData: FormData): ParsedOfferItem {
     vehicleTitle: String(formData.get("vehicleTitle") ?? "")
       .trim()
       .slice(0, OFFER_VEHICLE_TITLE_MAX),
+    mileageKm: parseOfferMileageKm(formData.get("mileageKm")),
     description: String(formData.get("description") ?? "")
       .trim()
       .slice(0, OFFER_DESCRIPTION_MAX),
@@ -272,6 +278,7 @@ export async function createCalculatorOffer(
 
     savedItems.push({
       vehicleTitle: item.vehicleTitle || null,
+      mileageKm: item.mileageKm,
       description: item.description,
       equipment: snapshotOfferEquipment(item.equipmentKeys, workspace.offerEquipmentGroups),
       sourceUrl: item.sourceUrl,
@@ -319,6 +326,7 @@ export async function getPublicCalculatorOffer(token: string): Promise<PublicCal
 
   const items: PublicCalculatorOfferItem[] = meta.items.map((item) => ({
     vehicleTitle: item.vehicleTitle?.trim() ? item.vehicleTitle.trim() : null,
+    mileageKm: item.mileageKm,
     description: item.description,
     equipment: item.equipment,
     sourceUrl: item.sourceUrl,
