@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ImagePlus, Link2, Loader2, Plus, Share2, X } from "lucide-react";
+import { Copy, ImagePlus, Link2, Loader2, Plus, RotateCcw, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -336,6 +336,25 @@ export function CalculatorOfferWorkspace() {
     toast.success("Скопированы курс, объём и мощность");
   };
 
+  const handleClearEquipment = () => {
+    if (active.equipmentKeys.length === 0) {
+      toast.error("Ничего не отмечено");
+      return;
+    }
+    updateActive({ equipmentKeys: [] });
+    toast.success("Галочки комплектации сброшены");
+  };
+
+  const handleCopyPreviousEquipment = () => {
+    if (!previousVariant) return;
+    if (previousVariant.equipmentKeys.length === 0) {
+      toast.error("На предыдущем варианте ничего не отмечено");
+      return;
+    }
+    updateActive({ equipmentKeys: [...previousVariant.equipmentKeys] });
+    toast.success("Комплектация скопирована с предыдущего варианта");
+  };
+
   const handleAddVariant = async () => {
     if (variants.length >= OFFER_MAX_ITEMS) {
       toast.error(`Не больше ${OFFER_MAX_ITEMS} авто в одной подборке`);
@@ -654,6 +673,32 @@ export function CalculatorOfferWorkspace() {
               Что уже стоит на этом авто. Список правит администратор в{" "}
               <span className="whitespace-nowrap">Настройки → Компания</span>.
             </p>
+            <div className="flex flex-wrap gap-2">
+              {previousVariant ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-auto whitespace-normal py-2 text-left"
+                  disabled={busy}
+                  onClick={handleCopyPreviousEquipment}
+                >
+                  <Copy className="h-3.5 w-3.5 shrink-0" />
+                  Скопировать комплектацию с предыдущего варианта
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-auto whitespace-normal py-2 text-left"
+                disabled={busy || active.equipmentKeys.length === 0}
+                onClick={handleClearEquipment}
+              >
+                <RotateCcw className="h-3.5 w-3.5 shrink-0" />
+                Сбросить выбранные галочки с комплектации
+              </Button>
+            </div>
             <OfferEquipmentChecklist
               groups={equipmentGroups}
               selectedKeys={active.equipmentKeys}
