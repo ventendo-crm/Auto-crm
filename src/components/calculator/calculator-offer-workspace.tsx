@@ -25,6 +25,8 @@ import {
   OFFER_VEHICLE_TITLE_MAX,
   resolvePublicOfferAbsoluteUrl,
 } from "@/lib/calculator/offer-share";
+import type { AdditionalOptionGroupDefinition } from "@/lib/additional-options";
+import { snapshotOfferEquipment } from "@/lib/calculator/offer-equipment";
 import { isPhoneFileShare, buildOfferShareText, shareOfferPackage } from "@/lib/calculator/share-export";
 import type { CustomsCalculatorInput } from "@/lib/customs-calculator";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
@@ -35,6 +37,7 @@ const STORAGE_DESCRIPTION = "crm-offer-description";
 const STORAGE_TITLE = "crm-offer-vehicle-title";
 const STORAGE_LINK = "crm-offer-link";
 const STORAGE_SELECTION = "crm-offer-selection-title";
+const STORAGE_EQUIPMENT = "crm-offer-equipment";
 
 type OfferPhoto = {
   id: string;
@@ -46,6 +49,7 @@ type OfferVariant = {
   id: string;
   vehicleTitle: string;
   description: string;
+  equipmentKeys: string[];
   sourceUrl: string;
   photos: OfferPhoto[];
   calcInput: CustomsCalculatorInput | null;
@@ -67,6 +71,7 @@ function createVariant(overrides: Partial<OfferVariant> = {}): OfferVariant {
     id: createVariantId(),
     vehicleTitle: "",
     description: "",
+    equipmentKeys: [],
     sourceUrl: "",
     photos: [],
     calcInput: null,
@@ -81,6 +86,7 @@ function variantHasContent(variant: OfferVariant, isActive: boolean, captureApi:
   return Boolean(
     variant.vehicleTitle.trim() ||
       variant.description.trim() ||
+      variant.equipmentKeys.length > 0 ||
       variant.sourceUrl.trim() ||
       variant.photos.length > 0 ||
       variant.estimateFile ||
@@ -92,6 +98,50 @@ function variantChipLabel(variant: OfferVariant, index: number) {
   const title = variant.vehicleTitle.trim();
   if (!title) return `Вариант ${index + 1}`;
   return title.length > 18 ? `${title.slice(0, 17)}…` : title;
+}
+
+function OfferEquipmentChecklist({
+  groups,
+  selectedKeys,
+  onChange,
+  disabled,
+}: {
+  groups: AdditionalOptionGroupDefinition[];
+  selectedKeys: string[];
+  onChange: (keys: string[]) => void;
+  disabled?: boolean;
+}) {
+  const selected = new Set(selectedKeys);
+  const toggle = (key: string) => {
+    if (selected.has(key)) onChange(selectedKeys.filter((item) => item !== key));
+    else onChange([...selectedKeys, key]);
+  };
+
+  if (groups.length === 0) return null;
+
+  return (
+    <div className="space-y-3">
+      {groups.map((group) => (
+        <div key={group.id} className="space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">{group.title}</p>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {group.options.map((option) => (
+              <label key={option.key} className="flex cursor-pointer items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-input accent-primary"
+                  checked={selected.has(option.key)}
+                  disabled={disabled}
+                  onChange={() => toggle(option.key)}
+                />
+                <span className="leading-snug">{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
 function copyOfferCalcCharacteristics(
@@ -119,6 +169,7 @@ function copyOfferCalcCharacteristics(
 export function CalculatorOfferWorkspace() {
   const { settings } = useCompanyWorkspace();
   const captionTemplate = settings.offerLinkCaptionTemplate;
+  const equipmentGroups = settings.offerEquipmentGroups ?? [];
   const captureApiRef = useRef<CalculatorCaptureApi | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const [selectionTitle, setSelectionTitle] = useState("");
@@ -149,8 +200,15 @@ export function CalculatorOfferWorkspace() {
       const storedTitle = sessionStorage.getItem(STORAGE_TITLE) ?? "";
       const storedDescription = sessionStorage.getItem(STORAGE_DESCRIPTION) ?? "";
       const storedLink = sessionStorage.getItem(STORAGE_LINK) ?? "";
+      let storedEquipment: string[] = [];
+      try {
+        storedEquipment = JSON.parse(sessionStorage.getItem(STORAGE_EQUIPMENT) ?? "[]") as string[];
+        if (!Array.isArray(storedEquipment)) storedEquipment = [];
+      } catch {
+        storedEquipment = [];
+      }
       setSelectionTitle(sessionStorage.getItem(STORAGE_SELECTION) ?? "");
-      if (storedTitle || storedDescription || storedLink) {
+      if (storedTitle || storedDescription || storedLink || storedEquipment.length > 0) {
         setVariants((current) =>
           current.map((variant, index) =>
             index === 0
@@ -158,6 +216,7 @@ export function CalculatorOfferWorkspace() {
                   ...variant,
                   vehicleTitle: storedTitle,
                   description: storedDescription,
+                  equipmentKeys: storedEquipment.filter((key) => typeof key === "string"),
                   sourceUrl: storedLink,
                 }
               : variant,
@@ -175,6 +234,7 @@ export function CalculatorOfferWorkspace() {
       sessionStorage.setItem(STORAGE_SELECTION, selectionTitle);
       sessionStorage.setItem(STORAGE_TITLE, first?.vehicleTitle ?? "");
       sessionStorage.setItem(STORAGE_DESCRIPTION, first?.description ?? "");
+      sessionStorage.setItem(STORAGE_EQUIPMENT, JSON.stringify(first?.equipmentKeys ?? []));
       sessionStorage.setItem(STORAGE_LINK, first?.sourceUrl ?? "");
     } catch {
       // ignore quota
@@ -332,7 +392,7 @@ export function CalculatorOfferWorkspace() {
   const publishOfferLink = async (list: OfferVariant[]) => {
     const items = collectFilledItems(list);
     if (items.length === 0) {
-      throw new Error("Добавьте марку, описание, ссылку, фото или расчёт");
+      throw new Error("Добавьте марку, комплектацию, описание, ссылку, фото или расчёт");
     }
 
     const files = items.flatMap((item) => [
@@ -349,6 +409,7 @@ export function CalculatorOfferWorkspace() {
       items: items.map((item) => ({
         vehicleTitle: item.vehicleTitle,
         description: item.description,
+        equipmentKeys: item.equipmentKeys,
         sourceUrl: item.sourceUrl,
         totalLabel: item.totalLabel,
         photos: item.photos.map((photo) => photo.file),
@@ -378,7 +439,7 @@ export function CalculatorOfferWorkspace() {
       setVariants(list);
       const items = collectFilledItems(list);
       if (items.length === 0) {
-        toast.error("Добавьте марку, описание, ссылку, фото или расчёт");
+        toast.error("Добавьте марку, комплектацию, описание, ссылку, фото или расчёт");
         return;
       }
 
@@ -387,6 +448,7 @@ export function CalculatorOfferWorkspace() {
         const previewText = buildOfferShareText({
           vehicleTitle: only.vehicleTitle,
           description: only.description,
+          equipment: snapshotOfferEquipment(only.equipmentKeys, equipmentGroups),
           sourceUrl: only.sourceUrl,
           totalLabel: only.totalLabel,
         });
@@ -475,7 +537,7 @@ export function CalculatorOfferWorkspace() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Подбор авто</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Одно или несколько авто: фото, описание и расчёт. Клиенту уходит одна ссылка на 30 дней.
+            Одно или несколько авто: фото, комплектация и расчёт. Клиенту уходит одна ссылка на 30 дней.
           </p>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -587,13 +649,27 @@ export function CalculatorOfferWorkspace() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="offer-description">Описание</Label>
+            <Label>Комплектация</Label>
+            <p className="text-xs text-muted-foreground">
+              Что уже стоит на этом авто. Список правит администратор в{" "}
+              <span className="whitespace-nowrap">Настройки → Компания</span>.
+            </p>
+            <OfferEquipmentChecklist
+              groups={equipmentGroups}
+              selectedKeys={active.equipmentKeys}
+              disabled={busy}
+              onChange={(equipmentKeys) => updateActive({ equipmentKeys })}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="offer-description">Комментарий</Label>
             <Textarea
               id="offer-description"
               value={active.description}
               onChange={(event) => updateActive({ description: event.target.value.slice(0, OFFER_DESCRIPTION_MAX) })}
-              placeholder="Комплектация, состояние, что важно клиенту…"
-              rows={6}
+              placeholder="Состояние, пробег, что важно клиенту…"
+              rows={4}
               maxLength={OFFER_DESCRIPTION_MAX}
             />
             <p className="text-xs text-muted-foreground">

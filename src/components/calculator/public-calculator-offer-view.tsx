@@ -59,10 +59,19 @@ function OfferItemBlocks({
         item.photoUrls.length > 0 ? (
           <SwipeGallery key="photos" images={item.photoUrls} labels={photoLabels} />
         ) : null,
-        item.description ? (
-          <section key="description" className="space-y-2">
+        (item.equipment ?? []).length > 0 || item.description ? (
+          <section key="description" className="space-y-3">
             <h2 className="text-base font-semibold">Комплектация</h2>
-            <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{item.description}</div>
+            {(item.equipment ?? []).length > 0 ? (
+              <ul className="list-disc space-y-1 pl-5 text-[15px] leading-relaxed">
+                {(item.equipment ?? []).map((entry) => (
+                  <li key={entry.key}>{entry.label}</li>
+                ))}
+              </ul>
+            ) : null}
+            {item.description ? (
+              <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{item.description}</div>
+            ) : null}
           </section>
         ) : null,
         item.estimateUrl ? (

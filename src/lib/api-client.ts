@@ -643,6 +643,7 @@ export const api = {
       items: Array<{
         vehicleTitle?: string;
         description: string;
+        equipmentKeys?: string[];
         sourceUrl: string;
         totalLabel?: string | null;
         photos: File[];
@@ -654,6 +655,9 @@ export const api = {
       input.items.forEach((item, index) => {
         if (item.vehicleTitle) formData.append(`vehicleTitle-${index}`, item.vehicleTitle);
         formData.append(`description-${index}`, item.description);
+        if (item.equipmentKeys?.length) {
+          formData.append(`equipment-${index}`, JSON.stringify(item.equipmentKeys));
+        }
         formData.append(`sourceUrl-${index}`, item.sourceUrl);
         if (item.totalLabel) formData.append(`totalLabel-${index}`, item.totalLabel);
         for (const photo of item.photos) {

@@ -13,6 +13,7 @@ export const OFFER_LINK_CAPTION_TEMPLATE_MAX = 200;
 export type PublicCalculatorOfferItem = {
   vehicleTitle: string | null;
   description: string;
+  equipment: Array<{ key: string; label: string }>;
   sourceUrl: string | null;
   totalLabel: string | null;
   photoUrls: string[];

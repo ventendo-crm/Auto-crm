@@ -23,6 +23,7 @@ describe("calculator offer meta", () => {
     assert.equal(normalized.selectionTitle, "Li L7");
     assert.equal(normalized.items.length, 1);
     assert.equal(normalized.items[0]?.vehicleTitle, "Li L7");
+    assert.deepEqual(normalized.items[0]?.equipment, []);
     assert.deepEqual(normalized.items[0]?.photos, ["photo-01.jpg"]);
     assert.equal(normalized.items[0]?.estimateFile, "estimate.jpg");
   });
@@ -40,6 +41,7 @@ describe("calculator offer meta", () => {
         {
           vehicleTitle: "Li L7",
           description: "Ultra",
+          equipment: [{ key: "awd", label: "Полный привод (4WD / AWD)" }],
           sourceUrl: null,
           totalLabel: "3 200 000 ₽",
           photos: ["i01-photo-01.jpg"],
@@ -56,7 +58,12 @@ describe("calculator offer meta", () => {
       ],
     };
 
-    assert.deepEqual(normalizeOfferMeta(meta), meta);
+    const normalized = normalizeOfferMeta(meta);
+    assert.equal(normalized.version, 2);
+    assert.deepEqual(normalized.items[0]?.equipment, [
+      { key: "awd", label: "Полный привод (4WD / AWD)" },
+    ]);
+    assert.deepEqual(normalized.items[1]?.equipment, []);
   });
 
   it("rejects unknown meta", () => {

@@ -3,6 +3,7 @@ import { createReadStream } from "fs";
 import { mkdir, readdir, readFile, rm, stat, writeFile } from "fs/promises";
 import path from "path";
 import { Readable } from "stream";
+import { parseOfferEquipmentKeys, snapshotOfferEquipment } from "@/lib/calculator/offer-equipment";
 import {
   assertSafeOfferFileName,
   normalizeOfferMeta,
@@ -26,6 +27,7 @@ import {
 } from "@/lib/calculator/offer-share";
 import type { AuthUser } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { guessUploadContentType, localUploadsDir, uploadContentDisposition } from "@/lib/storage/local-uploads";
 
 const ALLOWED_PHOTO_MIME = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -64,6 +66,7 @@ async function readOfferMeta(dir: string): Promise<OfferMetaV2> {
 function itemHasContent(item: {
   vehicleTitle?: string | null;
   description: string;
+  equipmentKeys: unknown[];
   sourceUrl: string | null;
   photos: unknown[];
   estimate: unknown;
@@ -71,6 +74,7 @@ function itemHasContent(item: {
   return Boolean(
     item.vehicleTitle?.trim() ||
       item.description.trim() ||
+      item.equipmentKeys.length > 0 ||
       item.sourceUrl ||
       item.photos.length > 0 ||
       item.estimate,
@@ -107,6 +111,7 @@ async function pruneExpiredOffers() {
 type ParsedOfferItem = {
   vehicleTitle: string;
   description: string;
+  equipmentKeys: string[];
   sourceUrl: string | null;
   totalLabel: string | null;
   photos: File[];
@@ -120,7 +125,7 @@ function fileFromFormValue(value: FormDataEntryValue | null): File | null {
 function parseIndexedOfferItems(formData: FormData): ParsedOfferItem[] | null {
   const indices = new Set<number>();
   for (const key of formData.keys()) {
-    const match = /^(?:photos|estimate|vehicleTitle|description|sourceUrl|totalLabel)-(\d+)$/.exec(key);
+    const match = /^(?:photos|estimate|vehicleTitle|description|sourceUrl|totalLabel|equipment)-(\d+)$/.exec(key);
     if (match) indices.add(Number(match[1]));
   }
   if (indices.size === 0) return null;
@@ -141,6 +146,7 @@ function parseIndexedOfferItems(formData: FormData): ParsedOfferItem[] | null {
         description: String(formData.get(`description-${index}`) ?? "")
           .trim()
           .slice(0, OFFER_DESCRIPTION_MAX),
+        equipmentKeys: parseOfferEquipmentKeys(formData.get(`equipment-${index}`)),
         sourceUrl: sanitizeOfferHttpUrl(String(formData.get(`sourceUrl-${index}`) ?? "")),
         totalLabel: String(formData.get(`totalLabel-${index}`) ?? "")
           .trim()
@@ -160,6 +166,7 @@ function parseLegacyOfferItem(formData: FormData): ParsedOfferItem {
     description: String(formData.get("description") ?? "")
       .trim()
       .slice(0, OFFER_DESCRIPTION_MAX),
+    equipmentKeys: parseOfferEquipmentKeys(formData.get("equipment")),
     sourceUrl: sanitizeOfferHttpUrl(String(formData.get("sourceUrl") ?? "")),
     totalLabel: String(formData.get("totalLabel") ?? "").trim().slice(0, 80) || null,
     photos,
@@ -214,7 +221,7 @@ export async function createCalculatorOffer(
   const parsedItems = parseIndexedOfferItems(formData) ?? [parseLegacyOfferItem(formData)];
   const items = parsedItems.filter(itemHasContent);
   if (items.length === 0) {
-    throw new Error("Добавьте марку, описание, фото или расчёт");
+    throw new Error("Добавьте марку, комплектацию, описание, фото или расчёт");
   }
   if (items.length > OFFER_MAX_ITEMS) {
     throw new Error(`Не больше ${OFFER_MAX_ITEMS} авто в одной подборке`);
@@ -228,10 +235,13 @@ export async function createCalculatorOffer(
     throw new Error("Слишком большой набор файлов — уберите часть фото");
   }
 
-  const company = await prisma.company.findUnique({
-    where: { id: user.companyId },
-    select: { name: true },
-  });
+  const [company, workspace] = await Promise.all([
+    prisma.company.findUnique({
+      where: { id: user.companyId },
+      select: { name: true },
+    }),
+    getCompanyWorkspaceSettings(user.companyId),
+  ]);
   if (!company) {
     throw new Error("Not found");
   }
@@ -263,6 +273,7 @@ export async function createCalculatorOffer(
     savedItems.push({
       vehicleTitle: item.vehicleTitle || null,
       description: item.description,
+      equipment: snapshotOfferEquipment(item.equipmentKeys, workspace.offerEquipmentGroups),
       sourceUrl: item.sourceUrl,
       totalLabel: item.totalLabel,
       photos: savedPhotos,
@@ -309,6 +320,7 @@ export async function getPublicCalculatorOffer(token: string): Promise<PublicCal
   const items: PublicCalculatorOfferItem[] = meta.items.map((item) => ({
     vehicleTitle: item.vehicleTitle?.trim() ? item.vehicleTitle.trim() : null,
     description: item.description,
+    equipment: item.equipment,
     sourceUrl: item.sourceUrl,
     totalLabel: item.totalLabel,
     photoUrls: item.photos.map((fileName) => publicOfferFilePath(token, fileName)),
