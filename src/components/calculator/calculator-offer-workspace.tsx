@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, ImagePlus, Link2, Loader2, Plus, RotateCcw, Send, Share2, X } from "lucide-react";
+import { ClipboardPaste, Copy, ImagePlus, Link2, Loader2, Plus, RotateCcw, Send, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -64,6 +64,49 @@ type OfferVariant = {
 
 function isImageFile(file: File) {
   return file.type.startsWith("image/");
+}
+
+function extensionForImageType(type: string) {
+  if (type === "image/png") return "png";
+  if (type === "image/webp") return "webp";
+  if (type === "image/gif") return "gif";
+  return "jpg";
+}
+
+function fileFromImageBlob(blob: Blob, index = 0): File {
+  const type = blob.type && blob.type.startsWith("image/") ? blob.type : "image/jpeg";
+  const ext = extensionForImageType(type);
+  return new File([blob], `clipboard-${Date.now()}-${index}.${ext}`, { type });
+}
+
+function filesFromPasteEvent(event: ClipboardEvent): File[] {
+  const data = event.clipboardData;
+  if (!data) return [];
+  const fromFiles = Array.from(data.files).filter(isImageFile);
+  if (fromFiles.length > 0) return fromFiles;
+  const fromItems: File[] = [];
+  for (const item of Array.from(data.items)) {
+    if (item.kind === "file" && item.type.startsWith("image/")) {
+      const file = item.getAsFile();
+      if (file) fromItems.push(file);
+    }
+  }
+  return fromItems;
+}
+
+async function filesFromClipboardApi(): Promise<File[]> {
+  if (typeof navigator === "undefined" || typeof navigator.clipboard?.read !== "function") {
+    throw new Error("CLIPBOARD_UNAVAILABLE");
+  }
+  const items = await navigator.clipboard.read();
+  const files: File[] = [];
+  for (const item of items) {
+    const type = item.types.find((entry) => entry.startsWith("image/"));
+    if (!type) continue;
+    const blob = await item.getType(type);
+    files.push(fileFromImageBlob(blob, files.length));
+  }
+  return files;
 }
 
 function createVariantId() {
@@ -179,6 +222,7 @@ export function CalculatorOfferWorkspace() {
   const equipmentGroups = settings.offerEquipmentGroups ?? [];
   const captureApiRef = useRef<CalculatorCaptureApi | null>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const addPhotosRef = useRef<(fileList: FileList | File[]) => number>(() => 0);
   const [selectionTitle, setSelectionTitle] = useState("");
   const [variants, setVariants] = useState<OfferVariant[]>(() => [createVariant()]);
   const [activeId, setActiveId] = useState(() => variants[0]!.id);
@@ -188,6 +232,7 @@ export function CalculatorOfferWorkspace() {
   const [createdLink, setCreatedLink] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [sendingTelegram, setSendingTelegram] = useState(false);
+  const [pastingPhotos, setPastingPhotos] = useState(false);
   const busy = sharing || creatingLink || switching;
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
@@ -261,6 +306,22 @@ export function CalculatorOfferWorkspace() {
     };
   }, []);
 
+  useEffect(() => {
+    const onPaste = (event: ClipboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, [contenteditable='true']")) return;
+      const files = filesFromPasteEvent(event);
+      if (files.length === 0) return;
+      event.preventDefault();
+      const added = addPhotosRef.current(files);
+      if (added > 0) {
+        toast.success(added === 1 ? "Фото из буфера добавлено" : `Добавлено фото из буфера: ${added}`);
+      }
+    };
+    window.addEventListener("paste", onPaste);
+    return () => window.removeEventListener("paste", onPaste);
+  }, []);
+
   const updateActive = (patch: Partial<OfferVariant>) => {
     const id = activeIdRef.current;
     setVariants((current) => current.map((variant) => (variant.id === id ? { ...variant, ...patch } : variant)));
@@ -294,13 +355,13 @@ export function CalculatorOfferWorkspace() {
     const incoming = Array.from(fileList).filter(isImageFile);
     if (incoming.length === 0) {
       toast.error("Можно добавить только фото");
-      return;
+      return 0;
     }
 
     const room = OFFER_MAX_PHOTOS - active.photos.length;
     if (room <= 0) {
       toast.error(`Не больше ${OFFER_MAX_PHOTOS} фото`);
-      return;
+      return 0;
     }
 
     const accepted: OfferPhoto[] = [];
@@ -321,6 +382,40 @@ export function CalculatorOfferWorkspace() {
     }
     if (accepted.length > 0) {
       updateActive({ photos: [...active.photos, ...accepted] });
+    }
+    return accepted.length;
+  };
+  addPhotosRef.current = addPhotos;
+
+  const handleAddFromClipboard = async () => {
+    if (active.photos.length >= OFFER_MAX_PHOTOS) {
+      toast.error(`Не больше ${OFFER_MAX_PHOTOS} фото`);
+      return;
+    }
+    setPastingPhotos(true);
+    try {
+      const files = await filesFromClipboardApi();
+      if (files.length === 0) {
+        toast.error("В буфере нет фото. На сайте: правая кнопка → Копировать изображение.");
+        return;
+      }
+      const added = addPhotos(files);
+      if (added > 0) {
+        toast.success(added === 1 ? "Фото из буфера добавлено" : `Добавлено фото из буфера: ${added}`);
+      }
+    } catch (error) {
+      const name = error instanceof DOMException ? error.name : "";
+      if (name === "NotFoundError") {
+        toast.error("В буфере нет фото. На сайте: правая кнопка → Копировать изображение.");
+        return;
+      }
+      if (name === "NotAllowedError" || (error instanceof Error && error.message === "CLIPBOARD_UNAVAILABLE")) {
+        toast.error("Не удалось прочитать буфер. Скопируйте фото и нажмите Ctrl+V (на Mac ⌘V) на этой странице.");
+        return;
+      }
+      toast.error("Не удалось взять фото из буфера");
+    } finally {
+      setPastingPhotos(false);
     }
   };
 
@@ -654,9 +749,28 @@ export function CalculatorOfferWorkspace() {
           )}
 
           <div className="space-y-2">
-            <Label htmlFor="offer-photos">
-              Фото ({active.photos.length}/{OFFER_MAX_PHOTOS})
-            </Label>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <Label htmlFor="offer-photos">
+                Фото ({active.photos.length}/{OFFER_MAX_PHOTOS})
+              </Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={busy || pastingPhotos || active.photos.length >= OFFER_MAX_PHOTOS}
+                onClick={() => void handleAddFromClipboard()}
+              >
+                {pastingPhotos ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <ClipboardPaste className="h-3.5 w-3.5" />
+                )}
+                Добавить из буфера
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Скопируйте картинку на сайте и нажмите кнопку или Ctrl+V (⌘V). Сохранять файл не нужно.
+            </p>
             <input
               ref={photoInputRef}
               id="offer-photos"
