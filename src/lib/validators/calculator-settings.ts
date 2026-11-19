@@ -15,7 +15,10 @@ export const calculatorPresetSchema = z.object({
   importer: z.enum(["personal", "resale", "legal"]),
   age: z.enum(["new", "under3", "from3to5", "from5to7", "over7"]),
   engine: z.enum(["petrol", "diesel", "electric"]),
+  vehicleCategory: z.enum(["m1", "n1g"]).optional(),
+  gvwKg: z.string().max(32).optional(),
   powerHp: z.string().max(32),
+  powerUnit: z.enum(["hp", "kw"]).optional(),
   volumeCc: z.string().max(32),
   price: z.string().max(32),
   customsPrice: z.string().max(32).optional(),
@@ -30,6 +33,7 @@ export const calculatorPresetSchema = z.object({
   deliveryUsd: z.string().max(32),
   escortRub: z.string().max(32),
   kyrgyzstanCustomsCleared: z.boolean().optional(),
+  recyclingFee2027: z.boolean().optional(),
   rates: exchangeRatesSchema.optional(),
 });
 

@@ -1,4 +1,4 @@
-import { DealStageType } from "@prisma/client";
+import type { DealStageType } from "@prisma/client";
 import {
   ApiResponse,
   AuthProfile,
@@ -6,6 +6,7 @@ import {
   ClientPortalDeal,
   CompanyListItem,
   CompanyTelegramBotSettings,
+  CompanyMaxBotSettings,
   CompanyGoogleCalendarSettings,
   DashboardData,
   DealDetail,
@@ -17,6 +18,7 @@ import {
   MediaItem,
   NotificationItem,
   Paginated,
+  DealStageReminderSettings,
   ReminderItem,
   Role,
   ImportProcessEntry,
@@ -30,9 +32,9 @@ import {
   StageHistoryItem,
   User,
 } from "@/lib/types";
-import { DealActivityItem } from "@/lib/services/deal-activity";
-import { AdditionalOptionGroupState } from "@/lib/services/additional-options";
-import { DealExpenseItem } from "@/lib/services/deal-expenses";
+import type { DealActivityItem } from "@/lib/services/deal-activity";
+import type { AdditionalOptionGroupState } from "@/lib/services/additional-options";
+import type { DealExpenseItem } from "@/lib/services/deal-expenses";
 
 export class ApiRequestError extends Error {
   constructor(
@@ -91,6 +93,16 @@ export const api = {
     unlinkTelegram: () => request<User>("/api/auth/telegram", { method: "DELETE" }),
     testTelegram: () =>
       request<{ delivered: boolean; chatId: string }>("/api/auth/telegram/test", {
+        method: "POST",
+      }),
+    linkMax: (maxUserId: string) =>
+      request<User>("/api/auth/max", {
+        method: "PATCH",
+        body: JSON.stringify({ maxUserId }),
+      }),
+    unlinkMax: () => request<User>("/api/auth/max", { method: "DELETE" }),
+    testMax: () =>
+      request<{ delivered: boolean; userId: string }>("/api/auth/max/test", {
         method: "POST",
       }),
     changePassword: (currentPassword: string, newPassword: string) =>
@@ -387,6 +399,16 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify({ enabled }),
       }),
+    getStageReminder: (dealId: string) =>
+      request<DealStageReminderSettings>(`/api/deals/${dealId}/stage-reminders`),
+    saveStageReminder: (
+      dealId: string,
+      data: { enabled: boolean; intervalDays: number; sendTime: string; timeZone: string },
+    ) =>
+      request<DealStageReminderSettings>(`/api/deals/${dealId}/stage-reminders`, {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
   },
 
   reminders: {
@@ -628,22 +650,34 @@ export const api = {
 
   calculatorOffers: {
     create: async (input: {
-      vehicleTitle?: string;
-      description: string;
-      sourceUrl: string;
-      totalLabel?: string | null;
-      photos: File[];
-      estimate?: File | null;
+      selectionTitle?: string;
+      items: Array<{
+        vehicleTitle?: string;
+        mileageKm?: number | null;
+        description: string;
+        equipmentKeys?: string[];
+        sourceUrl: string;
+        totalLabel?: string | null;
+        photos: File[];
+        estimate?: File | null;
+      }>;
     }) => {
       const formData = new FormData();
-      if (input.vehicleTitle) formData.append("vehicleTitle", input.vehicleTitle);
-      formData.append("description", input.description);
-      formData.append("sourceUrl", input.sourceUrl);
-      if (input.totalLabel) formData.append("totalLabel", input.totalLabel);
-      for (const photo of input.photos) {
-        formData.append("photos", photo);
-      }
-      if (input.estimate) formData.append("estimate", input.estimate);
+      if (input.selectionTitle) formData.append("selectionTitle", input.selectionTitle);
+      input.items.forEach((item, index) => {
+        if (item.vehicleTitle) formData.append(`vehicleTitle-${index}`, item.vehicleTitle);
+        if (item.mileageKm != null) formData.append(`mileageKm-${index}`, String(item.mileageKm));
+        formData.append(`description-${index}`, item.description);
+        if (item.equipmentKeys?.length) {
+          formData.append(`equipment-${index}`, JSON.stringify(item.equipmentKeys));
+        }
+        formData.append(`sourceUrl-${index}`, item.sourceUrl);
+        if (item.totalLabel) formData.append(`totalLabel-${index}`, item.totalLabel);
+        for (const photo of item.photos) {
+          formData.append(`photos-${index}`, photo);
+        }
+        if (item.estimate) formData.append(`estimate-${index}`, item.estimate);
+      });
 
       const response = await fetch("/api/calculator/offers", {
         method: "POST",
@@ -660,6 +694,16 @@ export const api = {
       }
       return json.data;
     },
+    sendToTelegram: (token: string) =>
+      request<{ delivered: boolean }>("/api/calculator/offers/telegram", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      }),
+    sendToMax: (token: string) =>
+      request<{ delivered: boolean }>("/api/calculator/offers/max", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      }),
   },
 
   calculatorExpenseTemplate: {
@@ -1010,6 +1054,19 @@ export const api = {
       request<{ message: string }>("/api/help/feedback", {
         method: "POST",
         body: JSON.stringify(data),
+      }),
+  },
+
+  max: {
+    getBotSettings: () => request<CompanyMaxBotSettings>("/api/max/bot-settings"),
+    connectBot: (data: { token: string }) =>
+      request<CompanyMaxBotSettings>("/api/max/bot-settings", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    disconnectBot: () =>
+      request<CompanyMaxBotSettings>("/api/max/bot-settings", {
+        method: "DELETE",
       }),
   },
 

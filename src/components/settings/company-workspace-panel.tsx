@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanyWorkspace } from "@/hooks/use-company-workspace";
 import { api } from "@/lib/api-client";
+import type { AdditionalOptionGroupDefinition } from "@/lib/additional-options";
 import { getDefaultCompanyWorkspace } from "@/lib/company-workspace/defaults";
 import type {
   CompanyDocumentType,
@@ -51,6 +52,119 @@ function newId(prefix: string) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function OptionGroupsEditor({
+  groups,
+  onChange,
+}: {
+  groups: AdditionalOptionGroupDefinition[];
+  onChange: (groups: AdditionalOptionGroupDefinition[]) => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() =>
+            onChange([...groups, { id: newId("group"), title: "Новая группа", options: [] }])
+          }
+        >
+          <Plus className="h-4 w-4" />
+          Группа
+        </Button>
+      </div>
+
+      {groups.map((group, groupIndex) => (
+        <div key={group.id} className="space-y-2 rounded-lg border p-3">
+          <div className="flex items-center gap-2">
+            <Input
+              value={group.title}
+              onChange={(event) =>
+                onChange(
+                  groups.map((item, index) =>
+                    index === groupIndex ? { ...item, title: event.target.value } : item,
+                  ),
+                )
+              }
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              onClick={() => onChange(groups.filter((_, index) => index !== groupIndex))}
+              aria-label="Удалить группу"
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          {group.options.map((option, optionIndex) => (
+            <div key={option.key} className="flex items-center gap-2 pl-2">
+              <Input
+                value={option.label}
+                onChange={(event) =>
+                  onChange(
+                    groups.map((item, index) =>
+                      index === groupIndex
+                        ? {
+                            ...item,
+                            options: item.options.map((opt, optIndex) =>
+                              optIndex === optionIndex ? { ...opt, label: event.target.value } : opt,
+                            ),
+                          }
+                        : item,
+                    ),
+                  )
+                }
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() =>
+                  onChange(
+                    groups.map((item, index) =>
+                      index === groupIndex
+                        ? {
+                            ...item,
+                            options: item.options.filter((_, optIndex) => optIndex !== optionIndex),
+                          }
+                        : item,
+                    ),
+                  )
+                }
+                aria-label="Удалить опцию"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          ))}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() =>
+              onChange(
+                groups.map((item, index) =>
+                  index === groupIndex
+                    ? {
+                        ...item,
+                        options: [...item.options, { key: newId("opt"), label: "Новая опция" }],
+                      }
+                    : item,
+                ),
+              )
+            }
+          >
+            <Plus className="h-4 w-4" />
+            Опция
+          </Button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CompanyWorkspacePanel() {
   const { applyLocal } = useCompanyWorkspace();
   const [loading, setLoading] = useState(true);
@@ -70,6 +184,8 @@ export function CompanyWorkspacePanel() {
         customDealFields: data.customDealFields,
         documentTypes: data.documentTypes,
         additionalOptionGroups: data.additionalOptionGroups,
+        offerEquipmentGroups:
+          data.offerEquipmentGroups ?? getDefaultCompanyWorkspace().offerEquipmentGroups,
         modules: data.modules,
         offerLinkCaptionTemplate: data.offerLinkCaptionTemplate,
       });
@@ -97,6 +213,8 @@ export function CompanyWorkspacePanel() {
         customDealFields: saved.customDealFields,
         documentTypes: saved.documentTypes,
         additionalOptionGroups: saved.additionalOptionGroups,
+        offerEquipmentGroups:
+          saved.offerEquipmentGroups ?? getDefaultCompanyWorkspace().offerEquipmentGroups,
         modules: saved.modules,
         offerLinkCaptionTemplate: saved.offerLinkCaptionTemplate,
       });
@@ -196,8 +314,8 @@ export function CompanyWorkspacePanel() {
         <CardHeader>
           <CardTitle className="text-base">Подбор: текст ссылки</CardTitle>
           <CardDescription>
-            Подпись, которая копируется вместе со ссылкой расчёта. Плейсхолдер {"{марка}"} заменяется
-            на поле «Марка, модель».
+            Подпись, которая копируется вместе со ссылкой на одно авто. Плейсхолдер {"{марка}"} заменяется
+            на поле «Марка, модель». Для нескольких авто копируется «Подборка».
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-2">
@@ -218,9 +336,40 @@ export function CompanyWorkspacePanel() {
             Пример: {buildOfferLinkCaption("Toyota Camry", form.offerLinkCaptionTemplate)}
           </p>
           <p className="text-xs text-muted-foreground">
-            До {OFFER_LINK_CAPTION_TEMPLATE_MAX} символов. Действует для ссылки с компьютера и кнопки
-            «Создать ссылку» на телефоне.
+            До {OFFER_LINK_CAPTION_TEMPLATE_MAX} символов. Действует, когда «Поделиться» создаёт ссылку
+            (компьютер, несколько авто или если системная отправка файлов недоступна).
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className="border-0 shadow-card">
+        <CardHeader>
+          <CardTitle className="text-base">Подбор: комплектация</CardTitle>
+          <CardDescription>
+            Список того, что уже стоит на авто — галочки в <strong>Калькулятор → Подбор</strong>. Это не
+            доп. опции сделки (установка и сервис).
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              setForm((current) => ({
+                ...current,
+                offerEquipmentGroups: getDefaultCompanyWorkspace().offerEquipmentGroups,
+              }))
+            }
+          >
+            Сбросить к стандартным
+          </Button>
+          <OptionGroupsEditor
+            groups={form.offerEquipmentGroups}
+            onChange={(offerEquipmentGroups) =>
+              setForm((current) => ({ ...current, offerEquipmentGroups }))
+            }
+          />
         </CardContent>
       </Card>
 
@@ -511,139 +660,25 @@ export function CompanyWorkspacePanel() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setForm((current) => ({
-                  ...current,
-                  additionalOptionGroups: [
-                    ...current.additionalOptionGroups,
-                    { id: newId("group"), title: "Новая группа", options: [] },
-                  ],
-                }))
-              }
-            >
-              <Plus className="h-4 w-4" />
-              Группа
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() =>
-                setForm((current) => ({
-                  ...current,
-                  additionalOptionGroups: getDefaultCompanyWorkspace().additionalOptionGroups,
-                }))
-              }
-            >
-              Сбросить к стандартным
-            </Button>
-          </div>
-
-          {form.additionalOptionGroups.map((group, groupIndex) => (
-            <div key={group.id} className="space-y-2 rounded-lg border p-3">
-              <div className="flex items-center gap-2">
-                <Input
-                  value={group.title}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      additionalOptionGroups: current.additionalOptionGroups.map((item, index) =>
-                        index === groupIndex ? { ...item, title: event.target.value } : item,
-                      ),
-                    }))
-                  }
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() =>
-                    setForm((current) => ({
-                      ...current,
-                      additionalOptionGroups: current.additionalOptionGroups.filter(
-                        (_, index) => index !== groupIndex,
-                      ),
-                    }))
-                  }
-                  aria-label="Удалить группу"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </div>
-              {group.options.map((option, optionIndex) => (
-                <div key={option.key} className="flex items-center gap-2 pl-2">
-                  <Input
-                    value={option.label}
-                    onChange={(event) =>
-                      setForm((current) => ({
-                        ...current,
-                        additionalOptionGroups: current.additionalOptionGroups.map((item, index) =>
-                          index === groupIndex
-                            ? {
-                                ...item,
-                                options: item.options.map((opt, optIndex) =>
-                                  optIndex === optionIndex ? { ...opt, label: event.target.value } : opt,
-                                ),
-                              }
-                            : item,
-                        ),
-                      }))
-                    }
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() =>
-                      setForm((current) => ({
-                        ...current,
-                        additionalOptionGroups: current.additionalOptionGroups.map((item, index) =>
-                          index === groupIndex
-                            ? {
-                                ...item,
-                                options: item.options.filter((_, optIndex) => optIndex !== optionIndex),
-                              }
-                            : item,
-                        ),
-                      }))
-                    }
-                    aria-label="Удалить опцию"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              ))}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    additionalOptionGroups: current.additionalOptionGroups.map((item, index) =>
-                      index === groupIndex
-                        ? {
-                            ...item,
-                            options: [
-                              ...item.options,
-                              { key: newId("opt"), label: "Новая опция" },
-                            ],
-                          }
-                        : item,
-                    ),
-                  }))
-                }
-              >
-                <Plus className="h-4 w-4" />
-                Опция
-              </Button>
-            </div>
-          ))}
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() =>
+              setForm((current) => ({
+                ...current,
+                additionalOptionGroups: getDefaultCompanyWorkspace().additionalOptionGroups,
+              }))
+            }
+          >
+            Сбросить к стандартным
+          </Button>
+          <OptionGroupsEditor
+            groups={form.additionalOptionGroups}
+            onChange={(additionalOptionGroups) =>
+              setForm((current) => ({ ...current, additionalOptionGroups }))
+            }
+          />
         </CardContent>
       </Card>
 

@@ -26,7 +26,13 @@ if [ "${FORCE_REBUILD:-}" = "1" ]; then
 fi
 
 echo "==> Сборка и запуск контейнеров..."
-docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build "${BUILD_ARGS[@]}" app
+if ! docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" build "${BUILD_ARGS[@]}" app; then
+  echo ""
+  echo "Сборка не удалась. Частая причина на Timeweb: binaries.prisma.sh (TLS) при prisma generate."
+  echo "Повторите: bash deploy/scripts/deploy.sh"
+  echo "Если TELEGRAM_PROXY_URL задан в deploy/.env, сборка ходит за движком Prisma через этот прокси."
+  exit 1
+fi
 docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" up -d --force-recreate app
 
 echo ""

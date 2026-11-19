@@ -9,6 +9,7 @@ import {
 } from "@/lib/customs-calculator/calculate";
 import {
   CarAge,
+  convertPowerInputValue,
   CurrencyCode,
   DEFAULT_EXCHANGE_RATES,
   DEFAULT_KOREA_BROKER_FEE_RUB,
@@ -16,6 +17,9 @@ import {
   EngineType,
   ImporterType,
   OriginCountry,
+  powerInputToHp,
+  type PowerInputUnit,
+  type VehicleCategory,
 } from "@/lib/customs-calculator/rates";
 import styles from "@/components/landing/landing.module.css";
 
@@ -29,6 +33,11 @@ const IMPORTERS: Array<{ value: ImporterType; label: string }> = [
   { value: "personal", label: "Физлицо · личное" },
   { value: "resale", label: "Физлицо · перепродажа" },
   { value: "legal", label: "Юрлицо" },
+];
+
+const CATEGORIES: Array<{ value: VehicleCategory; label: string }> = [
+  { value: "m1", label: "M1 легковой" },
+  { value: "n1g", label: "N1G пикап" },
 ];
 
 const AGES: Array<{ value: CarAge; label: string }> = [
@@ -110,13 +119,17 @@ export function LandingDemoCalculator() {
   const [importer, setImporter] = useState<ImporterType>("personal");
   const [age, setAge] = useState<CarAge>("from3to5");
   const [engine, setEngine] = useState<EngineType>("petrol");
+  const [vehicleCategory, setVehicleCategory] = useState<VehicleCategory>("m1");
+  const [gvwKg, setGvwKg] = useState("3000");
   const [price, setPrice] = useState("148000");
   const [customsPrice, setCustomsPrice] = useState("");
   const [volumeLiters, setVolumeLiters] = useState("2.0");
   const [powerHp, setPowerHp] = useState("150");
+  const [powerUnit, setPowerUnit] = useState<PowerInputUnit>("hp");
 
   const country = COUNTRIES.find((item) => item.id === countryId) ?? COUNTRIES[0];
   const isElectric = engine === "electric";
+  const isN1g = vehicleCategory === "n1g";
   const showCustomsPrice = age === "new";
 
   const result = useMemo(() => {
@@ -127,7 +140,9 @@ export function LandingDemoCalculator() {
       importer,
       age,
       engine,
-      powerHp: parseAmount(powerHp),
+      vehicleCategory,
+      gvwKg: vehicleCategory === "n1g" ? parseAmount(gvwKg) : undefined,
+      powerHp: powerInputToHp(parseAmount(powerHp), powerUnit),
       volumeCc,
       price: parseAmount(price),
       customsPrice: showCustomsPrice && customsAmount > 0 ? customsAmount : undefined,
@@ -144,11 +159,14 @@ export function LandingDemoCalculator() {
     currency,
     customsPrice,
     engine,
+    gvwKg,
     importer,
     isElectric,
     powerHp,
+    powerUnit,
     price,
     showCustomsPrice,
+    vehicleCategory,
     volumeLiters,
   ]);
 
@@ -192,6 +210,22 @@ export function LandingDemoCalculator() {
       <div className="grid lg:grid-cols-2">
         <div className="space-y-4 border-b border-[var(--landing-line)] p-4 sm:p-5 lg:border-b-0 lg:border-r">
           <div className="grid grid-cols-2 gap-3">
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
+                Категория
+              </span>
+              <select
+                className={styles.demoInput}
+                value={vehicleCategory}
+                onChange={(event) => setVehicleCategory(event.target.value as VehicleCategory)}
+              >
+                {CATEGORIES.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="block">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
                 Кто ввозит
@@ -291,18 +325,53 @@ export function LandingDemoCalculator() {
               </select>
             </label>
             <label className="block">
-              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
-                Мощность, л.с.
+              <span className="flex items-center justify-between gap-2 text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
+                {powerUnit === "kw" ? "Мощность, кВт" : "Мощность, л.с."}
+                <span className="inline-flex rounded border border-[var(--landing-line)] p-0.5 font-semibold normal-case tracking-normal">
+                  {(["hp", "kw"] as const).map((unit) => (
+                    <button
+                      key={unit}
+                      type="button"
+                      className={`rounded px-1.5 py-0.5 text-[10px] ${
+                        powerUnit === unit
+                          ? "bg-[var(--landing-surface)] text-[var(--landing-ink)]"
+                          : "text-[var(--landing-muted)]"
+                      }`}
+                      onClick={() => {
+                        if (unit === powerUnit) return;
+                        setPowerHp((current) => convertPowerInputValue(current, powerUnit, unit));
+                        setPowerUnit(unit);
+                      }}
+                    >
+                      {unit === "hp" ? "л.с." : "кВт"}
+                    </button>
+                  ))}
+                </span>
               </span>
               <input
                 className={styles.demoInput}
                 inputMode="decimal"
                 value={powerHp}
                 onChange={(event) => setPowerHp(event.target.value)}
-                aria-label="Мощность в лошадиных силах"
+                aria-label={powerUnit === "kw" ? "Мощность в киловаттах" : "Мощность в лошадиных силах"}
               />
             </label>
           </div>
+
+          {isN1g ? (
+            <label className="block">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--landing-muted)]">
+                Полная масса, кг
+              </span>
+              <input
+                className={styles.demoInput}
+                inputMode="numeric"
+                value={gvwKg}
+                onChange={(event) => setGvwKg(event.target.value)}
+                aria-label="Полная масса в килограммах"
+              />
+            </label>
+          ) : null}
 
           {!isElectric ? (
             <label className="block">

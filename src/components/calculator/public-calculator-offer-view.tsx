@@ -10,7 +10,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { PublicCalculatorOffer } from "@/lib/calculator/offer-share";
+import {
+  formatOfferMileageKm,
+  type PublicCalculatorOffer,
+  type PublicCalculatorOfferItem,
+} from "@/lib/calculator/offer-share";
 
 function formatExpiry(iso: string) {
   try {
@@ -28,6 +32,16 @@ function BlockDivider() {
   return <div className="h-px bg-border" role="separator" />;
 }
 
+function MileageLine({ km, className }: { km: number | null | undefined; className?: string }) {
+  const label = formatOfferMileageKm(km);
+  if (!label) return null;
+  return (
+    <p className={className ?? "mt-3 text-xl font-semibold tabular-nums tracking-wide sm:text-2xl"}>
+      {label}
+    </p>
+  );
+}
+
 function SourceListingLink({ href }: { href: string }) {
   return (
     <a
@@ -42,11 +56,78 @@ function SourceListingLink({ href }: { href: string }) {
   );
 }
 
+function OfferItemBlocks({
+  item,
+  estimateOpen,
+  onEstimateOpenChange,
+}: {
+  item: PublicCalculatorOfferItem;
+  estimateOpen: boolean;
+  onEstimateOpenChange: (open: boolean) => void;
+}) {
+  const photoLabels = item.photoUrls.map((_, index) => `Фото ${index + 1}`);
+
+  return (
+    <>
+      {[
+        item.photoUrls.length > 0 ? (
+          <SwipeGallery key="photos" images={item.photoUrls} labels={photoLabels} />
+        ) : null,
+        (item.equipment ?? []).length > 0 || item.description ? (
+          <section key="description" className="space-y-3">
+            <h2 className="text-base font-semibold">Комплектация</h2>
+            {(item.equipment ?? []).length > 0 ? (
+              <ul className="list-disc space-y-1 pl-5 text-[15px] leading-relaxed">
+                {(item.equipment ?? []).map((entry) => (
+                  <li key={entry.key}>{entry.label}</li>
+                ))}
+              </ul>
+            ) : null}
+            {item.description ? (
+              <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{item.description}</div>
+            ) : null}
+          </section>
+        ) : null,
+        item.estimateUrl ? (
+          <section key="estimate" className="space-y-2">
+            <h2 className="text-base font-semibold">Расчёт стоимости</h2>
+            <button
+              type="button"
+              onClick={() => onEstimateOpenChange(true)}
+              className="block w-full overflow-hidden rounded-lg bg-white text-left"
+            >
+              <img src={item.estimateUrl} alt="Расчёт растаможки" className="w-full" />
+            </button>
+            <Dialog open={estimateOpen} onOpenChange={onEstimateOpenChange}>
+              <DialogContent className="z-[100] flex h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[96dvh] sm:max-w-6xl sm:rounded-xl">
+                <DialogHeader className="shrink-0 border-b px-3 py-2 sm:px-4">
+                  <DialogTitle className="pr-8 text-sm">Расчёт стоимости</DialogTitle>
+                </DialogHeader>
+                <div className="flex min-h-0 flex-1 w-full items-center justify-center bg-black">
+                  <ZoomableImage src={item.estimateUrl} alt="Расчёт растаможки" />
+                </div>
+              </DialogContent>
+            </Dialog>
+          </section>
+        ) : null,
+        item.sourceUrl ? <SourceListingLink key="source" href={item.sourceUrl} /> : null,
+      ]
+        .filter(Boolean)
+        .map((block, index) => (
+          <Fragment key={index}>
+            {index > 0 && <BlockDivider />}
+            {block}
+          </Fragment>
+        ))}
+    </>
+  );
+}
+
 export function PublicCalculatorOfferView({ token }: { token: string }) {
   const [data, setData] = useState<PublicCalculatorOffer | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [estimateOpen, setEstimateOpen] = useState(false);
+  const [estimateOpenIndex, setEstimateOpenIndex] = useState<number | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -62,7 +143,11 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
           return;
         }
         setData(json.data);
-        const title = json.data.vehicleTitle || "Расчёт авто";
+        const firstTitle = json.data.items[0]?.vehicleTitle;
+        const title =
+          json.data.items.length > 1
+            ? json.data.selectionTitle || `Подборка (${json.data.items.length} авто)`
+            : firstTitle || json.data.selectionTitle || "Расчёт авто";
         document.title = json.data.companyName ? `${json.data.companyName} — ${title}` : title;
       } catch {
         setError("Не удалось загрузить подбор");
@@ -80,7 +165,7 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
     );
   }
 
-  if (error || !data) {
+  if (error || !data || data.items.length === 0) {
     return (
       <div className="flex min-h-[100dvh] items-center justify-center p-6 text-center">
         <div>
@@ -91,65 +176,56 @@ export function PublicCalculatorOfferView({ token }: { token: string }) {
     );
   }
 
-  const photoLabels = data.photoUrls.map((_, index) => `Фото ${index + 1}`);
-  const heading = data.vehicleTitle || "Расчёт авто";
+  const isSelection = data.items.length > 1;
+  const first = data.items[0]!;
+  const heading = isSelection
+    ? data.selectionTitle || `Подборка (${data.items.length} авто)`
+    : first.vehicleTitle || data.selectionTitle || "Расчёт авто";
 
   return (
     <div className="min-h-[100dvh] bg-background">
       <header className="border-b bg-card">
         <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
-          {data.companyName && (
-            <p className="text-sm text-muted-foreground">{data.companyName}</p>
-          )}
+          {data.companyName && <p className="text-sm text-muted-foreground">{data.companyName}</p>}
           <h1 className="mt-1 text-2xl font-bold sm:text-3xl">{heading}</h1>
-          {data.totalLabel && (
-            <p className="mt-3 text-lg font-semibold">Итого: {data.totalLabel}</p>
+          {!isSelection && <MileageLine km={first.mileageKm} />}
+          {!isSelection && first.totalLabel && (
+            <p className="mt-3 text-lg font-semibold">Итого: {first.totalLabel}</p>
           )}
         </div>
       </header>
 
       <main className="mx-auto max-w-3xl space-y-6 px-4 py-6 sm:px-6">
-        {[
-          data.photoUrls.length > 0 ? (
-            <SwipeGallery key="photos" images={data.photoUrls} labels={photoLabels} />
-          ) : null,
-          data.description ? (
-            <section key="description" className="space-y-2">
-              <h2 className="text-base font-semibold">Комплектация</h2>
-              <div className="whitespace-pre-wrap text-[15px] leading-relaxed">{data.description}</div>
-            </section>
-          ) : null,
-          data.estimateUrl ? (
-            <section key="estimate" className="space-y-2">
-              <h2 className="text-base font-semibold">Расчёт стоимости</h2>
-              <button
-                type="button"
-                onClick={() => setEstimateOpen(true)}
-                className="block w-full overflow-hidden rounded-lg bg-white text-left"
-              >
-                <img src={data.estimateUrl} alt="Расчёт растаможки" className="w-full" />
-              </button>
-              <Dialog open={estimateOpen} onOpenChange={setEstimateOpen}>
-                <DialogContent className="z-[100] flex h-[100dvh] w-full max-w-none flex-col gap-0 overflow-hidden rounded-none border-0 p-0 sm:h-[96dvh] sm:max-w-6xl sm:rounded-xl">
-                  <DialogHeader className="shrink-0 border-b px-3 py-2 sm:px-4">
-                    <DialogTitle className="pr-8 text-sm">Расчёт стоимости</DialogTitle>
-                  </DialogHeader>
-                  <div className="flex min-h-0 flex-1 w-full items-center justify-center bg-black">
-                    <ZoomableImage src={data.estimateUrl} alt="Расчёт растаможки" />
-                  </div>
-                </DialogContent>
-              </Dialog>
-            </section>
-          ) : null,
-          data.sourceUrl ? <SourceListingLink key="source" href={data.sourceUrl} /> : null,
-        ]
-          .filter(Boolean)
-          .map((block, index) => (
-            <Fragment key={index}>
-              {index > 0 && <BlockDivider />}
-              {block}
-            </Fragment>
-          ))}
+        {isSelection
+          ? data.items.map((item, index) => (
+              <section key={`${item.vehicleTitle ?? "item"}-${index}`} className="space-y-4">
+                {index > 0 && <BlockDivider />}
+                <div>
+                  <p className="text-sm text-muted-foreground">Вариант {index + 1}</p>
+                  <h2 className="mt-1 text-xl font-semibold">{item.vehicleTitle || `Вариант ${index + 1}`}</h2>
+                  <MileageLine km={item.mileageKm} className="mt-2 text-xl font-semibold tabular-nums tracking-wide sm:text-2xl" />
+                  {item.totalLabel && (
+                    <p className="mt-2 text-lg font-semibold">Итого: {item.totalLabel}</p>
+                  )}
+                </div>
+                <div className="space-y-6">
+                  <OfferItemBlocks
+                    item={item}
+                    estimateOpen={estimateOpenIndex === index}
+                    onEstimateOpenChange={(open) => setEstimateOpenIndex(open ? index : null)}
+                  />
+                </div>
+              </section>
+            ))
+          : (
+              <div className="space-y-6">
+                <OfferItemBlocks
+                  item={first}
+                  estimateOpen={estimateOpenIndex === 0}
+                  onEstimateOpenChange={(open) => setEstimateOpenIndex(open ? 0 : null)}
+                />
+              </div>
+            )}
 
         <BlockDivider />
         <p className="text-center text-xs text-muted-foreground">

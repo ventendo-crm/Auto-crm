@@ -275,7 +275,7 @@ export function ArrivalCalendar({
                 </div>
                 <p className="text-sm font-medium">В этот день таможни нет</p>
                 <p className="mt-1 max-w-xs text-sm text-muted-foreground">
-                  Укажите дату в разделе «Логистика» карточки сделки
+                  Укажите дату в блоке «Логистика» на вкладке «Доставка»
                 </p>
               </div>
             ) : (

@@ -42,6 +42,8 @@ function dtoToSettings(dto: CompanyWorkspaceDto): ResolvedCompanyWorkspace {
     customDealFields: dto.customDealFields,
     documentTypes: dto.documentTypes,
     additionalOptionGroups: dto.additionalOptionGroups,
+    offerEquipmentGroups:
+      dto.offerEquipmentGroups ?? getDefaultCompanyWorkspace().offerEquipmentGroups,
     modules: dto.modules,
     offerLinkCaptionTemplate:
       dto.offerLinkCaptionTemplate ?? getDefaultCompanyWorkspace().offerLinkCaptionTemplate,

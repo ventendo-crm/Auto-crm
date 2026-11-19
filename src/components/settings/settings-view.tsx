@@ -22,6 +22,7 @@ import { CompaniesPanel } from "@/components/settings/companies-panel";
 import { CompanyWorkspacePanel } from "@/components/settings/company-workspace-panel";
 import { EmailTemplatesPanel } from "@/components/settings/email-templates-panel";
 import { GoogleCalendarSettingsCard } from "@/components/settings/google-calendar-settings-card";
+import { MaxBotSettingsCard } from "@/components/settings/max-bot-settings-card";
 import { TelegramBotSettingsCard } from "@/components/settings/telegram-bot-settings-card";
 import { TelegramTemplatesPanel } from "@/components/settings/telegram-templates-panel";
 import { Header } from "@/components/layout/header";
@@ -102,7 +103,7 @@ function SettingsViewInner() {
         { value: "workspace", label: "Компания", icon: SlidersHorizontal },
         { value: "appearance", label: "Оформление", icon: Palette },
         { value: "email", label: "Письма", icon: Mail },
-        { value: "telegram", label: "Telegram", icon: MessageCircle },
+        { value: "telegram", label: "Мессенджеры", icon: MessageCircle },
       );
       if (settings.modules.googleCalendar) {
         companyItems.push({ value: "calendar", label: "Календарь", icon: CalendarDays });
@@ -176,15 +177,15 @@ function SettingsViewInner() {
   return (
     <>
       <Header title="Настройки" subtitle={subtitle} />
-      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-        <Tabs value={tab} onValueChange={handleTabChange} className="max-w-5xl">
+      <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-4 sm:p-6">
+        <Tabs value={tab} onValueChange={handleTabChange} className="w-full min-w-0 max-w-5xl">
           <GroupedTabsNav groups={groups} wrap />
 
           <TabsContent value="profile" className="mt-4">
             <ProfilePanel />
           </TabsContent>
 
-          <TabsContent value="notifications" className="mt-4">
+          <TabsContent value="notifications" className="mt-4 min-w-0 overflow-x-hidden">
             <NotificationsPanel />
           </TabsContent>
 
@@ -221,6 +222,7 @@ function SettingsViewInner() {
           {isAdmin && (
             <TabsContent value="telegram" className="mt-4 space-y-4">
               <TelegramBotSettingsCard />
+              <MaxBotSettingsCard />
               <TelegramTemplatesPanel />
             </TabsContent>
           )}

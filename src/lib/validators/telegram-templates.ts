@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { TELEGRAM_TEMPLATE_PLACEHOLDERS } from "@/lib/telegram/templates";
+import { TELEGRAM_TEMPLATE_PLACEHOLDERS } from "@/lib/telegram/placeholders";
 
 const templateKeys = Object.keys(TELEGRAM_TEMPLATE_PLACEHOLDERS) as [
   keyof typeof TELEGRAM_TEMPLATE_PLACEHOLDERS,
