@@ -2,7 +2,7 @@
 
 import { toast } from "sonner";
 import { ManagersMultiSelect } from "@/components/deals/managers-multi-select";
-import { formatDealManagersLabel } from "@/lib/deal-managers";
+import { formatDealManagersLabel } from "@/lib/deal-manager-list";
 import { useAuth } from "@/hooks/use-auth";
 import { api } from "@/lib/api-client";
 import { canAssignDealManager, getClientRoleName } from "@/lib/permissions";

@@ -1,5 +1,6 @@
 import { DealStageType } from "@prisma/client";
 import { ADDITIONAL_OPTION_GROUPS } from "@/lib/additional-options";
+import { cloneOfferEquipmentGroups } from "@/lib/calculator/offer-equipment";
 import {
   CLIENT_DOCUMENT_ORDER,
   DOCUMENT_LABELS,
@@ -57,6 +58,7 @@ export function getDefaultCompanyWorkspace(): ResolvedCompanyWorkspace {
       title: group.title,
       options: group.options.map((option) => ({ key: option.key, label: option.label })),
     })),
+    offerEquipmentGroups: cloneOfferEquipmentGroups(),
     modules: {
       catalog: CATALOG_ENABLED,
       calculator: true,

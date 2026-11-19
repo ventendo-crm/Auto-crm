@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { api } from "@/lib/api-client";
-import { EMAIL_TEMPLATE_PLACEHOLDERS } from "@/lib/email/templates";
+import { EMAIL_TEMPLATE_PLACEHOLDERS } from "@/lib/email/placeholders";
 import { EmailTemplateItem } from "@/lib/types";
 import { formatDateTime } from "@/lib/utils";
 

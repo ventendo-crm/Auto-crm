@@ -111,12 +111,13 @@ async function postTelegramMessage(
   chatId: string,
   text: string,
   parseMode?: "HTML",
+  options?: { disableWebPagePreview?: boolean },
 ): Promise<TelegramSendResult> {
   const result = await callTelegramApi(token, "sendMessage", {
     chat_id: chatId,
     text,
     ...(parseMode ? { parse_mode: parseMode } : {}),
-    disable_web_page_preview: true,
+    disable_web_page_preview: options?.disableWebPagePreview ?? true,
   });
 
   if (!result.ok) {
@@ -130,15 +131,22 @@ export async function sendTelegramMessageWithToken(
   token: string,
   chatId: string,
   text: string,
+  options?: { disableWebPagePreview?: boolean },
 ): Promise<boolean> {
-  const htmlResult = await postTelegramMessage(token, chatId, text, "HTML");
+  const htmlResult = await postTelegramMessage(token, chatId, text, "HTML", options);
 
   if (htmlResult.ok) {
     return true;
   }
 
   if (htmlResult.error?.includes("can't parse entities")) {
-    const plainResult = await postTelegramMessage(token, chatId, text.replace(/<[^>]+>/g, ""));
+    const plainResult = await postTelegramMessage(
+      token,
+      chatId,
+      text.replace(/<[^>]+>/g, ""),
+      undefined,
+      options,
+    );
     if (!plainResult.ok) {
       console.error("[telegram] send failed (plain):", plainResult.error, "chatId=", chatId);
     }

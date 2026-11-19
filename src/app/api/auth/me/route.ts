@@ -1,3 +1,4 @@
+import "@/lib/preparation-reminders/bootstrap";
 import { assertFound, withAuth } from "@/lib/api-handler";
 import { ok } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +13,7 @@ export const GET = withAuth(async (_request, { user }) => {
         name: true,
         email: true,
         telegramChatId: true,
+        maxUserId: true,
         createdAt: true,
         companyId: true,
         isPlatformAdmin: true,

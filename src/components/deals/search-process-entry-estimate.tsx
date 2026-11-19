@@ -8,7 +8,12 @@ import {
   defaultInputCurrencyForOrigin,
   type CustomCalculatorOrigin,
 } from "@/lib/customs-calculator/custom-origins";
-import { isChinaLikeOrigin } from "@/lib/customs-calculator";
+import {
+  isChinaLikeOrigin,
+  N1G_MAX_GVW_KG,
+  type EngineType,
+  type VehicleCategory,
+} from "@/lib/customs-calculator";
 import { api } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { CollapsibleTrigger } from "@/components/ui/collapsible-panel";
@@ -94,6 +99,14 @@ export function SearchProcessEntryEstimatePanel({
       powerHp: entry.estimate?.powerHp ? String(entry.estimate.powerHp) : "",
       volumeCc: entry.estimate?.volumeCc ? String(entry.estimate.volumeCc) : "",
       carYear: entry.estimate?.carYear ? String(entry.estimate.carYear) : "",
+      vehicleCategory: (entry.estimate?.input.vehicleCategory === "n1g"
+        ? "n1g"
+        : "m1") as VehicleCategory,
+      engine: (entry.estimate?.input.engine === "diesel" ||
+      entry.estimate?.input.engine === "electric"
+        ? entry.estimate.input.engine
+        : "petrol") as EngineType,
+      gvwKg: entry.estimate?.input.gvwKg ? String(entry.estimate.input.gvwKg) : "3000",
       chinaExpensesCny: String(entry.estimate?.input.chinaExpensesCny ?? (isChina ? 12000 : 0)),
       cityDeliveryUsd: String(entry.estimate?.input.cityDeliveryUsd ?? 0),
       koreaDocsDeliveryKrw: String(entry.estimate?.input.koreaDocsDeliveryKrw ?? 0),
@@ -113,6 +126,9 @@ export function SearchProcessEntryEstimatePanel({
   const [powerHp, setPowerHp] = useState(initial.powerHp);
   const [volumeCc, setVolumeCc] = useState(initial.volumeCc);
   const [carYear, setCarYear] = useState(initial.carYear);
+  const [vehicleCategory, setVehicleCategory] = useState<VehicleCategory>(initial.vehicleCategory);
+  const [engine, setEngine] = useState<EngineType>(initial.engine);
+  const [gvwKg, setGvwKg] = useState(initial.gvwKg);
   const [chinaExpensesCny, setChinaExpensesCny] = useState(initial.chinaExpensesCny);
   const [cityDeliveryUsd, setCityDeliveryUsd] = useState(initial.cityDeliveryUsd);
   const [koreaDocsDeliveryKrw, setKoreaDocsDeliveryKrw] = useState(initial.koreaDocsDeliveryKrw);
@@ -133,6 +149,9 @@ export function SearchProcessEntryEstimatePanel({
     initial.powerHp,
     initial.volumeCc,
     initial.carYear,
+    initial.vehicleCategory,
+    initial.engine,
+    initial.gvwKg,
     initial.chinaExpensesCny,
     initial.cityDeliveryUsd,
     initial.koreaDocsDeliveryKrw,
@@ -151,6 +170,9 @@ export function SearchProcessEntryEstimatePanel({
     setPowerHp(initial.powerHp);
     setVolumeCc(initial.volumeCc);
     setCarYear(initial.carYear);
+    setVehicleCategory(initial.vehicleCategory);
+    setEngine(initial.engine);
+    setGvwKg(initial.gvwKg);
     setChinaExpensesCny(initial.chinaExpensesCny);
     setCityDeliveryUsd(initial.cityDeliveryUsd);
     setKoreaDocsDeliveryKrw(initial.koreaDocsDeliveryKrw);
@@ -173,6 +195,14 @@ export function SearchProcessEntryEstimatePanel({
     setPowerHp(String(previousEntry.estimate.powerHp));
     setVolumeCc(String(previousEntry.estimate.volumeCc));
     setCarYear(String(previousEntry.estimate.carYear));
+    setVehicleCategory(previousEntry.estimate.input.vehicleCategory === "n1g" ? "n1g" : "m1");
+    setEngine(
+      previousEntry.estimate.input.engine === "diesel" ||
+        previousEntry.estimate.input.engine === "electric"
+        ? previousEntry.estimate.input.engine
+        : "petrol",
+    );
+    setGvwKg(String(previousEntry.estimate.input.gvwKg ?? 3000));
     setChinaExpensesCny(String(previousEntry.estimate.input.chinaExpensesCny ?? 0));
     setCityDeliveryUsd(String(previousEntry.estimate.input.cityDeliveryUsd ?? 0));
     setKoreaDocsDeliveryKrw(String(previousEntry.estimate.input.koreaDocsDeliveryKrw ?? 0));
@@ -192,6 +222,9 @@ export function SearchProcessEntryEstimatePanel({
       powerHp: Number(powerHp),
       volumeCc: Number(volumeCc),
       carYear: Number(carYear),
+      vehicleCategory,
+      engine,
+      gvwKg: vehicleCategory === "n1g" ? parseAmount(gvwKg) : undefined,
       chinaExpensesCny: parseAmount(chinaExpensesCny),
       cityDeliveryUsd: parseAmount(cityDeliveryUsd),
       koreaDocsDeliveryKrw: parseAmount(koreaDocsDeliveryKrw),
@@ -306,12 +339,55 @@ export function SearchProcessEntryEstimatePanel({
           <DialogHeader>
             <DialogTitle>{entry.estimate ? "Изменить расчёт варианта" : "Расчёт варианта"}</DialogTitle>
             <DialogDescription>
-              Менеджер задаёт цену, объём, лошадиные силы, год и при необходимости меняет услуги вручную.
+              Менеджер задаёт категорию, цену, объём, мощность, год и при необходимости меняет услуги
+              вручную.
             </DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Категория ТС</Label>
+                <Select
+                  value={vehicleCategory}
+                  onValueChange={(value) => setVehicleCategory(value as VehicleCategory)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="m1">M1 — легковой</SelectItem>
+                    <SelectItem value="n1g">N1G — пикап</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              {vehicleCategory === "n1g" && (
+                <>
+                  <div className="space-y-2">
+                    <Label>Двигатель</Label>
+                    <Select value={engine} onValueChange={(value) => setEngine(value as EngineType)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="petrol">Бензин</SelectItem>
+                        <SelectItem value="diesel">Дизель</SelectItem>
+                        <SelectItem value="electric">Электро</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor={`variant-gvw-${entry.id}`}>Полная масса, кг</Label>
+                    <Input
+                      id={`variant-gvw-${entry.id}`}
+                      inputMode="numeric"
+                      value={gvwKg}
+                      onChange={(event) => setGvwKg(event.target.value)}
+                      placeholder={`До ${N1G_MAX_GVW_KG}`}
+                    />
+                  </div>
+                </>
+              )}
               <div className="space-y-2">
                 <Label htmlFor={`variant-price-${entry.id}`}>Стоимость авто</Label>
                 <Input

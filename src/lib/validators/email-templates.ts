@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { EMAIL_TEMPLATE_PLACEHOLDERS } from "@/lib/email/templates";
+import { EMAIL_TEMPLATE_PLACEHOLDERS } from "@/lib/email/placeholders";
 
 const templateKeys = Object.keys(EMAIL_TEMPLATE_PLACEHOLDERS) as [
   keyof typeof EMAIL_TEMPLATE_PLACEHOLDERS,

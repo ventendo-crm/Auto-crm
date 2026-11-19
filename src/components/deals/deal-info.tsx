@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DealExportCountryLabel } from "@/components/deals/deal-export-country-label";
 import { EditDealDialog } from "@/components/deals/edit-deal-dialog";
 import { Input } from "@/components/ui/input";
-import { formatDealManagersLabel } from "@/lib/deal-managers";
+import { formatDealManagersLabel } from "@/lib/deal-manager-list";
 import { api } from "@/lib/api-client";
 import { enabledCustomDealFields, parseCustomFieldValues } from "@/lib/company-workspace/helpers";
 import { DealDetail } from "@/lib/types";

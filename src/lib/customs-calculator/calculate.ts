@@ -18,19 +18,32 @@ import {
   isKyrgyzstanOrigin,
   isYoungerThan3,
   KAZAKHSTAN_DELIVERY_USD,
+  N1G_MAX_GVW_KG,
+  N1G_RECYCLING_COEFFS,
   OriginCountry,
   PREFERENTIAL_MAX_HP_EV,
   PREFERENTIAL_MAX_HP_ICE,
   PREFERENTIAL_MAX_VOLUME_CC,
+  RECYCLING_BASE_COMMERCIAL,
   RECYCLING_BASE_PASSENGER,
   VAT_RATE,
+  VehicleCategory,
 } from "@/lib/customs-calculator/rates";
+
+export type RecyclingFeeYear = "2026" | "2027";
 
 export interface CustomsCalculatorInput {
   originCountry?: OriginCountry;
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
+  /**
+   * Категория ТС по ТР ТС 018/2011. Без поля и при «m1» — легковой.
+   * «n1g» — пикап (грузовой до 3,5 т повышенной проходимости).
+   */
+  vehicleCategory?: VehicleCategory;
+  /** Полная масса, кг. Нужна для утильсбора N1G. */
+  gvwKg?: number;
   powerHp: number;
   volumeCc: number;
   price: number;
@@ -66,6 +79,11 @@ export interface CustomsCalculatorInput {
    */
   kyrgyzstanCustomsCleared?: boolean;
   /**
+   * Год коэффициентов утильсбора. Без поля и при «2026» — действующие ставки 2026 года.
+   * «2027» — графа 2027 перечня к ПП РФ № 1291 (ред. ПП № 1713). Льгота физлица не меняется.
+   */
+  recyclingFeeYear?: RecyclingFeeYear;
+  /**
    * Дополнительные расходы компании (шаблон калькулятора).
    * Конвертируются в ₽ и прибавляются к итогу.
    */
@@ -79,6 +97,7 @@ export interface CustomsCalculatorInput {
 
 export interface CustomsCalculatorResult {
   originCountry: OriginCountry;
+  vehicleCategory: VehicleCategory;
   priceRub: number;
   priceEur: number;
   /** Таможенная (каталожная) стоимость в ₽, если задана и применена для new. */
@@ -255,7 +274,46 @@ function legalDieselDuty(
   return { duty, note: `20%, но не менее ${min} €/см³` };
 }
 
+function n1gDuty(input: {
+  age: CarAge;
+  engine: EngineType;
+  volumeCc: number;
+  priceRub: number;
+  eurRate: number;
+}): { duty: number; note: string } {
+  const { age, engine, volumeCc, priceRub, eurRate } = input;
+
+  if (engine === "electric") {
+    return { duty: priceRub * 0.15, note: "15% от стоимости" };
+  }
+
+  if (age === "over7") {
+    return { duty: volumeCc * 1 * eurRate, note: "1 €/см³" };
+  }
+
+  if (engine === "diesel") {
+    if (age === "from5to7" && volumeCc <= 2500) {
+      const byPercent = priceRub * 0.1;
+      const minEuro = volumeCc * 0.13 * eurRate;
+      const duty = Math.max(byPercent, minEuro);
+      return {
+        duty,
+        note: duty > byPercent ? "10%, но не менее 0,13 €/см³" : "10%",
+      };
+    }
+    return { duty: priceRub * 0.1, note: "10%" };
+  }
+
+  if (isYoungerThan3(age)) {
+    const percent = volumeCc <= 2800 ? 12.5 : 15;
+    return { duty: priceRub * (percent / 100), note: `${percent}%` };
+  }
+
+  return { duty: priceRub * 0.15, note: "15%" };
+}
+
 function calcCustomsDuty(input: {
+  vehicleCategory: VehicleCategory;
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
@@ -264,7 +322,11 @@ function calcCustomsDuty(input: {
   priceEur: number;
   eurRate: number;
 }): { duty: number; note: string } {
-  const { importer, age, engine, volumeCc, priceRub, priceEur, eurRate } = input;
+  const { vehicleCategory, importer, age, engine, volumeCc, priceRub, priceEur, eurRate } = input;
+
+  if (vehicleCategory === "n1g") {
+    return n1gDuty({ age, engine, volumeCc, priceRub, eurRate });
+  }
 
   if (engine === "electric") {
     return { duty: priceRub * 0.15, note: "15% от стоимости" };
@@ -287,13 +349,172 @@ function calcCustomsDuty(input: {
 }
 
 type PowerVolumeCell = number;
+type IceCoeffRow = { maxKw: number; coeffs: [PowerVolumeCell, PowerVolumeCell][] };
 
-function pickCommercialIceCoeff(powerKw: number, volumeCc: number, young: boolean): number {
-  // volume columns: <=1000, 1001-2000, 2001-3000, 3001-3500, >3500 — each young/old
-  const volumeIndex =
-    volumeCc <= 1000 ? 0 : volumeCc <= 2000 ? 1 : volumeCc <= 3000 ? 2 : volumeCc <= 3500 ? 3 : 4;
+/** Коммерческий УС 2027, база 20 000 ₽. Суммы из графы «2027» ПП № 1291 (ред. № 1713). */
+const COMMERCIAL_ICE_ROWS_2027: IceCoeffRow[] = [
+  {
+    maxKw: 117.68,
+    coeffs: [
+      [16.37, 30.36],
+      [44.04, 77.48],
+      [123.78, 187.4],
+      [142.12, 217.59],
+      [180.99, 237.92],
+    ],
+  },
+  {
+    maxKw: 139.75,
+    coeffs: [
+      [16.9, 31.27],
+      [49.5, 82.1],
+      [126.87, 190.08],
+      [144.94, 220.04],
+      [184.01, 241.43],
+    ],
+  },
+  {
+    maxKw: 161.81,
+    coeffs: [
+      [17.42, 32.21],
+      [52.4, 87.12],
+      [130.02, 192.59],
+      [147.84, 222.42],
+      [187.18, 245.12],
+    ],
+  },
+  {
+    maxKw: 183.88,
+    coeffs: [
+      [17.82, 33.13],
+      [55.57, 92.27],
+      [132.13, 195.36],
+      [150.88, 224.8],
+      [190.34, 248.82],
+    ],
+  },
+  {
+    maxKw: 205.94,
+    coeffs: [
+      [19.01, 33.13],
+      [62.83, 101.11],
+      [138.6, 201.3],
+      [154.57, 227.96],
+      [194.17, 254.5],
+    ],
+  },
+  {
+    maxKw: 228,
+    coeffs: [
+      [19.01, 33.13],
+      [71.02, 110.62],
+      [144.14, 207.37],
+      [158.4, 233.64],
+      [198, 260.3],
+    ],
+  },
+  {
+    maxKw: 250.07,
+    coeffs: [
+      [19.01, 33.13],
+      [80.26, 121.18],
+      [149.95, 213.05],
+      [167.11, 239.58],
+      [205, 274.56],
+    ],
+  },
+  {
+    maxKw: 272.13,
+    coeffs: [
+      [19.01, 33.13],
+      [91.48, 132.66],
+      [155.89, 218.99],
+      [176.35, 246.71],
+      [212.16, 289.74],
+    ],
+  },
+  {
+    maxKw: 294.2,
+    coeffs: [
+      [19.01, 33.13],
+      [104.28, 145.2],
+      [162.23, 225.19],
+      [186.12, 254.1],
+      [219.65, 305.71],
+    ],
+  },
+  {
+    maxKw: 316.26,
+    coeffs: [
+      [19.01, 33.13],
+      [118.8, 159.06],
+      [168.7, 231.53],
+      [196.28, 261.76],
+      [227.3, 322.48],
+    ],
+  },
+  {
+    maxKw: 338.33,
+    coeffs: [
+      [19.01, 33.13],
+      [135.56, 174.24],
+      [175.43, 238],
+      [207.11, 269.54],
+      [235.22, 340.3],
+    ],
+  },
+  {
+    maxKw: 367.75,
+    coeffs: [
+      [19.01, 33.13],
+      [154.44, 190.74],
+      [182.42, 244.6],
+      [218.46, 277.73],
+      [243.41, 359.04],
+    ],
+  },
+  {
+    maxKw: Infinity,
+    coeffs: [
+      [19.01, 33.13],
+      [176.09, 208.82],
+      [189.68, 251.46],
+      [230.47, 286.04],
+      [251.99, 378.71],
+    ],
+  },
+];
 
-  const rows: Array<{ maxKw: number; coeffs: [PowerVolumeCell, PowerVolumeCell][] }> = [
+const COMMERCIAL_EV_ROWS_2027: Array<{ maxKw: number; young: number; old: number }> = [
+  { maxKw: 58.84, young: 44.05, old: 77.48 },
+  { maxKw: 73.55, young: 54.52, old: 90.29 },
+  { maxKw: 95.61, young: 72.47, old: 105.2 },
+  { maxKw: 117.68, young: 85.8, old: 122.5 },
+  { maxKw: 139.75, young: 101.64, old: 142.69 },
+  { maxKw: 161.81, young: 120.65, old: 166.32 },
+  { maxKw: 183.88, young: 142.96, old: 193.78 },
+  { maxKw: 205.94, young: 169.36, old: 225.72 },
+  { maxKw: Infinity, young: 200.64, old: 262.94 },
+];
+
+function iceVolumeIndex(volumeCc: number): number {
+  return volumeCc <= 1000 ? 0 : volumeCc <= 2000 ? 1 : volumeCc <= 3000 ? 2 : volumeCc <= 3500 ? 3 : 4;
+}
+
+function pickCommercialIceCoeff(
+  powerKw: number,
+  volumeCc: number,
+  young: boolean,
+  year: RecyclingFeeYear = "2026",
+): number {
+  if (year === "2027") {
+    const row = COMMERCIAL_ICE_ROWS_2027.find((item) => powerKw <= item.maxKw)!;
+    const pair = row.coeffs[iceVolumeIndex(volumeCc)];
+    return young ? pair[0] : pair[1];
+  }
+  const volumeIndex = iceVolumeIndex(volumeCc);
+
+  const rows: IceCoeffRow[] = [
     {
       maxKw: 117.68,
       coeffs: [
@@ -432,8 +653,15 @@ function pickCommercialIceCoeff(powerKw: number, volumeCc: number, young: boolea
   return young ? pair[0] : pair[1];
 }
 
-function pickCommercialEvCoeff(powerKw: number, young: boolean): number {
-  const rows: Array<{ maxKw: number; young: number; old: number }> = [
+function pickCommercialEvCoeff(
+  powerKw: number,
+  young: boolean,
+  year: RecyclingFeeYear = "2026",
+): number {
+  const rows =
+    year === "2027"
+      ? COMMERCIAL_EV_ROWS_2027
+      : ([
     { maxKw: 58.84, young: 40.04, old: 70.44 },
     { maxKw: 73.55, young: 49.56, old: 82.08 },
     { maxKw: 95.61, young: 65.88, old: 95.64 },
@@ -443,22 +671,46 @@ function pickCommercialEvCoeff(powerKw: number, young: boolean): number {
     { maxKw: 183.88, young: 129.96, old: 176.16 },
     { maxKw: 205.94, young: 153.96, old: 205.2 },
     { maxKw: Infinity, young: 182.4, old: 239.04 },
-  ];
+  ] as const);
   const row = rows.find((item) => powerKw <= item.maxKw)!;
   return young ? row.young : row.old;
 }
 
+function calcN1gRecyclingFee(input: {
+  age: CarAge;
+  gvwKg: number;
+  year: RecyclingFeeYear;
+}): { fee: number; note: string } {
+  const { age, gvwKg, year } = input;
+  const young = isYoungerThan3(age);
+  const bands = N1G_RECYCLING_COEFFS[year];
+  const band = bands.find((item) => gvwKg <= item.maxKg) ?? bands[bands.length - 1];
+  const coeff = young ? band.young : band.old;
+  const massLabel = band.maxKg <= 2500 ? "до 2,5 т" : "2,5–3,5 т";
+  return {
+    fee: RECYCLING_BASE_COMMERCIAL * coeff,
+    note: `УС N1G ${year}, ${massLabel}: ${RECYCLING_BASE_COMMERCIAL.toLocaleString("ru-RU")} × ${coeff}`,
+  };
+}
+
 function calcRecyclingFee(input: {
+  vehicleCategory: VehicleCategory;
   importer: ImporterType;
   age: CarAge;
   engine: EngineType;
   powerHp: number;
   volumeCc: number;
+  gvwKg?: number;
+  year: RecyclingFeeYear;
 }): { fee: number; note: string } {
-  const { importer, age, engine, powerHp, volumeCc } = input;
+  const { vehicleCategory, importer, age, engine, powerHp, volumeCc, gvwKg, year } = input;
   const powerKw = hpToKw(powerHp);
   const young = isYoungerThan3(age);
   const personal = importer === "personal";
+
+  if (vehicleCategory === "n1g") {
+    return calcN1gRecyclingFee({ age, gvwKg: gvwKg as number, year });
+  }
 
   // Льготный УС для физлица (личное пользование): база 20 000 × 0.17/0.26.
   // Условия: ДВС ≤160 л.с. и ≤3000 см³, либо электро ≤80 л.с. (30-мин. мощность).
@@ -468,14 +720,14 @@ function calcRecyclingFee(input: {
         const k = young ? 0.17 : 0.26;
         return {
           fee: RECYCLING_BASE_PASSENGER * k,
-          note: `Льготный УС: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${k}`,
+          note: `Льготный УС ${year}: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${k}`,
         };
       }
     } else if (volumeCc <= PREFERENTIAL_MAX_VOLUME_CC && powerHp <= PREFERENTIAL_MAX_HP_ICE) {
       const k = young ? 0.17 : 0.26;
       return {
         fee: RECYCLING_BASE_PASSENGER * k,
-        note: `Льготный УС: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${k}`,
+        note: `Льготный УС ${year}: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${k}`,
       };
     }
   }
@@ -484,12 +736,12 @@ function calcRecyclingFee(input: {
   // база тоже 20 000 руб. (150 000 — для грузовых/автобусов, не для M1).
   const coeff =
     engine === "electric"
-      ? pickCommercialEvCoeff(powerKw, young)
-      : pickCommercialIceCoeff(powerKw, volumeCc, young);
+      ? pickCommercialEvCoeff(powerKw, young, year)
+      : pickCommercialIceCoeff(powerKw, volumeCc, young, year);
 
   return {
     fee: RECYCLING_BASE_PASSENGER * coeff,
-    note: `Коммерческий УС: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${coeff}`,
+    note: `Коммерческий УС ${year}: ${RECYCLING_BASE_PASSENGER.toLocaleString("ru-RU")} × ${coeff}`,
   };
 }
 
@@ -504,6 +756,15 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   }
 
   if (input.engine !== "electric" && (!Number.isFinite(input.volumeCc) || input.volumeCc <= 0)) {
+    return null;
+  }
+
+  const vehicleCategory: VehicleCategory = input.vehicleCategory === "n1g" ? "n1g" : "m1";
+  const gvwKg = Number(input.gvwKg);
+  if (
+    vehicleCategory === "n1g" &&
+    (!Number.isFinite(gvwKg) || gvwKg <= 0 || gvwKg > N1G_MAX_GVW_KG)
+  ) {
     return null;
   }
 
@@ -530,6 +791,7 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const dutyResult = skipCustomsDuty
     ? { duty: 0, note: "" }
     : calcCustomsDuty({
+        vehicleCategory,
         importer: input.importer,
         age: input.age,
         engine: input.engine,
@@ -541,21 +803,23 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
   const customsDuty = dutyResult.duty;
   const customsDutyNote = dutyResult.note;
 
-  const paysExciseAndVatIce = input.importer === "legal";
-  const paysExciseAndVatEv = true;
-  const paysExciseAndVat =
+  const isN1g = vehicleCategory === "n1g";
+  const paysVat =
     !isKyrgyzstan &&
-    (input.engine === "electric" ? paysExciseAndVatEv : paysExciseAndVatIce);
+    (isN1g || input.engine === "electric" || input.importer === "legal");
+  const excise = !isN1g && paysVat ? calcExcise(input.powerHp) : 0;
+  const vat = paysVat ? (customsBaseRub + customsDuty + excise) * VAT_RATE : 0;
 
-  const excise = paysExciseAndVat ? calcExcise(input.powerHp) : 0;
-  const vat = paysExciseAndVat ? (customsBaseRub + customsDuty + excise) * VAT_RATE : 0;
-
+  const recyclingFeeYear: RecyclingFeeYear = input.recyclingFeeYear === "2027" ? "2027" : "2026";
   const { fee: recyclingFee, note: recyclingNote } = calcRecyclingFee({
+    vehicleCategory,
     importer: input.importer,
     age: input.age,
     engine: input.engine,
     powerHp: input.powerHp,
     volumeCc: input.engine === "electric" ? 0 : input.volumeCc,
+    gvwKg: isN1g ? gvwKg : undefined,
+    year: recyclingFeeYear,
   });
 
   const totalCustoms = isKyrgyzstan
@@ -652,6 +916,7 @@ export function calculateCustoms(input: CustomsCalculatorInput): CustomsCalculat
 
   return {
     originCountry,
+    vehicleCategory,
     priceRub: roundMoney(priceRub),
     priceEur: roundMoney(priceEur),
     customsPriceRub: customsPriceRub != null ? roundMoney(customsPriceRub) : null,

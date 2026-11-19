@@ -17,6 +17,7 @@ export interface User {
   name: string;
   email: string;
   telegramChatId?: string | null;
+  maxUserId?: string | null;
   createdAt: string;
   companyId?: string;
   isPlatformAdmin?: boolean;
@@ -50,6 +51,17 @@ export interface CompanyListItem {
   _count: { users: number; deals: number };
 }
 
+export interface DealStageReminderSettings {
+  enabled: boolean;
+  intervalDays: number;
+  sendTime: string;
+  timeZone: string;
+  nextAt: string | null;
+  activeOnStage: boolean;
+  managersMissingTelegram: Array<{ id: string; name: string }>;
+  hasManager: boolean;
+}
+
 export interface CompanyTelegramBotSettings {
   companyId: string;
   companyName: string;
@@ -59,6 +71,19 @@ export interface CompanyTelegramBotSettings {
   botUsername: string | null;
   botName: string | null;
   defaultChatId: string | null;
+  connectedAt: string | null;
+  hasToken: boolean;
+  tokenMasked: string | null;
+}
+
+export interface CompanyMaxBotSettings {
+  companyId: string;
+  companyName: string;
+  companySlug: string;
+  connected: boolean;
+  botId: string | null;
+  botUsername: string | null;
+  botName: string | null;
   connectedAt: string | null;
   hasToken: boolean;
   tokenMasked: string | null;
@@ -228,6 +253,7 @@ export interface DealDetail extends DealListItem {
     email: string;
     createdAt: string;
     telegramChatId?: string | null;
+    maxUserId?: string | null;
   } | null;
   documents: DocumentItem[];
   shipment?: Shipment | null;

@@ -51,6 +51,7 @@ export interface ResolvedCompanyWorkspace {
   customDealFields: CustomDealField[];
   documentTypes: CompanyDocumentType[];
   additionalOptionGroups: AdditionalOptionGroupDefinition[];
+  offerEquipmentGroups: AdditionalOptionGroupDefinition[];
   modules: CompanyModules;
   offerLinkCaptionTemplate: string;
 }

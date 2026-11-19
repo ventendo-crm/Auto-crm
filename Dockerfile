@@ -20,9 +20,22 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
+# С Timeweb binaries.prisma.sh часто рвёт TLS; тот же прокси, что и для Telegram.
+ARG HTTP_PROXY=""
+ARG HTTPS_PROXY=""
 
 RUN mkdir -p public
-RUN npx prisma generate
+RUN export HTTP_PROXY="${HTTP_PROXY}" HTTPS_PROXY="${HTTPS_PROXY}" \
+  && i=1 \
+  && until npx prisma generate; do \
+       if [ "$i" -ge 6 ]; then \
+         echo "prisma generate failed after ${i} attempts (binaries.prisma.sh / TLS). Retry: bash deploy/scripts/deploy.sh"; \
+         exit 1; \
+       fi; \
+       echo "prisma generate failed (attempt $i), retry in $((i * 8))s..."; \
+       sleep $((i * 8)); \
+       i=$((i + 1)); \
+     done
 RUN npm run build
 
 # ─── Production runner ────────────────────────────────────────────────────────

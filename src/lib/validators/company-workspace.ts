@@ -56,6 +56,7 @@ export const companyWorkspacePutSchema = z.object({
   customDealFields: z.array(customDealFieldSchema).max(30).optional(),
   documentTypes: z.array(documentTypeSchema).max(40).optional(),
   additionalOptionGroups: z.array(additionalOptionGroupSchema).max(20).optional(),
+  offerEquipmentGroups: z.array(additionalOptionGroupSchema).max(20).optional(),
   modules: z
     .object({
       catalog: z.boolean(),

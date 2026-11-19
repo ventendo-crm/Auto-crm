@@ -1,3 +1,6 @@
+import { formatOfferEquipmentLines } from "@/lib/calculator/offer-equipment";
+import { formatOfferMileageKm } from "@/lib/calculator/offer-share";
+
 export function downloadBlob(filename: string, dataUrl: string) {
   const link = document.createElement("a");
   link.download = filename;
@@ -129,7 +132,9 @@ export async function saveResultAsPdf(element: HTMLElement) {
 
 export function buildOfferShareText(input: {
   vehicleTitle?: string;
+  mileageKm?: number | null;
   description: string;
+  equipment?: Array<{ label: string }> | null;
   sourceUrl: string;
   totalLabel?: string | null;
 }) {
@@ -137,7 +142,11 @@ export function buildOfferShareText(input: {
   const vehicleTitle = input.vehicleTitle?.trim() ?? "";
   const description = input.description.trim();
   const sourceUrl = input.sourceUrl.trim();
+  const equipmentText = formatOfferEquipmentLines(input.equipment);
+  const mileageLabel = formatOfferMileageKm(input.mileageKm);
   if (vehicleTitle) parts.push(vehicleTitle);
+  if (mileageLabel) parts.push(mileageLabel);
+  if (equipmentText) parts.push(equipmentText);
   if (description) parts.push(description);
   if (sourceUrl) parts.push(sourceUrl);
   if (input.totalLabel) parts.push(`Итого: ${input.totalLabel}`);

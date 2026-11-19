@@ -133,11 +133,17 @@ async function buildCalculatorInput(entryId: string, body: UpsertInput): Promise
     settings.customOrigins,
   );
 
+  const vehicleCategory = body.vehicleCategory === "n1g" ? "n1g" : "m1";
+  const engine =
+    body.engine === "diesel" || body.engine === "electric" ? body.engine : "petrol";
+
   return {
     originCountry,
     importer: "personal",
     age,
-    engine: "petrol",
+    engine,
+    vehicleCategory,
+    gvwKg: vehicleCategory === "n1g" ? body.gvwKg : undefined,
     powerHp: body.powerHp,
     volumeCc: body.volumeCc,
     price: body.price,

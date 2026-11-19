@@ -5,7 +5,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { Calendar, GripVertical, Loader2, User, UserCheck } from "lucide-react";
 import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
-import { formatDealManagersLabel, getDealManagers } from "@/lib/deal-managers";
+import { formatDealManagersLabel, getDealManagers } from "@/lib/deal-manager-list";
 import { isDealOverdue } from "@/lib/deal-overdue";
 import { useIsAndroidWebView } from "@/hooks/use-is-android-webview";
 import { STAGE_LEFT_BORDER } from "@/lib/constants";

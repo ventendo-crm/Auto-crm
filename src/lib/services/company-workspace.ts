@@ -54,6 +54,7 @@ export async function ensureCompanyWorkspaceSettings(
       customDealFields: toJson(resolved.customDealFields),
       documentTypes: toJson(resolved.documentTypes),
       additionalOptionGroups: toJson(resolved.additionalOptionGroups),
+      offerEquipmentGroups: toJson(resolved.offerEquipmentGroups),
       modules: toJson(resolved.modules),
       offerLinkCaptionTemplate: resolved.offerLinkCaptionTemplate,
     },
@@ -130,6 +131,7 @@ export async function saveCompanyWorkspaceSettings(
     customDealFields: input.customDealFields ?? current.customDealFields,
     documentTypes: input.documentTypes ?? current.documentTypes,
     additionalOptionGroups: input.additionalOptionGroups ?? current.additionalOptionGroups,
+    offerEquipmentGroups: input.offerEquipmentGroups ?? current.offerEquipmentGroups,
     modules: { ...current.modules, ...input.modules },
     offerLinkCaptionTemplate: input.offerLinkCaptionTemplate ?? current.offerLinkCaptionTemplate,
   });
@@ -144,6 +146,7 @@ export async function saveCompanyWorkspaceSettings(
       customDealFields: toJson(resolved.customDealFields),
       documentTypes: toJson(resolved.documentTypes),
       additionalOptionGroups: toJson(resolved.additionalOptionGroups),
+      offerEquipmentGroups: toJson(resolved.offerEquipmentGroups),
       modules: toJson(resolved.modules),
       offerLinkCaptionTemplate: resolved.offerLinkCaptionTemplate,
     },
