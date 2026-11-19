@@ -336,8 +336,8 @@ export function CompanyWorkspacePanel() {
             Пример: {buildOfferLinkCaption("Toyota Camry", form.offerLinkCaptionTemplate)}
           </p>
           <p className="text-xs text-muted-foreground">
-            До {OFFER_LINK_CAPTION_TEMPLATE_MAX} символов. Действует для ссылки с компьютера и кнопки
-            «Создать ссылку» на телефоне.
+            До {OFFER_LINK_CAPTION_TEMPLATE_MAX} символов. Действует, когда «Поделиться» создаёт ссылку
+            (компьютер, несколько авто или если системная отправка файлов недоступна).
           </p>
         </CardContent>
       </Card>
