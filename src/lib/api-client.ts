@@ -296,6 +296,13 @@ export const api = {
           telegramChatId: string | null;
           expiresAt: string;
         } | null;
+        maxInvite: {
+          inviteUrl: string;
+          botUsername: string;
+          maxLinked: boolean;
+          maxUserId: string | null;
+          expiresAt: string;
+        } | null;
       }>(`/api/deals/${dealId}/client-account`, {
         method: "POST",
         body: JSON.stringify(data),
@@ -316,6 +323,24 @@ export const api = {
         telegramChatId: string | null;
         expiresAt: string;
       }>(`/api/deals/${dealId}/client-account/telegram-invite`, {
+        method: "POST",
+      }),
+    getMaxInvite: (dealId: string) =>
+      request<{
+        inviteUrl: string;
+        botUsername: string;
+        maxLinked: boolean;
+        maxUserId: string | null;
+        expiresAt: string;
+      }>(`/api/deals/${dealId}/client-account/max-invite`),
+    refreshMaxInvite: (dealId: string) =>
+      request<{
+        inviteUrl: string;
+        botUsername: string;
+        maxLinked: boolean;
+        maxUserId: string | null;
+        expiresAt: string;
+      }>(`/api/deals/${dealId}/client-account/max-invite`, {
         method: "POST",
       }),
     unlinkClientAccount: async (dealId: string) => {

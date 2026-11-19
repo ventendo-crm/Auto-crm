@@ -53,7 +53,7 @@ const dealDetailInclude = {
   },
   ...dealManagersInclude,
   clientUser: {
-    select: { id: true, name: true, email: true, createdAt: true, telegramChatId: true },
+    select: { id: true, name: true, email: true, createdAt: true, telegramChatId: true, maxUserId: true },
   },
   documents: true,
   shipment: true,

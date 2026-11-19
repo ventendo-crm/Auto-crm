@@ -20,6 +20,7 @@ const clientUserSelect = {
   email: true,
   createdAt: true,
   telegramChatId: true,
+  maxUserId: true,
 } as const;
 
 const TELEGRAM_LINK_TTL_MS = 1000 * 60 * 60 * 24 * 30; // 30 дней
@@ -31,6 +32,11 @@ export function createTelegramLinkToken(): string {
 export function buildTelegramInviteUrl(botUsername: string, linkToken: string): string {
   const username = botUsername.replace(/^@/, "").trim();
   return `https://t.me/${username}?start=link_${linkToken}`;
+}
+
+export function buildMaxInviteUrl(botUsername: string, linkToken: string): string {
+  const username = botUsername.replace(/^@/, "").trim();
+  return `https://max.ru/${username}?start=link_${linkToken}`;
 }
 
 export async function issueTelegramLinkToken(userId: string): Promise<{
@@ -139,6 +145,162 @@ export async function getClientTelegramInvite(params: {
     telegramChatId,
     expiresAt: issued.expiresAt.toISOString(),
   };
+}
+
+export async function getClientMaxInvite(params: {
+  dealId: string;
+  companyId: string;
+  refresh?: boolean;
+}): Promise<{
+  inviteUrl: string;
+  botUsername: string;
+  maxLinked: boolean;
+  maxUserId: string | null;
+  expiresAt: string;
+}> {
+  const deal = await prisma.deal.findFirst({
+    where: { id: params.dealId, companyId: params.companyId },
+    select: {
+      clientUserId: true,
+      clientUser: {
+        select: {
+          id: true,
+          maxUserId: true,
+          telegramLinkToken: true,
+          telegramLinkTokenExpiresAt: true,
+        },
+      },
+      company: {
+        select: {
+          maxBotUsername: true,
+          maxBotToken: true,
+        },
+      },
+    },
+  });
+
+  if (!deal?.clientUserId || !deal.clientUser) {
+    throw new Error("CLIENT_NOT_LINKED");
+  }
+
+  const botUsername = deal.company.maxBotUsername?.trim();
+  if (!botUsername || !deal.company.maxBotToken) {
+    throw new Error("MAX_BOT_NOT_CONNECTED");
+  }
+
+  const maxUserId = deal.clientUser.maxUserId?.trim() || null;
+  const maxLinked = Boolean(maxUserId);
+
+  if (maxLinked && !params.refresh) {
+    const existingToken = deal.clientUser.telegramLinkToken;
+    const existingExpiry = deal.clientUser.telegramLinkTokenExpiresAt;
+    if (existingToken && existingExpiry && existingExpiry > new Date()) {
+      return {
+        inviteUrl: buildMaxInviteUrl(botUsername, existingToken),
+        botUsername,
+        maxLinked: true,
+        maxUserId,
+        expiresAt: existingExpiry.toISOString(),
+      };
+    }
+
+    return {
+      inviteUrl: "",
+      botUsername,
+      maxLinked: true,
+      maxUserId,
+      expiresAt: new Date().toISOString(),
+    };
+  }
+
+  const now = new Date();
+  const tokenValid =
+    Boolean(deal.clientUser.telegramLinkToken) &&
+    deal.clientUser.telegramLinkTokenExpiresAt &&
+    deal.clientUser.telegramLinkTokenExpiresAt > now;
+
+  const issued =
+    params.refresh || !tokenValid
+      ? await issueTelegramLinkToken(deal.clientUser.id)
+      : {
+          token: deal.clientUser.telegramLinkToken!,
+          expiresAt: deal.clientUser.telegramLinkTokenExpiresAt!,
+        };
+
+  return {
+    inviteUrl: buildMaxInviteUrl(botUsername, issued.token),
+    botUsername,
+    maxLinked,
+    maxUserId,
+    expiresAt: issued.expiresAt.toISOString(),
+  };
+}
+
+export type ClientInviteLinkResult =
+  | { ok: true; name: string; already: boolean }
+  | { ok: false; reason: "empty" | "invalid" | "expired" };
+
+export async function linkClientByInviteToken(params: {
+  companyId: string;
+  linkToken: string;
+  messenger: "telegram" | "max";
+  messengerUserId: string;
+}): Promise<ClientInviteLinkResult> {
+  const linkToken = params.linkToken.trim();
+  if (!linkToken) {
+    return { ok: false, reason: "empty" };
+  }
+
+  const user = await prisma.user.findFirst({
+    where: {
+      companyId: params.companyId,
+      telegramLinkToken: linkToken,
+    },
+    select: {
+      id: true,
+      name: true,
+      telegramChatId: true,
+      maxUserId: true,
+      telegramLinkTokenExpiresAt: true,
+    },
+  });
+
+  if (!user) {
+    const alreadyLinked = await prisma.user.findFirst({
+      where:
+        params.messenger === "telegram"
+          ? { companyId: params.companyId, telegramChatId: params.messengerUserId }
+          : { companyId: params.companyId, maxUserId: params.messengerUserId },
+      select: { id: true, name: true },
+    });
+    if (alreadyLinked) {
+      return { ok: true, name: alreadyLinked.name, already: true };
+    }
+    return { ok: false, reason: "invalid" };
+  }
+
+  if (user.telegramLinkTokenExpiresAt && user.telegramLinkTokenExpiresAt < new Date()) {
+    return { ok: false, reason: "expired" };
+  }
+
+  const telegramChatId =
+    params.messenger === "telegram" ? params.messengerUserId : user.telegramChatId;
+  const maxUserId = params.messenger === "max" ? params.messengerUserId : user.maxUserId;
+  const bothLinked = Boolean(telegramChatId?.trim()) && Boolean(maxUserId?.trim());
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      ...(params.messenger === "telegram"
+        ? { telegramChatId: params.messengerUserId }
+        : { maxUserId: params.messengerUserId }),
+      ...(bothLinked
+        ? { telegramLinkToken: null, telegramLinkTokenExpiresAt: null }
+        : {}),
+    },
+  });
+
+  return { ok: true, name: user.name, already: false };
 }
 
 const galleryMediaInclude = {
@@ -439,7 +601,17 @@ export async function createClientAccount(
     telegramInvite = null;
   }
 
-  return { clientUser: user, telegramInvite };
+  let maxInvite: Awaited<ReturnType<typeof getClientMaxInvite>> | null = null;
+  try {
+    maxInvite = await getClientMaxInvite({
+      dealId,
+      companyId: deal.companyId,
+    });
+  } catch {
+    maxInvite = null;
+  }
+
+  return { clientUser: user, telegramInvite, maxInvite };
 }
 
 export async function unlinkClientAccount(actor: AuthUser, dealId: string) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { formatMaxWelcomeMessage, sendMaxMessageWithToken } from "@/lib/max/bot";
+import { linkClientByInviteToken } from "@/lib/services/client-account";
 
 interface MaxUser {
   user_id?: number;
@@ -107,7 +108,27 @@ async function handleUpdate(
 
   if (isStart) {
     if (startPayload.startsWith("link_")) {
-      await send("Ссылка приглашения MAX пока не используется. Отправьте /link ваш@email.com");
+      const result = await linkClientByInviteToken({
+        companyId: company.id,
+        linkToken: startPayload.slice("link_".length),
+        messenger: "max",
+        messengerUserId: userId,
+      });
+      if (!result.ok) {
+        await send(
+          result.reason === "expired"
+            ? "Срок действия ссылки истёк. Попросите менеджера прислать новую."
+            : result.reason === "empty"
+              ? "Ссылка приглашения неполная. Попросите менеджера прислать новую."
+              : "Ссылка приглашения недействительна. Попросите менеджера прислать новую.",
+        );
+        return;
+      }
+      await send(
+        result.already
+          ? `Аккаунт ${result.name} уже привязан к этому MAX.\nУведомления по вашей сделке включены.`
+          : `Аккаунт ${result.name} привязан.\nУведомления по вашей сделке включены.`,
+      );
       return;
     }
     await send(formatMaxWelcomeMessage(userId, company.maxBotName));
@@ -124,6 +145,8 @@ async function handleUpdate(
         "/start — получить ID",
         "/link ваш@email.com — привязать MAX к аккаунту CRM",
         "/help — справка",
+        "",
+        "Клиенту удобнее открыть ссылку-приглашение от менеджера.",
       ].join("\n"),
     );
     return;

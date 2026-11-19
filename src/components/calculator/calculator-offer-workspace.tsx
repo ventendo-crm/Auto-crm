@@ -659,10 +659,6 @@ export function CalculatorOfferWorkspace() {
       toast.error("Сначала создайте ссылку");
       return;
     }
-    if (!user?.maxUserId) {
-      toast.error("Сначала привяжите MAX в Настройки → Профиль");
-      return;
-    }
     setSendingMax(true);
     try {
       await api.calculatorOffers.sendToMax(createdToken);
@@ -978,7 +974,7 @@ export function CalculatorOfferWorkspace() {
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="brand"
                 disabled={sendingMax}
                 onClick={() => void handleSendToMax()}
               >
@@ -987,7 +983,7 @@ export function CalculatorOfferWorkspace() {
                 ) : (
                   <Send className="h-3.5 w-3.5" />
                 )}
-                Отправить в MAX
+                Отправить в МАКС
               </Button>
             </div>
           </div>

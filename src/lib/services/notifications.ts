@@ -361,12 +361,19 @@ async function sendClientDealDocument(params: {
     }),
   ]);
 
+  const maxCaption = [params.caption, "", "Документ доступен в личном кабинете."].join("\n");
+
   if (!client?.telegramChatId?.trim()) {
     console.warn(
       "[notifications] Document Telegram skipped: client has no telegramChatId",
       params.type,
       params.clientUserId,
     );
+    await dispatchMaxToUsers({
+      companyId: params.companyId,
+      userIds: [params.clientUserId],
+      text: maxCaption,
+    });
     return false;
   }
 
@@ -398,9 +405,19 @@ async function sendClientDealDocument(params: {
       result.chatId,
       result.error,
     );
+    await dispatchMaxToUsers({
+      companyId: params.companyId,
+      userIds: [params.clientUserId],
+      text: maxCaption,
+    });
     return false;
   }
 
+  await dispatchMaxToUsers({
+    companyId: params.companyId,
+    userIds: [params.clientUserId],
+    text: maxCaption,
+  });
   return true;
 }
 
@@ -520,6 +537,12 @@ async function notifyClientWithMedia(params: {
       "[notifications] Media Telegram skipped: no telegramChatId",
       params.dealId,
     );
+    await dispatchMessengersToUsers({
+      companyId: deal.companyId,
+      userIds: [deal.clientUserId],
+      text: params.telegramTextBeforeMedia ?? params.caption,
+      includeDefaultChatIds: false,
+    });
     return;
   }
 

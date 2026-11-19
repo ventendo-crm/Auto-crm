@@ -253,6 +253,7 @@ export interface DealDetail extends DealListItem {
     email: string;
     createdAt: string;
     telegramChatId?: string | null;
+    maxUserId?: string | null;
   } | null;
   documents: DocumentItem[];
   shipment?: Shipment | null;
