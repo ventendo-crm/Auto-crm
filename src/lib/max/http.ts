@@ -1,3 +1,7 @@
+import tls from "node:tls";
+import { Agent, fetch as undiciFetch } from "undici";
+import { RUSSIAN_TRUSTED_ROOT_CA_PEM, RUSSIAN_TRUSTED_SUB_CA_PEM } from "@/lib/max/certs";
+
 const MAX_TIMEOUT_MS = 15_000;
 
 function getMaxApiBaseUrl(): string {
@@ -15,6 +19,13 @@ function buildMaxUrl(path: string, query?: Record<string, string | number | unde
   }
   return url.toString();
 }
+
+const maxAgent = new Agent({
+  connect: {
+    // Node по умолчанию не знает НУЦ Минцифры, которым подписан platform-api2.max.ru.
+    ca: [...tls.rootCertificates, RUSSIAN_TRUSTED_ROOT_CA_PEM, RUSSIAN_TRUSTED_SUB_CA_PEM],
+  },
+});
 
 export function describeMaxFetchError(error: unknown): string {
   if (!(error instanceof Error)) {
@@ -38,7 +49,7 @@ export function describeMaxFetchError(error: unknown): string {
     return [
       "Сервер не может подключиться к MAX API (platform-api2.max.ru).",
       causeMessage ? `Причина: ${causeMessage}` : "",
-      "Проверьте интернет на VPS. Для MAX зарубежный TELEGRAM_PROXY_URL обычно не нужен.",
+      "Нужен прямой выход на max.ru без зарубежного прокси.",
     ]
       .filter(Boolean)
       .join(" ");
@@ -70,7 +81,7 @@ export async function callMaxApi<T = unknown>(params: {
   const timeout = setTimeout(() => controller.abort(), MAX_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
+    const response = await undiciFetch(url, {
       method: params.method,
       headers: {
         Authorization: params.token,
@@ -78,6 +89,7 @@ export async function callMaxApi<T = unknown>(params: {
       },
       body: params.body !== undefined ? JSON.stringify(params.body) : undefined,
       signal: controller.signal,
+      dispatcher: maxAgent,
     });
 
     const raw = await response.text();
