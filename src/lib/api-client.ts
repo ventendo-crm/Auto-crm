@@ -6,6 +6,7 @@ import {
   ClientPortalDeal,
   CompanyListItem,
   CompanyTelegramBotSettings,
+  CompanyMaxBotSettings,
   CompanyGoogleCalendarSettings,
   DashboardData,
   DealDetail,
@@ -92,6 +93,16 @@ export const api = {
     unlinkTelegram: () => request<User>("/api/auth/telegram", { method: "DELETE" }),
     testTelegram: () =>
       request<{ delivered: boolean; chatId: string }>("/api/auth/telegram/test", {
+        method: "POST",
+      }),
+    linkMax: (maxUserId: string) =>
+      request<User>("/api/auth/max", {
+        method: "PATCH",
+        body: JSON.stringify({ maxUserId }),
+      }),
+    unlinkMax: () => request<User>("/api/auth/max", { method: "DELETE" }),
+    testMax: () =>
+      request<{ delivered: boolean; userId: string }>("/api/auth/max/test", {
         method: "POST",
       }),
     changePassword: (currentPassword: string, newPassword: string) =>
@@ -285,6 +296,13 @@ export const api = {
           telegramChatId: string | null;
           expiresAt: string;
         } | null;
+        maxInvite: {
+          inviteUrl: string;
+          botUsername: string;
+          maxLinked: boolean;
+          maxUserId: string | null;
+          expiresAt: string;
+        } | null;
       }>(`/api/deals/${dealId}/client-account`, {
         method: "POST",
         body: JSON.stringify(data),
@@ -305,6 +323,24 @@ export const api = {
         telegramChatId: string | null;
         expiresAt: string;
       }>(`/api/deals/${dealId}/client-account/telegram-invite`, {
+        method: "POST",
+      }),
+    getMaxInvite: (dealId: string) =>
+      request<{
+        inviteUrl: string;
+        botUsername: string;
+        maxLinked: boolean;
+        maxUserId: string | null;
+        expiresAt: string;
+      }>(`/api/deals/${dealId}/client-account/max-invite`),
+    refreshMaxInvite: (dealId: string) =>
+      request<{
+        inviteUrl: string;
+        botUsername: string;
+        maxLinked: boolean;
+        maxUserId: string | null;
+        expiresAt: string;
+      }>(`/api/deals/${dealId}/client-account/max-invite`, {
         method: "POST",
       }),
     unlinkClientAccount: async (dealId: string) => {
@@ -688,6 +724,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ token }),
       }),
+    sendToMax: (token: string) =>
+      request<{ delivered: boolean }>("/api/calculator/offers/max", {
+        method: "POST",
+        body: JSON.stringify({ token }),
+      }),
   },
 
   calculatorExpenseTemplate: {
@@ -1038,6 +1079,19 @@ export const api = {
       request<{ message: string }>("/api/help/feedback", {
         method: "POST",
         body: JSON.stringify(data),
+      }),
+  },
+
+  max: {
+    getBotSettings: () => request<CompanyMaxBotSettings>("/api/max/bot-settings"),
+    connectBot: (data: { token: string }) =>
+      request<CompanyMaxBotSettings>("/api/max/bot-settings", {
+        method: "PUT",
+        body: JSON.stringify(data),
+      }),
+    disconnectBot: () =>
+      request<CompanyMaxBotSettings>("/api/max/bot-settings", {
+        method: "DELETE",
       }),
   },
 

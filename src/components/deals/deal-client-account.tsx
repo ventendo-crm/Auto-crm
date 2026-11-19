@@ -34,6 +34,14 @@ interface TelegramInvite {
   expiresAt: string;
 }
 
+interface MaxInvite {
+  inviteUrl: string;
+  botUsername: string;
+  maxLinked: boolean;
+  maxUserId: string | null;
+  expiresAt: string;
+}
+
 export function DealClientAccount({ deal, canManage = false, onUpdated }: DealClientAccountProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -42,6 +50,10 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
   const [inviteLoading, setInviteLoading] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [maxInvite, setMaxInvite] = useState<MaxInvite | null>(null);
+  const [maxInviteLoading, setMaxInviteLoading] = useState(false);
+  const [maxInviteError, setMaxInviteError] = useState<string | null>(null);
+  const [copiedMax, setCopiedMax] = useState(false);
   const [form, setForm] = useState({
     name: deal.clientName,
     email: deal.email ?? "",
@@ -62,26 +74,46 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
     }
   }, [canManage, deal.clientUser, deal.id]);
 
+  const loadMaxInvite = useCallback(async () => {
+    if (!deal.clientUser || !canManage) return;
+    setMaxInviteLoading(true);
+    setMaxInviteError(null);
+    try {
+      setMaxInvite(await api.deals.getMaxInvite(deal.id));
+    } catch (err) {
+      setMaxInvite(null);
+      setMaxInviteError(err instanceof Error ? err.message : "Не удалось получить ссылку");
+    } finally {
+      setMaxInviteLoading(false);
+    }
+  }, [canManage, deal.clientUser, deal.id]);
+
   useEffect(() => {
     void loadInvite();
   }, [loadInvite]);
 
-  // Пока Telegram не привязан — периодически обновляем статус (клиент мог нажать Start)
+  useEffect(() => {
+    void loadMaxInvite();
+  }, [loadMaxInvite]);
+
+  const telegramLinked = Boolean(
+    deal.clientUser?.telegramChatId || invite?.telegramLinked || invite?.telegramChatId,
+  );
+  const linkedChatId = invite?.telegramChatId || deal.clientUser?.telegramChatId || null;
+  const maxLinked = Boolean(deal.clientUser?.maxUserId || maxInvite?.maxLinked || maxInvite?.maxUserId);
+  const linkedMaxUserId = maxInvite?.maxUserId || deal.clientUser?.maxUserId || null;
+
   useEffect(() => {
     if (!deal.clientUser || !canManage) return;
-    if (invite?.telegramLinked || deal.clientUser.telegramChatId) return;
+    if (telegramLinked && maxLinked) return;
 
     const timer = window.setInterval(() => {
-      void loadInvite();
+      if (!telegramLinked) void loadInvite();
+      if (!maxLinked) void loadMaxInvite();
     }, 5000);
 
     return () => window.clearInterval(timer);
-  }, [
-    canManage,
-    deal.clientUser,
-    invite?.telegramLinked,
-    loadInvite,
-  ]);
+  }, [canManage, deal.clientUser, loadInvite, loadMaxInvite, maxLinked, telegramLinked]);
 
   const handleCreate = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -101,6 +133,9 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
         } catch {
           // clipboard may be blocked
         }
+      }
+      if (result.maxInvite) {
+        setMaxInvite(result.maxInvite);
       }
       setOpen(false);
       setForm((current) => ({ ...current, password: "" }));
@@ -122,6 +157,7 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
       await api.deals.unlinkClientAccount(deal.id);
       toast.success("Личный кабинет отвязан");
       setInvite(null);
+      setMaxInvite(null);
       onUpdated?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Не удалось отвязать кабинет");
@@ -142,12 +178,25 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
     }
   };
 
+  const handleCopyMax = async () => {
+    if (!maxInvite?.inviteUrl) return;
+    try {
+      await navigator.clipboard.writeText(maxInvite.inviteUrl);
+      setCopiedMax(true);
+      toast.success("Ссылка скопирована");
+      setTimeout(() => setCopiedMax(false), 1500);
+    } catch {
+      toast.error("Не удалось скопировать ссылку");
+    }
+  };
+
   const handleRefreshInvite = async () => {
     setInviteLoading(true);
     setInviteError(null);
     try {
       setInvite(await api.deals.refreshTelegramInvite(deal.id));
       toast.success("Новая ссылка создана");
+      void loadMaxInvite();
     } catch (err) {
       setInviteError(err instanceof Error ? err.message : "Не удалось обновить ссылку");
     } finally {
@@ -155,10 +204,19 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
     }
   };
 
-  const telegramLinked = Boolean(
-    deal.clientUser?.telegramChatId || invite?.telegramLinked || invite?.telegramChatId,
-  );
-  const linkedChatId = invite?.telegramChatId || deal.clientUser?.telegramChatId || null;
+  const handleRefreshMaxInvite = async () => {
+    setMaxInviteLoading(true);
+    setMaxInviteError(null);
+    try {
+      setMaxInvite(await api.deals.refreshMaxInvite(deal.id));
+      toast.success("Новая ссылка создана");
+      void loadInvite();
+    } catch (err) {
+      setMaxInviteError(err instanceof Error ? err.message : "Не удалось обновить ссылку");
+    } finally {
+      setMaxInviteLoading(false);
+    }
+  };
 
   return (
     <Card className="border-0 shadow-card">
@@ -186,11 +244,21 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
                   ) : (
                     <Badge variant="secondary">Telegram не привязан</Badge>
                   )}
+                  {maxLinked ? (
+                    <Badge variant="brand">MAX привязан</Badge>
+                  ) : (
+                    <Badge variant="secondary">MAX не привязан</Badge>
+                  )}
                 </div>
                 <p className="mt-1 text-sm text-muted-foreground">{deal.clientUser.email}</p>
                 {linkedChatId && (
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Chat ID: <code className="rounded bg-muted px-1">{linkedChatId}</code>
+                    Telegram Chat ID: <code className="rounded bg-muted px-1">{linkedChatId}</code>
+                  </p>
+                )}
+                {linkedMaxUserId && (
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    MAX ID: <code className="rounded bg-muted px-1">{linkedMaxUserId}</code>
                   </p>
                 )}
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -218,90 +286,33 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
             </div>
 
             {canManage && (
-              <div className="mt-4 space-y-2 rounded-md border bg-muted/30 p-3">
-                <div className="flex items-center gap-2 text-sm font-medium">
-                  <Send className="h-4 w-4" />
-                  Приглашение в Telegram
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Отправьте клиенту ссылку. Он нажмёт Start — и уведомления по этой сделке
-                  включатся автоматически.
-                </p>
-
-                {inviteLoading && !invite ? (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Готовим ссылку…
-                  </div>
-                ) : invite ? (
-                  <>
-                    {telegramLinked && linkedChatId ? (
-                      <p className="text-sm">
-                        Привязан Chat ID:{" "}
-                        <code className="rounded bg-muted px-1">{linkedChatId}</code>
-                      </p>
-                    ) : null}
-                    {invite.inviteUrl ? (
-                      <>
-                        <Input readOnly value={invite.inviteUrl} className="font-mono text-xs" />
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="brand"
-                            onClick={() => void handleCopy()}
-                          >
-                            {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                            Копировать
-                          </Button>
-                          <Button type="button" size="sm" variant="outline" asChild>
-                            <a href={invite.inviteUrl} target="_blank" rel="noreferrer">
-                              Открыть
-                            </a>
-                          </Button>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={inviteLoading}
-                            onClick={() => void handleRefreshInvite()}
-                          >
-                            {inviteLoading ? (
-                              <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-4 w-4" />
-                            )}
-                            Новая ссылка
-                          </Button>
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          Действует до {formatDateTime(invite.expiresAt)} · @{invite.botUsername}
-                        </p>
-                      </>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={inviteLoading}
-                          onClick={() => void handleRefreshInvite()}
-                        >
-                          {inviteLoading ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-4 w-4" />
-                          )}
-                          Выпустить ссылку снова
-                        </Button>
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <p className="text-sm text-muted-foreground">
-                    {inviteError ?? "Не удалось получить ссылку"}
-                  </p>
-                )}
+              <div className="mt-4 space-y-3">
+                <MessengerInviteBlock
+                  title="Приглашение в Telegram"
+                  description="Отправьте клиенту ссылку. Он нажмёт Start — и уведомления по этой сделке включатся в Telegram."
+                  loading={inviteLoading}
+                  invite={invite}
+                  linked={telegramLinked}
+                  linkedId={linkedChatId}
+                  linkedIdLabel="Привязан Chat ID"
+                  error={inviteError}
+                  copied={copied}
+                  onCopy={() => void handleCopy()}
+                  onRefresh={() => void handleRefreshInvite()}
+                />
+                <MessengerInviteBlock
+                  title="Приглашение в MAX"
+                  description="Отправьте клиенту ссылку. Он нажмёт Start — и уведомления по этой сделке включатся в MAX."
+                  loading={maxInviteLoading}
+                  invite={maxInvite}
+                  linked={maxLinked}
+                  linkedId={linkedMaxUserId}
+                  linkedIdLabel="Привязан MAX ID"
+                  error={maxInviteError}
+                  copied={copiedMax}
+                  onCopy={() => void handleCopyMax()}
+                  onRefresh={() => void handleRefreshMaxInvite()}
+                />
               </div>
             )}
 
@@ -321,7 +332,7 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
               <DialogHeader>
                 <DialogTitle>Личный кабинет клиента</DialogTitle>
                 <DialogDescription>
-                  Укажите данные для входа. После создания появится ссылка для Telegram.
+                  Укажите данные для входа. После создания появятся ссылки для Telegram и MAX.
                 </DialogDescription>
               </DialogHeader>
 
@@ -380,5 +391,96 @@ export function DealClientAccount({ deal, canManage = false, onUpdated }: DealCl
         )}
       </CardContent>
     </Card>
+  );
+}
+
+function MessengerInviteBlock({
+  title,
+  description,
+  loading,
+  invite,
+  linked,
+  linkedId,
+  linkedIdLabel,
+  error,
+  copied,
+  onCopy,
+  onRefresh,
+}: {
+  title: string;
+  description: string;
+  loading: boolean;
+  invite: { inviteUrl: string; botUsername: string; expiresAt: string } | null;
+  linked: boolean;
+  linkedId: string | null;
+  linkedIdLabel: string;
+  error: string | null;
+  copied: boolean;
+  onCopy: () => void;
+  onRefresh: () => void;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border bg-muted/30 p-3">
+      <div className="flex items-center gap-2 text-sm font-medium">
+        <Send className="h-4 w-4" />
+        {title}
+      </div>
+      <p className="text-xs text-muted-foreground">{description}</p>
+
+      {loading && !invite ? (
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          Готовим ссылку…
+        </div>
+      ) : invite ? (
+        <>
+          {linked && linkedId ? (
+            <p className="text-sm">
+              {linkedIdLabel}: <code className="rounded bg-muted px-1">{linkedId}</code>
+            </p>
+          ) : null}
+          {invite.inviteUrl ? (
+            <>
+              <Input readOnly value={invite.inviteUrl} className="font-mono text-xs" />
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" size="sm" variant="brand" onClick={onCopy}>
+                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                  Копировать
+                </Button>
+                <Button type="button" size="sm" variant="outline" asChild>
+                  <a href={invite.inviteUrl} target="_blank" rel="noreferrer">
+                    Открыть
+                  </a>
+                </Button>
+                <Button type="button" size="sm" variant="outline" disabled={loading} onClick={onRefresh}>
+                  {loading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4" />
+                  )}
+                  Новая ссылка
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Действует до {formatDateTime(invite.expiresAt)} · @{invite.botUsername}
+              </p>
+            </>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" disabled={loading} onClick={onRefresh}>
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Выпустить ссылку снова
+              </Button>
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="text-sm text-muted-foreground">{error ?? "Не удалось получить ссылку"}</p>
+      )}
+    </div>
   );
 }

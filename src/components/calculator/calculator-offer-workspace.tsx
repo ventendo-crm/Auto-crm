@@ -231,6 +231,7 @@ export function CalculatorOfferWorkspace() {
   const [createdLink, setCreatedLink] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [sendingTelegram, setSendingTelegram] = useState(false);
+  const [sendingMax, setSendingMax] = useState(false);
   const [pastingPhotos, setPastingPhotos] = useState(false);
   const busy = sharing || switching;
   const activeIdRef = useRef(activeId);
@@ -653,6 +654,25 @@ export function CalculatorOfferWorkspace() {
     }
   };
 
+  const handleSendToMax = async () => {
+    if (!createdToken) {
+      toast.error("Сначала создайте ссылку");
+      return;
+    }
+    setSendingMax(true);
+    try {
+      await api.calculatorOffers.sendToMax(createdToken);
+      toast.success("Отправлено в MAX", {
+        description: "Сообщение пришло в бот уведомлений. Перешлите его клиенту из чата с ботом.",
+        duration: 7000,
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Не удалось отправить в MAX");
+    } finally {
+      setSendingMax(false);
+    }
+  };
+
   const toastCreatedLink = (itemCount = filledCount) => {
     toast.success(itemCount > 1 ? "Ссылка на подборку создана" : "Ссылка создана", {
       description: "Скопирована в буфер, действует 30 дней.",
@@ -950,6 +970,20 @@ export function CalculatorOfferWorkspace() {
                   <Send className="h-3.5 w-3.5" />
                 )}
                 Отправить в Telegram
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="brand"
+                disabled={sendingMax}
+                onClick={() => void handleSendToMax()}
+              >
+                {sendingMax ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Send className="h-3.5 w-3.5" />
+                )}
+                Отправить в МАКС
               </Button>
             </div>
           </div>

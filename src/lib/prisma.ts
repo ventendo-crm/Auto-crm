@@ -2,7 +2,7 @@ import "server-only";
 import { PrismaClient } from "@prisma/client";
 
 // Увеличивайте при изменении prisma/schema.prisma, чтобы dev-сервер подхватил новый клиент.
-const PRISMA_SCHEMA_VERSION = 15;
+const PRISMA_SCHEMA_VERSION = 16;
 
 const globalForPrisma = globalThis as unknown as {
   prisma?: PrismaClient;
@@ -21,6 +21,16 @@ const STAGE_REMINDER_COLUMN_SQL = [
 const TASK_REMINDER_NOTIFY_SQL = [
   `ALTER TABLE "reminders" ADD COLUMN IF NOT EXISTS "notifiedAt" TIMESTAMP(3)`,
   `CREATE INDEX IF NOT EXISTS "reminders_completed_notifiedAt_idx" ON "reminders"("completed", "notifiedAt")`,
+];
+
+const MAX_BOT_COLUMN_SQL = [
+  `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "maxBotToken" TEXT`,
+  `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "maxBotId" TEXT`,
+  `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "maxBotUsername" TEXT`,
+  `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "maxBotName" TEXT`,
+  `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "maxWebhookSecret" TEXT`,
+  `ALTER TABLE "companies" ADD COLUMN IF NOT EXISTS "maxConnectedAt" TIMESTAMP(3)`,
+  `ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "maxUserId" TEXT`,
 ];
 
 function ensureStageReminderColumns(client: PrismaClient): Promise<void> {
@@ -58,6 +68,24 @@ function ensureOfferEquipmentGroupsColumn(client: PrismaClient): Promise<void> {
       });
   }
   return state.offerEquipmentGroupsColumn;
+}
+
+function ensureMaxBotColumns(client: PrismaClient): Promise<void> {
+  const state = globalForPrisma as typeof globalForPrisma & {
+    maxBotColumns?: Promise<void>;
+  };
+  if (!state.maxBotColumns) {
+    state.maxBotColumns = (async () => {
+      for (const sql of MAX_BOT_COLUMN_SQL) {
+        await client.$executeRawUnsafe(sql);
+      }
+    })().catch((error) => {
+      state.maxBotColumns = undefined;
+      console.error("[auto-crm] failed to add MAX bot columns:", error);
+      throw error;
+    });
+  }
+  return state.maxBotColumns;
 }
 
 function ensureTaskReminderNotifyColumn(client: PrismaClient): Promise<void> {
@@ -101,6 +129,18 @@ function createPrismaClient() {
       companyWorkspaceSettings: {
         async $allOperations({ args, query }) {
           await ensureOfferEquipmentGroupsColumn(base);
+          return query(args);
+        },
+      },
+      company: {
+        async $allOperations({ args, query }) {
+          await ensureMaxBotColumns(base);
+          return query(args);
+        },
+      },
+      user: {
+        async $allOperations({ args, query }) {
+          await ensureMaxBotColumns(base);
           return query(args);
         },
       },

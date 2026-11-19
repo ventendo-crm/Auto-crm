@@ -4,6 +4,7 @@ import {
   formatWelcomeMessage,
   sendTelegramMessageWithToken,
 } from "@/lib/telegram/bot";
+import { linkClientByInviteToken } from "@/lib/services/client-account";
 
 interface TelegramUpdate {
   message?: {
@@ -68,67 +69,38 @@ export async function POST(
     const payload = start.payload;
 
     if (payload.startsWith("link_")) {
-      const linkToken = payload.slice("link_".length).trim();
-      if (!linkToken) {
-        await send("Ссылка приглашения неполная. Попросите менеджера прислать новую.");
-        return NextResponse.json({ ok: true });
-      }
-
-      const user = await prisma.user.findFirst({
-        where: {
-          companyId: company.id,
-          telegramLinkToken: linkToken,
-        },
-        select: {
-          id: true,
-          name: true,
-          telegramChatId: true,
-          telegramLinkTokenExpiresAt: true,
-        },
+      const result = await linkClientByInviteToken({
+        companyId: company.id,
+        linkToken: payload.slice("link_".length),
+        messenger: "telegram",
+        messengerUserId: chatId,
       });
 
-      if (!user) {
-        // Возможно, ссылка уже использована этим же чатом
-        const alreadyLinked = await prisma.user.findFirst({
-          where: { companyId: company.id, telegramChatId: chatId },
-          select: { id: true, name: true },
-        });
-        if (alreadyLinked) {
-          await send(
-            `✅ Аккаунт <b>${alreadyLinked.name}</b> уже привязан к этому Telegram.\nУведомления включены.`,
-          );
-          return NextResponse.json({ ok: true });
-        }
-
-        await send("Ссылка приглашения недействительна. Попросите менеджера прислать новую.");
+      if (!result.ok) {
+        await send(
+          result.reason === "expired"
+            ? "Срок действия ссылки истёк. Попросите менеджера прислать новую."
+            : result.reason === "empty"
+              ? "Ссылка приглашения неполная. Попросите менеджера прислать новую."
+              : "Ссылка приглашения недействительна. Попросите менеджера прислать новую.",
+        );
         return NextResponse.json({ ok: true });
       }
-
-      if (user.telegramLinkTokenExpiresAt && user.telegramLinkTokenExpiresAt < new Date()) {
-        await send("Срок действия ссылки истёк. Попросите менеджера прислать новую.");
-        return NextResponse.json({ ok: true });
-      }
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          telegramChatId: chatId,
-          telegramLinkToken: null,
-          telegramLinkTokenExpiresAt: null,
-        },
-      });
 
       console.info(
         "[telegram-webhook] linked user",
-        user.id,
+        result.name,
         "chatId=",
         chatId,
         "companyId=",
         company.id,
+        result.already ? "already" : "new",
       );
 
       await send(
-        `✅ Аккаунт <b>${user.name}</b> привязан.\nУведомления по вашей сделке включены.`,
+        result.already
+          ? `✅ Аккаунт <b>${result.name}</b> уже привязан к этому Telegram.\nУведомления включены.`
+          : `✅ Аккаунт <b>${result.name}</b> привязан.\nУведомления по вашей сделке включены.`,
       );
       return NextResponse.json({ ok: true });
     }

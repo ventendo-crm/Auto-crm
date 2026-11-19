@@ -87,6 +87,7 @@ export async function POST(req: Request) {
       name: user.name,
       email: user.email,
       telegramChatId: user.telegramChatId,
+      maxUserId: user.maxUserId,
       createdAt: user.createdAt,
       companyId: user.companyId,
       isPlatformAdmin: user.isPlatformAdmin,
