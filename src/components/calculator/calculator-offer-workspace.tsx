@@ -1,6 +1,6 @@
 "use client";
 
-import { ClipboardPaste, Copy, ImagePlus, Link2, Loader2, Plus, RotateCcw, Send, Share2, X } from "lucide-react";
+import { ClipboardPaste, Copy, ImagePlus, Loader2, Plus, RotateCcw, Send, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -227,13 +227,12 @@ export function CalculatorOfferWorkspace() {
   const [variants, setVariants] = useState<OfferVariant[]>(() => [createVariant()]);
   const [activeId, setActiveId] = useState(() => variants[0]!.id);
   const [sharing, setSharing] = useState(false);
-  const [creatingLink, setCreatingLink] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [createdLink, setCreatedLink] = useState<string | null>(null);
   const [createdToken, setCreatedToken] = useState<string | null>(null);
   const [sendingTelegram, setSendingTelegram] = useState(false);
   const [pastingPhotos, setPastingPhotos] = useState(false);
-  const busy = sharing || creatingLink || switching;
+  const busy = sharing || switching;
   const activeIdRef = useRef(activeId);
   activeIdRef.current = activeId;
   const variantsRef = useRef(variants);
@@ -664,20 +663,6 @@ export function CalculatorOfferWorkspace() {
     });
   };
 
-  const handleCreateLink = async () => {
-    setCreatingLink(true);
-    try {
-      const list = await snapshotActive();
-      setVariants(list);
-      const { items } = await publishOfferLink(list);
-      toastCreatedLink(items.length);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Не удалось создать ссылку");
-    } finally {
-      setCreatingLink(false);
-    }
-  };
-
   const captionInput = {
     selectionTitle,
     itemCount: Math.max(filledCount, 1),
@@ -686,7 +671,7 @@ export function CalculatorOfferWorkspace() {
   };
 
   return (
-    <div className="space-y-6 pb-36 xl:pb-24">
+    <div className="space-y-6 pb-24">
       <Card className="border-0 shadow-card">
         <CardHeader className="pb-3">
           <CardTitle className="text-base">Подбор авто</CardTitle>
@@ -830,7 +815,6 @@ export function CalculatorOfferWorkspace() {
               onChange={(event) => updateActive({ mileageKm: parseOfferMileageKm(event.target.value) })}
               placeholder="49 000"
             />
-            <p className="text-xs text-muted-foreground">Клиенту покажется крупно, например 49 000 км.</p>
           </div>
 
           <div className="space-y-2">
@@ -979,16 +963,6 @@ export function CalculatorOfferWorkspace() {
         >
           {sharing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
           Поделиться
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          className="h-12 w-full shadow-lg xl:hidden"
-          disabled={busy}
-          onClick={() => void handleCreateLink()}
-        >
-          {creatingLink ? <Loader2 className="h-4 w-4 animate-spin" /> : <Link2 className="h-4 w-4" />}
-          Создать ссылку
         </Button>
       </div>
     </div>
