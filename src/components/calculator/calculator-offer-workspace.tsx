@@ -815,7 +815,6 @@ export function CalculatorOfferWorkspace() {
               onChange={(event) => updateActive({ mileageKm: parseOfferMileageKm(event.target.value) })}
               placeholder="49 000"
             />
-            <p className="text-xs text-muted-foreground">Клиенту покажется крупно, например 49 000 км.</p>
           </div>
 
           <div className="space-y-2">
