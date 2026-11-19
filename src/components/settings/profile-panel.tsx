@@ -18,8 +18,11 @@ export function ProfilePanel() {
   const { user, refresh } = useAuth();
   const browserPush = useBrowserNotifications();
   const [chatId, setChatId] = useState(user?.telegramChatId ?? "");
+  const [maxUserId, setMaxUserId] = useState(user?.maxUserId ?? "");
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [maxLoading, setMaxLoading] = useState(false);
+  const [maxTesting, setMaxTesting] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -38,6 +41,10 @@ export function ProfilePanel() {
   useEffect(() => {
     setChatId(user?.telegramChatId ?? "");
   }, [user?.telegramChatId]);
+
+  useEffect(() => {
+    setMaxUserId(user?.maxUserId ?? "");
+  }, [user?.maxUserId]);
 
   useEffect(() => {
     if (!canTestEmail) return;
@@ -79,6 +86,49 @@ export function ProfilePanel() {
       toast.error(err instanceof Error ? err.message : "Ошибка");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const saveMax = async () => {
+    if (!maxUserId.trim()) {
+      toast.error("Введите ID из MAX");
+      return;
+    }
+    setMaxLoading(true);
+    try {
+      await api.auth.linkMax(maxUserId.trim());
+      await refresh();
+      toast.success("MAX привязан");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Ошибка привязки MAX");
+    } finally {
+      setMaxLoading(false);
+    }
+  };
+
+  const unlinkMax = async () => {
+    setMaxLoading(true);
+    try {
+      await api.auth.unlinkMax();
+      setMaxUserId("");
+      await refresh();
+      toast.success("MAX отвязан");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Ошибка");
+    } finally {
+      setMaxLoading(false);
+    }
+  };
+
+  const testMax = async () => {
+    setMaxTesting(true);
+    try {
+      await api.auth.testMax();
+      toast.success("Тестовое сообщение отправлено в MAX");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Не удалось отправить тест");
+    } finally {
+      setMaxTesting(false);
     }
   };
 
@@ -199,6 +249,10 @@ export function ProfilePanel() {
           <div>
             <p className="text-xs text-muted-foreground">Telegram Chat ID</p>
             <p className="font-medium">{user.telegramChatId ?? "—"}</p>
+          </div>
+          <div>
+            <p className="text-xs text-muted-foreground">MAX ID</p>
+            <p className="font-medium">{user.maxUserId ?? "—"}</p>
           </div>
         </div>
 
@@ -339,6 +393,48 @@ export function ProfilePanel() {
                 </Button>
                 <Button variant="outline" size="sm" onClick={testTelegram} disabled={testing}>
                   {testing ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+                  Тест
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-3 rounded-lg border bg-muted/20 p-4">
+          <div>
+            <p className="text-sm font-medium">Уведомления в MAX</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              1. Напишите боту компании в MAX <code>/start</code> или{" "}
+              <code>/link ваш@email.com</code>
+              <br />
+              2. Скопируйте ID и сохраните ниже
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="max-user-id">ID в MAX</Label>
+            <Input
+              id="max-user-id"
+              placeholder="Например: 123456789"
+              value={maxUserId}
+              onChange={(e) => setMaxUserId(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Button variant="brand" size="sm" onClick={() => void saveMax()} disabled={maxLoading}>
+              {maxLoading ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
+              Привязать
+            </Button>
+            {user.maxUserId && (
+              <>
+                <Button variant="outline" size="sm" onClick={() => void unlinkMax()} disabled={maxLoading}>
+                  Отвязать
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => void testMax()} disabled={maxTesting}>
+                  {maxTesting ? <Loader2 className="animate-spin" /> : <Send className="h-4 w-4" />}
                   Тест
                 </Button>
               </>

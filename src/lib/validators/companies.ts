@@ -27,3 +27,7 @@ export const connectTelegramBotSchema = z.object({
   token: z.string().trim().min(20).max(200),
   defaultChatId: z.string().trim().max(64).optional().nullable(),
 });
+
+export const connectMaxBotSchema = z.object({
+  token: z.string().trim().min(16).max(256),
+});

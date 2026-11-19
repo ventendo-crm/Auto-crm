@@ -15,6 +15,11 @@ import {
 import { getClientStageMessage } from "@/lib/services/client-stage-messages";
 import { getCompanyStageLabels } from "@/lib/services/company-workspace";
 import {
+  getCompanyMaxConfig,
+  isCompanyMaxConfigured,
+  sendCompanyMaxMessages,
+} from "@/lib/max/bot";
+import {
   formatCarCarrierTrackingPointMessage,
   formatClientStageNotificationMessage,
   formatCommentMessage,
@@ -64,6 +69,14 @@ async function getUserTelegramChatId(userId: string): Promise<string | null> {
     select: { telegramChatId: true },
   });
   return user?.telegramChatId ?? null;
+}
+
+async function getUserMaxUserId(userId: string): Promise<string | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { maxUserId: true },
+  });
+  return user?.maxUserId ?? null;
 }
 
 async function resolveDealCompanyId(dealId: string): Promise<string | null> {
@@ -119,6 +132,46 @@ async function dispatchTelegramToUsers(params: {
   }
 }
 
+async function dispatchMaxToUsers(params: {
+  companyId: string;
+  userIds: string[];
+  text: string;
+}): Promise<void> {
+  const config = await getCompanyMaxConfig(params.companyId);
+  if (!isCompanyMaxConfigured(config) || !config.token) {
+    return;
+  }
+
+  const userIds = await Promise.all(params.userIds.map(getUserMaxUserId));
+  const unique = [...new Set(userIds.filter((id): id is string => Boolean(id?.trim())))];
+  if (unique.length === 0) {
+    return;
+  }
+
+  const results = await sendCompanyMaxMessages({
+    token: config.token,
+    userIds: unique,
+    text: params.text,
+  });
+  const failed = results.filter((result) => !result.ok);
+  if (failed.length > 0) {
+    console.error(
+      "[notifications] MAX delivery failed:",
+      failed.map((result) => `${result.userId}: ${result.error}`).join("; "),
+    );
+  }
+}
+
+async function dispatchMessengersToUsers(params: {
+  companyId: string;
+  userIds: string[];
+  text: string;
+  includeDefaultChatIds?: boolean;
+}): Promise<void> {
+  await dispatchTelegramToUsers(params);
+  await dispatchMaxToUsers(params);
+}
+
 export async function notifyStageChange(params: {
   dealId: string;
   clientName: string;
@@ -172,7 +225,7 @@ export async function notifyStageChange(params: {
     });
   }
 
-  await dispatchTelegramToUsers({
+  await dispatchMessengersToUsers({
     companyId,
     userIds: [...recipientIds],
     text: telegramText,
@@ -234,7 +287,7 @@ async function notifyClientStageChange(params: {
     vin: params.vin,
   });
 
-  await dispatchTelegramToUsers({
+  await dispatchMessengersToUsers({
     companyId: params.companyId,
     userIds: [params.clientUserId],
     text: telegramText,
@@ -471,7 +524,7 @@ async function notifyClientWithMedia(params: {
   }
 
   if (params.media.length === 0) {
-    await dispatchTelegramToUsers({
+    await dispatchMessengersToUsers({
       companyId: target.companyId,
       userIds: [target.clientUserId],
       text: params.telegramTextBeforeMedia ?? params.caption,
@@ -481,7 +534,7 @@ async function notifyClientWithMedia(params: {
   }
 
   if (params.telegramTextBeforeMedia?.trim()) {
-    await dispatchTelegramToUsers({
+    await dispatchMessengersToUsers({
       companyId: target.companyId,
       userIds: [target.clientUserId],
       text: params.telegramTextBeforeMedia,
@@ -502,7 +555,7 @@ async function notifyClientWithMedia(params: {
       result.chatId,
       result.error,
     );
-    await dispatchTelegramToUsers({
+    await dispatchMessengersToUsers({
       companyId: target.companyId,
       userIds: [target.clientUserId],
       text: params.telegramTextBeforeMedia ?? params.caption,
@@ -709,7 +762,7 @@ export async function notifyClientCarCarrierTrackingPointAdded(params: {
     recordedAt: params.recordedAt,
   });
 
-  await dispatchTelegramToUsers({
+  await dispatchMessengersToUsers({
     companyId: deal.companyId,
     userIds: [deal.clientUserId],
     text: telegramText,
@@ -800,7 +853,7 @@ export async function notifyCommentAdded(params: {
   }
 
   if (recipientIds.size > 0) {
-    await dispatchTelegramToUsers({
+    await dispatchMessengersToUsers({
       companyId,
       userIds: [...recipientIds],
       text: telegramText,

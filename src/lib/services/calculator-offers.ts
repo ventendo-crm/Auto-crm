@@ -33,6 +33,11 @@ import { prisma } from "@/lib/prisma";
 import { getCompanyWorkspaceSettings } from "@/lib/services/company-workspace";
 import { guessUploadContentType, localUploadsDir, uploadContentDisposition } from "@/lib/storage/local-uploads";
 import {
+  getCompanyMaxConfig,
+  isCompanyMaxConfigured,
+  sendMaxMessageWithToken,
+} from "@/lib/max/bot";
+import {
   getAppPublicUrl,
   getCompanyTelegramConfig,
   isCompanyTelegramConfigured,
@@ -409,7 +414,7 @@ function escapeTelegramHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-export async function sendCalculatorOfferToManagerTelegram(user: AuthUser, token: string) {
+async function loadOwnedOfferMeta(user: AuthUser, token: string): Promise<OfferMetaV2> {
   if (!isOfferShareToken(token)) {
     throw new Error("Подбор недоступен");
   }
@@ -428,10 +433,27 @@ export async function sendCalculatorOfferToManagerTelegram(user: AuthUser, token
   if (new Date(meta.expiresAt).getTime() <= Date.now()) {
     throw new Error("Ссылка истекла");
   }
+  return meta;
+}
+
+async function buildOfferShareCaption(user: AuthUser, token: string, meta: OfferMetaV2): Promise<string> {
+  const workspace = await getCompanyWorkspaceSettings(user.companyId);
+  const caption = buildSelectionLinkCaption({
+    selectionTitle: meta.selectionTitle,
+    itemCount: meta.items.length,
+    firstVehicleTitle: meta.items[0]?.vehicleTitle,
+    template: workspace.offerLinkCaptionTemplate,
+  });
+  const url = `${getAppPublicUrl()}${publicOfferPath(token)}`;
+  return `${caption}\n\n${url}`;
+}
+
+export async function sendCalculatorOfferToManagerTelegram(user: AuthUser, token: string) {
+  const meta = await loadOwnedOfferMeta(user, token);
 
   const config = await getCompanyTelegramConfig(user.companyId);
   if (!config.token || !isCompanyTelegramConfigured(config)) {
-    throw new Error("Telegram не настроен: привяжите бота компании в Настройки → Telegram");
+    throw new Error("Telegram не настроен: привяжите бота компании в Настройки → Мессенджеры");
   }
 
   const account = await prisma.user.findUnique({
@@ -451,12 +473,41 @@ export async function sendCalculatorOfferToManagerTelegram(user: AuthUser, token
     template: workspace.offerLinkCaptionTemplate,
   });
   const url = `${getAppPublicUrl()}${publicOfferPath(token)}`;
-  const text = `${escapeTelegramHtml(caption)}\n\n${url}`;
-  const delivered = await sendTelegramMessageWithToken(config.token, chatId, text, {
-    disableWebPagePreview: false,
-  });
+  const delivered = await sendTelegramMessageWithToken(
+    config.token,
+    chatId,
+    `${escapeTelegramHtml(caption)}\n\n${url}`,
+    { disableWebPagePreview: false },
+  );
   if (!delivered) {
     throw new Error("Не удалось отправить сообщение в Telegram");
+  }
+}
+
+export async function sendCalculatorOfferToManagerMax(user: AuthUser, token: string) {
+  const meta = await loadOwnedOfferMeta(user, token);
+
+  const config = await getCompanyMaxConfig(user.companyId);
+  if (!config.token || !isCompanyMaxConfigured(config)) {
+    throw new Error("MAX не настроен: привяжите бота компании в Настройки → Мессенджеры");
+  }
+
+  const account = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { maxUserId: true },
+  });
+  const maxUserId = account?.maxUserId?.trim();
+  if (!maxUserId) {
+    throw new Error("Сначала привяжите MAX в Настройки → Профиль");
+  }
+
+  const delivered = await sendMaxMessageWithToken(
+    config.token,
+    maxUserId,
+    await buildOfferShareCaption(user, token, meta),
+  );
+  if (!delivered) {
+    throw new Error("Не удалось отправить сообщение в MAX");
   }
 }
 

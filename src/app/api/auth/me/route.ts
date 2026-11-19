@@ -13,6 +13,7 @@ export const GET = withAuth(async (_request, { user }) => {
         name: true,
         email: true,
         telegramChatId: true,
+        maxUserId: true,
         createdAt: true,
         companyId: true,
         isPlatformAdmin: true,

@@ -18,6 +18,12 @@ model Company {
   telegramDefaultChatId  String?
   telegramWebhookSecret  String?
   telegramConnectedAt    DateTime?
+  maxBotToken            String?
+  maxBotId               String?
+  maxBotUsername         String?
+  maxBotName             String?
+  maxWebhookSecret       String?
+  maxConnectedAt         DateTime?
   createdAt              DateTime             @default(now())
   updatedAt              DateTime             @updatedAt
   users                  User[]
@@ -59,6 +65,7 @@ model User {
   telegramChatId    String?
   telegramLinkToken String?        @unique
   telegramLinkTokenExpiresAt DateTime?
+  maxUserId         String?
   passwordResetTokenHash     String?   @unique
   passwordResetTokenExpiresAt DateTime?
   createdAt         DateTime       @default(now())

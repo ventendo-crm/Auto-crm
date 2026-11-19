@@ -167,3 +167,29 @@ export function serializeCompanyBotSettings(company: {
       : null,
   };
 }
+
+export function serializeCompanyMaxBotSettings(company: {
+  id: string;
+  name: string;
+  slug: string;
+  maxBotToken: string | null;
+  maxBotId: string | null;
+  maxBotUsername: string | null;
+  maxBotName: string | null;
+  maxConnectedAt: Date | null;
+}) {
+  return {
+    companyId: company.id,
+    companyName: company.name,
+    companySlug: company.slug,
+    connected: Boolean(company.maxBotToken),
+    botId: company.maxBotId,
+    botUsername: company.maxBotUsername,
+    botName: company.maxBotName,
+    connectedAt: company.maxConnectedAt,
+    hasToken: Boolean(company.maxBotToken),
+    tokenMasked: company.maxBotToken
+      ? `${company.maxBotToken.slice(0, 8)}…${company.maxBotToken.slice(-4)}`
+      : null,
+  };
+}

@@ -17,6 +17,7 @@ export interface User {
   name: string;
   email: string;
   telegramChatId?: string | null;
+  maxUserId?: string | null;
   createdAt: string;
   companyId?: string;
   isPlatformAdmin?: boolean;
@@ -70,6 +71,19 @@ export interface CompanyTelegramBotSettings {
   botUsername: string | null;
   botName: string | null;
   defaultChatId: string | null;
+  connectedAt: string | null;
+  hasToken: boolean;
+  tokenMasked: string | null;
+}
+
+export interface CompanyMaxBotSettings {
+  companyId: string;
+  companyName: string;
+  companySlug: string;
+  connected: boolean;
+  botId: string | null;
+  botUsername: string | null;
+  botName: string | null;
   connectedAt: string | null;
   hasToken: boolean;
   tokenMasked: string | null;

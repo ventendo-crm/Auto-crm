@@ -16,6 +16,11 @@ import {
 import { getCompanyStageLabels } from "@/lib/services/company-workspace";
 import { canUserViewDeal } from "@/lib/services/deal-access";
 import { createNotification } from "@/lib/services/notifications";
+import {
+  getCompanyMaxConfig,
+  isCompanyMaxConfigured,
+  sendCompanyMaxMessages,
+} from "@/lib/max/bot";
 import { getAppPublicUrl, getCompanyTelegramConfig, isCompanyTelegramConfigured, sendCompanyTelegramMessages } from "@/lib/telegram/bot";
 import type { DealStageReminderInput } from "@/lib/validators/deal-stage-reminder";
 import type { AuthUser } from "@/lib/permissions";
@@ -69,7 +74,7 @@ async function loadAssignedManagers(deal: {
       companyId: deal.companyId,
       role: { name: ROLES.MANAGER },
     },
-    select: { id: true, name: true, telegramChatId: true },
+    select: { id: true, name: true, telegramChatId: true, maxUserId: true },
   });
 }
 
@@ -373,7 +378,36 @@ async function notifyAssignedManagers(input: {
     );
   }
 
-  return inApp > 0 || telegramOk > 0 ? "delivered" : "failed";
+  const maxUserIds = managers
+    .map((manager) => manager.maxUserId?.trim() || "")
+    .filter((id) => id.length > 0);
+
+  let maxOk = 0;
+  if (maxUserIds.length > 0) {
+    const maxConfig = await getCompanyMaxConfig(input.deal.companyId);
+    if (!isCompanyMaxConfigured(maxConfig) || !maxConfig.token) {
+      console.warn(
+        `[${input.logLabel}] MAX skipped: company bot token is not set`,
+        input.deal.companyId,
+      );
+    } else {
+      const results = await sendCompanyMaxMessages({
+        token: maxConfig.token,
+        userIds: maxUserIds,
+        text: input.html,
+      });
+      maxOk = results.filter((result) => result.ok).length;
+      const failed = results.filter((result) => !result.ok);
+      if (failed.length > 0) {
+        console.error(
+          `[${input.logLabel}] MAX delivery failed:`,
+          failed.map((result) => `${result.userId}: ${result.error}`).join("; "),
+        );
+      }
+    }
+  }
+
+  return inApp > 0 || telegramOk > 0 || maxOk > 0 ? "delivered" : "failed";
 }
 
 async function sendStageReminder(deal: {
